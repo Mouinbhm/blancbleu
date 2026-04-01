@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import PrivateRoute from "./components/PrivateRoute";
+import Layout from "./components/layout/Layout";
 
 // Pages
 import Login from "./pages/Login";
@@ -16,61 +17,27 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* ── Publique ───────────────────────────────────────── */}
+          {/* ── Publique ─────────────────────────────────────── */}
           <Route path="/login" element={<Login />} />
 
-          {/* ── Privées (protégées par JWT) ─────────────────────── */}
+          {/* ── Privées — toutes sous Layout (sidebar + topbar) ── */}
           <Route
-            path="/dashboard"
             element={
               <PrivateRoute>
-                <Dashboard />
+                <Layout />
               </PrivateRoute>
             }
-          />
-          <Route
-            path="/interventions"
-            element={
-              <PrivateRoute>
-                <Interventions />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/carte"
-            element={
-              <PrivateRoute>
-                <Carte />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/flotte"
-            element={
-              <PrivateRoute>
-                <Flotte />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/aide-ia"
-            element={
-              <PrivateRoute>
-                <AideIA />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/rapports"
-            element={
-              <PrivateRoute>
-                <Rapports />
-              </PrivateRoute>
-            }
-          />
+          >
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/interventions" element={<Interventions />} />
+            <Route path="/carte" element={<Carte />} />
+            <Route path="/flotte" element={<Flotte />} />
+            <Route path="/aide-ia" element={<AideIA />} />
+            <Route path="/rapports" element={<Rapports />} />
+          </Route>
 
-          {/* ── Redirection par défaut ──────────────────────────── */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* ── Redirections par défaut ──────────────────────── */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </AuthProvider>

@@ -6,38 +6,41 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const navigate = useNavigate();
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem("user");
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Vérifier le token au démarrage
+  // Au démarrage : vérifier si un token existe déjà
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) {
+    const saved = localStorage.getItem("user");
+
+    if (!token || !saved) {
       setLoading(false);
       return;
     }
-    authService
-      .me()
-      .then(({ data }) => {
-        setUser(data.user);
-        localStorage.setItem("user", JSON.stringify(data.user));
-      })
-      .catch(() => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        setUser(null);
-      })
-      .finally(() => setLoading(false));
+
+    // Restaurer l'user depuis localStorage immédiatement
+    try {
+      setUser(JSON.parse(saved));
+    } catch {
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const login = async (email, password) => {
     const { data } = await authService.login({ email, password });
+
+    // 1. Sauvegarder dans localStorage
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
+
+    // 2. Mettre à jour le state React immédiatement
     setUser(data.user);
+
+    // 3. Naviguer vers dashboard
     navigate("/dashboard");
   };
 

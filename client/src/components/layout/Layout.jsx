@@ -1,5 +1,6 @@
-import { Outlet, NavLink, useLocation } from "react-router-dom";
+import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useAuth } from "../../context/AuthContext";
 
 const navItems = [
   { path: "/dashboard", icon: "dashboard", label: "Tableau de bord" },
@@ -11,9 +12,8 @@ const navItems = [
   },
   { path: "/carte", icon: "map", label: "Carte en direct" },
   { path: "/flotte", icon: "ambulance", label: "Flotte & Ressources" },
-  { path: "/ia", icon: "psychology", label: "Aide IA" },
+  { path: "/aide-ia", icon: "psychology", label: "Aide IA" },
   { path: "/rapports", icon: "assessment", label: "Rapports" },
-  { path: "/parametres", icon: "settings", label: "Paramètres" },
 ];
 
 const pageTitles = {
@@ -21,12 +21,13 @@ const pageTitles = {
   "/interventions": "Interventions — Gestion des appels",
   "/carte": "Carte en direct — Vue opérationnelle",
   "/flotte": "Flotte & Ressources",
-  "/ia": "Aide à la décision — Intelligence Artificielle",
+  "/aide-ia": "Aide à la décision — Intelligence Artificielle",
   "/rapports": "Rapports Opérationnels",
 };
 
 export default function Layout() {
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [shiftTime, setShiftTime] = useState("06:24:11");
   const [notifOpen, setNotifOpen] = useState(false);
 
@@ -42,11 +43,14 @@ export default function Layout() {
     return () => clearInterval(iv);
   }, []);
 
+  const initials = user
+    ? `${user.prenom?.[0] ?? ""}${user.nom?.[0] ?? ""}`.toUpperCase()
+    : "??";
+
   return (
     <div className="flex min-h-screen bg-surface">
-      {/* ═══════════════ SIDEBAR ═══════════════ */}
+      {/* SIDEBAR */}
       <aside className="w-60 h-screen fixed left-0 top-0 bg-navy flex flex-col z-50 shadow-xl">
-        {/* Logo */}
         <div className="px-6 py-5 border-b border-white/10">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
@@ -66,7 +70,6 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
           <p className="text-xs font-mono text-slate-600 uppercase tracking-widest px-4 py-2">
             Principal
@@ -120,20 +123,26 @@ export default function Layout() {
           ))}
         </nav>
 
-        {/* Dispatcher */}
         <div className="px-4 pb-5 border-t border-white/10 pt-4 space-y-3">
           <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3 border border-white/10">
             <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-              KM
+              {initials}
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-white text-xs font-semibold truncate">
-                Karim Mansouri
+                {user ? `${user.prenom} ${user.nom}` : "Dispatcher"}
               </p>
               <p className="text-yellow-400 font-mono text-xs">
                 SHIFT: {shiftTime}
               </p>
             </div>
+            <button
+              onClick={logout}
+              title="Déconnexion"
+              className="text-slate-500 hover:text-red-400 transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">logout</span>
+            </button>
           </div>
           <div className="flex items-center gap-2 px-1">
             <span className="w-2 h-2 rounded-full bg-success animate-pulse flex-shrink-0" />
@@ -144,14 +153,12 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* ═══════════════ MAIN ═══════════════ */}
+      {/* MAIN */}
       <div className="flex-1 ml-60 flex flex-col min-h-screen">
-        {/* TOPBAR */}
         <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-40 flex items-center justify-between px-8 shadow-sm">
           <h1 className="font-brand font-semibold text-navy text-sm">
             {pageTitles[location.pathname] || "BlancBleu"}
           </h1>
-
           <div className="flex items-center gap-2 bg-surface rounded-lg border border-slate-200 px-3 py-2 w-56">
             <span className="material-symbols-outlined text-slate-400 text-lg">
               search
@@ -162,10 +169,14 @@ export default function Layout() {
               className="bg-transparent text-sm outline-none w-full text-slate-700 placeholder-slate-400"
             />
           </div>
-
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400 font-mono">
-              Mar 28 Jan 2025
+              {new Date().toLocaleDateString("fr-FR", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
             </span>
             <div className="relative">
               <button
@@ -178,7 +189,7 @@ export default function Layout() {
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger rounded-full border-2 border-white" />
               </button>
               {notifOpen && (
-                <div className="absolute right-0 top-11 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-50 fade-in">
+                <div className="absolute right-0 top-11 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-50">
                   <div className="p-4 border-b border-slate-100">
                     <p className="font-brand font-bold text-navy text-sm">
                       Notifications
@@ -212,13 +223,15 @@ export default function Layout() {
                 </div>
               )}
             </div>
-            <div className="w-9 h-9 rounded-lg bg-navy flex items-center justify-center text-white text-xs font-bold cursor-pointer hover:bg-primary transition-colors">
-              KM
+            <div
+              onClick={logout}
+              className="w-9 h-9 rounded-lg bg-navy flex items-center justify-center text-white text-xs font-bold cursor-pointer hover:bg-danger transition-colors"
+              title="Déconnexion"
+            >
+              {initials}
             </div>
           </div>
         </header>
-
-        {/* PAGE CONTENT */}
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
