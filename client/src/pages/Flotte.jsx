@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   unitService,
   personnelService,
@@ -25,6 +26,691 @@ const Spinner = () => (
     Chargement…
   </div>
 );
+
+// ─── Modal Voir Unité ─────────────────────────────────────────────────────────
+function ModalVoirUnite({ unite, onClose }) {
+  const statutColor = {
+    disponible: "bg-emerald-100 text-emerald-700",
+    en_mission: "bg-blue-100 text-blue-700",
+    maintenance: "bg-yellow-100 text-yellow-700",
+    indisponible: "bg-red-100 text-red-700",
+  };
+  const statutLabel = {
+    disponible: "Disponible",
+    en_mission: "En mission",
+    maintenance: "Maintenance",
+    indisponible: "Indisponible",
+  };
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        padding: "20px",
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: "16px",
+          width: "100%",
+          maxWidth: "500px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+          maxHeight: "90vh",
+          overflowY: "auto",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "20px 24px",
+            borderBottom: "1px solid #f1f5f9",
+            position: "sticky",
+            top: 0,
+            background: "#fff",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "10px",
+                background: "#EFF6FF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <span
+                className="material-symbols-outlined"
+                style={{ color: "#1D6EF5", fontSize: "22px" }}
+              >
+                ambulance
+              </span>
+            </div>
+            <div>
+              <h2
+                style={{ fontSize: "16px", fontWeight: 700, color: "#0f172a" }}
+              >
+                {unite.nom}
+              </h2>
+              <p style={{ fontSize: "12px", color: "#94a3b8" }}>
+                {unite.immatriculation} · {unite.type}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "8px",
+              border: "1px solid #e2e8f0",
+              background: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: "18px", color: "#94a3b8" }}
+            >
+              close
+            </span>
+          </button>
+        </div>
+        <div
+          style={{
+            padding: "24px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px",
+          }}
+        >
+          {[
+            { icon: "directions_car", label: "Type", val: unite.type },
+            {
+              icon: "badge",
+              label: "Immatriculation",
+              val: unite.immatriculation,
+            },
+            {
+              icon: "circle",
+              label: "Statut",
+              val: statutLabel[unite.statut] || unite.statut,
+            },
+            {
+              icon: "location_on",
+              label: "Position",
+              val: unite.position?.adresse || "—",
+            },
+            {
+              icon: "local_gas_station",
+              label: "Carburant",
+              val: `${unite.carburant || 0}%`,
+            },
+            {
+              icon: "speed",
+              label: "Kilométrage",
+              val: unite.kilometrage
+                ? `${unite.kilometrage.toLocaleString()} km`
+                : "—",
+            },
+            {
+              icon: "group",
+              label: "Équipage",
+              val:
+                unite.equipage?.length > 0
+                  ? unite.equipage.map((m) => `${m.nom} (${m.role})`).join(", ")
+                  : "Aucun",
+            },
+            { icon: "build", label: "Année", val: unite.annee || "—" },
+            { icon: "note", label: "Notes", val: unite.notes || "Aucune note" },
+          ].map((r) => (
+            <div
+              key={r.label}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "12px",
+                padding: "10px 0",
+                borderBottom: "1px solid #f8fafc",
+              }}
+            >
+              <span
+                className="material-symbols-outlined"
+                style={{
+                  fontSize: "18px",
+                  color: "#94a3b8",
+                  width: 20,
+                  marginTop: 1,
+                }}
+              >
+                {r.icon}
+              </span>
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: "#94a3b8",
+                  minWidth: "130px",
+                  paddingTop: 1,
+                }}
+              >
+                {r.label}
+              </span>
+              <span
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "#0f172a",
+                  flex: 1,
+                }}
+              >
+                {r.val}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div
+          style={{
+            padding: "16px 24px",
+            borderTop: "1px solid #f1f5f9",
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              padding: "10px 24px",
+              borderRadius: "8px",
+              border: "1px solid #e2e8f0",
+              background: "none",
+              cursor: "pointer",
+              fontSize: "13px",
+              fontWeight: 500,
+              color: "#64748b",
+            }}
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal Nouvelle Unité ─────────────────────────────────────────────────────
+function ModalNouvelleUnite({ onClose, onSaved }) {
+  const [form, setForm] = useState({
+    nom: "",
+    immatriculation: "",
+    type: "VSAV",
+    statut: "disponible",
+    annee: "",
+    kilometrage: "",
+    carburant: "100",
+    notes: "",
+    position: { adresse: "Base principale", lat: "48.8566", lng: "2.3522" },
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    if (name.startsWith("position.")) {
+      const key = name.split(".")[1];
+      setForm((prev) => ({
+        ...prev,
+        position: { ...prev.position, [key]: value },
+      }));
+    } else {
+      setForm((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.nom || !form.immatriculation) {
+      setError("Nom et immatriculation obligatoires.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const payload = {
+        ...form,
+        kilometrage: parseInt(form.kilometrage) || 0,
+        carburant: parseInt(form.carburant) || 100,
+        annee: parseInt(form.annee) || undefined,
+        position: {
+          ...form.position,
+          lat: parseFloat(form.position.lat),
+          lng: parseFloat(form.position.lng),
+        },
+      };
+      const { data } = await unitService.create(payload);
+      onSaved(data.unit);
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.message || "Erreur lors de la création.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        padding: "20px",
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: "16px",
+          width: "100%",
+          maxWidth: "540px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+          maxHeight: "90vh",
+          overflowY: "auto",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "20px 24px",
+            borderBottom: "1px solid #f1f5f9",
+            position: "sticky",
+            top: 0,
+            background: "#fff",
+            zIndex: 1,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "10px",
+                backgroundColor: "#EFF6FF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <span
+                className="material-symbols-outlined"
+                style={{ color: "#1D6EF5", fontSize: "20px" }}
+              >
+                add
+              </span>
+            </div>
+            <div>
+              <h2
+                style={{ fontSize: "16px", fontWeight: 700, color: "#0f172a" }}
+              >
+                Nouvelle unité
+              </h2>
+              <p style={{ fontSize: "12px", color: "#94a3b8" }}>
+                Ajouter un véhicule à la flotte
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "8px",
+              border: "1px solid #e2e8f0",
+              background: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: "18px", color: "#94a3b8" }}
+            >
+              close
+            </span>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div
+            style={{
+              padding: "24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+            }}
+          >
+            {error && (
+              <div
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  backgroundColor: "#FEF2F2",
+                  border: "1px solid #FCA5A5",
+                  color: "#DC2626",
+                  fontSize: "13px",
+                }}
+              >
+                ⚠ {error}
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "12px",
+              }}
+            >
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+              >
+                <label
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    color: "#64748b",
+                  }}
+                >
+                  Nom / ID *
+                </label>
+                <input
+                  name="nom"
+                  value={form.nom}
+                  onChange={handleChange}
+                  placeholder="VSAV-05"
+                  style={inputStyle}
+                  required
+                />
+              </div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+              >
+                <label
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    color: "#64748b",
+                  }}
+                >
+                  Immatriculation *
+                </label>
+                <input
+                  name="immatriculation"
+                  value={form.immatriculation}
+                  onChange={handleChange}
+                  placeholder="AB-123-CD"
+                  style={inputStyle}
+                  required
+                />
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "12px",
+              }}
+            >
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+              >
+                <label
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    color: "#64748b",
+                  }}
+                >
+                  Type
+                </label>
+                <select
+                  name="type"
+                  value={form.type}
+                  onChange={handleChange}
+                  style={inputStyle}
+                >
+                  {["VSAV", "SMUR", "VSL", "UMH", "Hélicoptère"].map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+              >
+                <label
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    color: "#64748b",
+                  }}
+                >
+                  Statut initial
+                </label>
+                <select
+                  name="statut"
+                  value={form.statut}
+                  onChange={handleChange}
+                  style={inputStyle}
+                >
+                  <option value="disponible">Disponible</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="indisponible">Indisponible</option>
+                </select>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: "12px",
+              }}
+            >
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+              >
+                <label
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    color: "#64748b",
+                  }}
+                >
+                  Année
+                </label>
+                <input
+                  name="annee"
+                  type="number"
+                  value={form.annee}
+                  onChange={handleChange}
+                  placeholder="2023"
+                  style={inputStyle}
+                />
+              </div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+              >
+                <label
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    color: "#64748b",
+                  }}
+                >
+                  Kilométrage
+                </label>
+                <input
+                  name="kilometrage"
+                  type="number"
+                  value={form.kilometrage}
+                  onChange={handleChange}
+                  placeholder="0"
+                  style={inputStyle}
+                />
+              </div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+              >
+                <label
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    color: "#64748b",
+                  }}
+                >
+                  Carburant %
+                </label>
+                <input
+                  name="carburant"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form.carburant}
+                  onChange={handleChange}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+            >
+              <label
+                style={{ fontSize: "12px", fontWeight: 500, color: "#64748b" }}
+              >
+                Adresse / Base
+              </label>
+              <input
+                name="position.adresse"
+                value={form.position.adresse}
+                onChange={handleChange}
+                placeholder="Base principale"
+                style={inputStyle}
+              />
+            </div>
+
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+            >
+              <label
+                style={{ fontSize: "12px", fontWeight: 500, color: "#64748b" }}
+              >
+                Notes
+              </label>
+              <textarea
+                name="notes"
+                value={form.notes}
+                onChange={handleChange}
+                rows={2}
+                placeholder="Informations complémentaires…"
+                style={{ ...inputStyle, resize: "vertical" }}
+              />
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "10px",
+              padding: "16px 24px",
+              borderTop: "1px solid #f1f5f9",
+            }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "8px",
+                border: "1px solid #e2e8f0",
+                background: "none",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 500,
+                color: "#64748b",
+              }}
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "8px",
+                background: saving ? "#93c5fd" : "#1D6EF5",
+                border: "none",
+                cursor: saving ? "not-allowed" : "pointer",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              {saving ? (
+                <>
+                  <span
+                    style={{
+                      width: 14,
+                      height: 14,
+                      border: "2px solid rgba(255,255,255,0.3)",
+                      borderTop: "2px solid #fff",
+                      borderRadius: "50%",
+                      animation: "spin .7s linear infinite",
+                      display: "inline-block",
+                    }}
+                  />{" "}
+                  Enregistrement…
+                </>
+              ) : (
+                <>
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: "16px" }}
+                  >
+                    check
+                  </span>{" "}
+                  Ajouter l'unité
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 // ─── Modal Ajout Personnel ────────────────────────────────────────────────────
 function ModalAjoutPersonnel({ units, onClose, onSaved }) {
@@ -1154,8 +1840,191 @@ function ModalModifierPersonnel({ membre, units, onClose, onSaved }) {
   );
 }
 
-// ─── Composant principal ──────────────────────────────────────────────────────
+// ─── Modal Désactiver Personnel ──────────────────────────────────────────────
+function ModalDesactiverPersonnel({ membre, onClose, onConfirm }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    await onConfirm();
+    setLoading(false);
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        padding: "20px",
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: "16px",
+          width: "100%",
+          maxWidth: "420px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        }}
+      >
+        {/* Header */}
+        <div style={{ padding: "24px 24px 0", textAlign: "center" }}>
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              backgroundColor: "#FEF2F2",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 16px",
+            }}
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: "28px", color: "#EF4444" }}
+            >
+              person_remove
+            </span>
+          </div>
+          <h2
+            style={{
+              fontSize: "17px",
+              fontWeight: 700,
+              color: "#0f172a",
+              marginBottom: "8px",
+            }}
+          >
+            Désactiver ce membre ?
+          </h2>
+          <p style={{ fontSize: "14px", color: "#64748b", lineHeight: 1.6 }}>
+            Vous êtes sur le point de désactiver{" "}
+            <strong style={{ color: "#0f172a" }}>
+              {membre.prenom} {membre.nom}
+            </strong>
+            .
+            <br />
+            Il ne sera plus visible dans la liste du personnel.
+          </p>
+        </div>
+
+        {/* Fiche résumé */}
+        <div
+          style={{
+            margin: "20px 24px",
+            padding: "14px 16px",
+            backgroundColor: "#f8fafc",
+            borderRadius: "10px",
+            border: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              backgroundColor: "#EFF6FF",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 700,
+              color: "#1D6EF5",
+              fontSize: "14px",
+              flexShrink: 0,
+            }}
+          >
+            {`${membre.prenom?.[0] || ""}${membre.nom?.[0] || ""}`.toUpperCase()}
+          </div>
+          <div>
+            <p style={{ fontSize: "14px", fontWeight: 600, color: "#0f172a" }}>
+              {membre.prenom} {membre.nom}
+            </p>
+            <p style={{ fontSize: "12px", color: "#94a3b8" }}>
+              {membre.role} · {membre.uniteAssignee?.nom || "Aucune unité"}
+            </p>
+          </div>
+        </div>
+
+        {/* Boutons */}
+        <div style={{ display: "flex", gap: "10px", padding: "0 24px 24px" }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "11px",
+              borderRadius: "10px",
+              border: "1px solid #e2e8f0",
+              background: "none",
+              cursor: "pointer",
+              fontSize: "14px",
+              fontWeight: 500,
+              color: "#64748b",
+            }}
+          >
+            Annuler
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={loading}
+            style={{
+              flex: 1,
+              padding: "11px",
+              borderRadius: "10px",
+              border: "none",
+              background: loading ? "#fca5a5" : "#EF4444",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+            }}
+          >
+            {loading ? (
+              <>
+                <span
+                  style={{
+                    width: 14,
+                    height: 14,
+                    border: "2px solid rgba(255,255,255,0.3)",
+                    borderTop: "2px solid #fff",
+                    borderRadius: "50%",
+                    animation: "spin .7s linear infinite",
+                    display: "inline-block",
+                  }}
+                />{" "}
+                Désactivation…
+              </>
+            ) : (
+              <>
+                <span
+                  className="material-symbols-outlined"
+                  style={{ fontSize: "16px" }}
+                >
+                  person_off
+                </span>{" "}
+                Désactiver
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 export default function Flotte() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState("Ambulances");
   const [filter, setFilter] = useState("Tous");
 
@@ -1170,6 +2039,9 @@ export default function Flotte() {
   const [showModalPersonnel, setShowModalPersonnel] = useState(false);
   const [membreVoir, setMembreVoir] = useState(null);
   const [membreModifier, setMembreModifier] = useState(null);
+  const [membreDesactiver, setMembreDesactiver] = useState(null);
+  const [showNouvelleUnite, setShowNouvelleUnite] = useState(false);
+  const [uniteVoir, setUniteVoir] = useState(null);
 
   const load = useCallback(async (t) => {
     setLoading(true);
@@ -1267,12 +2139,12 @@ export default function Flotte() {
   };
 
   const handlePersonnelDelete = async (id) => {
-    if (!window.confirm("Désactiver ce membre ?")) return;
     try {
       await personnelService.delete(id);
       setPersonnel((prev) => prev.filter((p) => p._id !== id));
+      setMembreDesactiver(null);
     } catch {
-      alert("Erreur suppression.");
+      alert("Erreur lors de la désactivation.");
     }
   };
 
@@ -1311,7 +2183,18 @@ export default function Flotte() {
 
   return (
     <div className="p-7 fade-in">
-      {/* Modals */}
+      {/* Modals Unités */}
+      {showNouvelleUnite && (
+        <ModalNouvelleUnite
+          onClose={() => setShowNouvelleUnite(false)}
+          onSaved={(u) => setUnits((prev) => [u, ...prev])}
+        />
+      )}
+      {uniteVoir && (
+        <ModalVoirUnite unite={uniteVoir} onClose={() => setUniteVoir(null)} />
+      )}
+
+      {/* Modals Personnel */}
       {showModalPersonnel && (
         <ModalAjoutPersonnel
           units={units}
@@ -1336,6 +2219,13 @@ export default function Flotte() {
           }}
         />
       )}
+      {membreDesactiver && (
+        <ModalDesactiverPersonnel
+          membre={membreDesactiver}
+          onClose={() => setMembreDesactiver(null)}
+          onConfirm={() => handlePersonnelDelete(membreDesactiver._id)}
+        />
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
@@ -1347,7 +2237,10 @@ export default function Flotte() {
             Gestion opérationnelle des unités de secours
           </p>
         </div>
-        <button className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-primary/20">
+        <button
+          onClick={() => setShowNouvelleUnite(true)}
+          className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-primary/20"
+        >
           <span className="material-symbols-outlined text-lg">add</span>Nouvelle
           Unité
         </button>
@@ -1503,6 +2396,7 @@ export default function Flotte() {
                         <div className="flex gap-1">
                           <button
                             title="Voir"
+                            onClick={() => setUniteVoir(u)}
                             className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-blue-50 hover:border-primary transition-all group"
                           >
                             <span className="material-symbols-outlined text-slate-400 text-sm group-hover:text-primary">
@@ -1510,7 +2404,8 @@ export default function Flotte() {
                             </span>
                           </button>
                           <button
-                            title="Carte"
+                            title="Voir sur la carte"
+                            onClick={() => navigate(`/carte?unitId=${u._id}`)}
                             className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-blue-50 hover:border-primary transition-all group"
                           >
                             <span className="material-symbols-outlined text-slate-400 text-sm group-hover:text-primary">
@@ -1559,7 +2454,47 @@ export default function Flotte() {
               <span className="text-xs text-slate-500">
                 Affichage de {filtered.length} sur {units.length} unités
               </span>
-              <button className="flex items-center gap-2 text-xs font-bold text-primary border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary hover:text-white transition-all">
+              <button
+                onClick={() => {
+                  const headers = [
+                    "ID",
+                    "Type",
+                    "Statut",
+                    "Adresse",
+                    "Équipage",
+                    "Carburant %",
+                    "Kilométrage",
+                  ];
+                  const rows = filtered.map((u) => [
+                    u.nom,
+                    u.type,
+                    u.statut === "disponible"
+                      ? "Disponible"
+                      : u.statut === "en_mission"
+                        ? "En mission"
+                        : u.statut === "maintenance"
+                          ? "Maintenance"
+                          : "Indisponible",
+                    u.position?.adresse || "",
+                    u.equipage?.length || 0,
+                    u.carburant || 0,
+                    u.kilometrage || 0,
+                  ]);
+                  const csv = [headers, ...rows]
+                    .map((r) => r.map((v) => `"${v}"`).join(","))
+                    .join("\n");
+                  const blob = new Blob(["\uFEFF" + csv], {
+                    type: "text/csv;charset=utf-8;",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `flotte-blancbleu-${new Date().toISOString().slice(0, 10)}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="flex items-center gap-2 text-xs font-bold text-primary border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary hover:text-white transition-all"
+              >
                 <span className="material-symbols-outlined text-sm">
                   download
                 </span>
@@ -1696,7 +2631,7 @@ export default function Flotte() {
                         </button>
                         <button
                           title="Désactiver"
-                          onClick={() => handlePersonnelDelete(p._id)}
+                          onClick={() => setMembreDesactiver(p)}
                           className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-red-50 hover:border-red-400 transition-all group"
                         >
                           <span className="material-symbols-outlined text-slate-400 text-sm group-hover:text-red-500">
