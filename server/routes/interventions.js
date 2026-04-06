@@ -11,7 +11,7 @@ const {
   unassignUnit,
   deleteIntervention,
   getStats,
-} = require("../controllers/InterventionController");
+} = require("../controllers/interventionController");
 
 // ─── Stats (avant /:id pour ne pas être capturé) ──────────────────────────────
 router.get("/stats", protect, getStats);
