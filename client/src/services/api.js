@@ -76,6 +76,7 @@ export const aiService = {
   analyzeAndSave: (data) => api.post("/ai/analyze-and-save", data),
   getOptions: () => api.get("/ai/options"),
   getRapport: (params = {}) => api.get("/ai/rapport", { params }),
+  getModelStatus: () => api.get("/ai/status"),
 };
 
 // ════════════════════════════════════════════════════════════════════════════

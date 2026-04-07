@@ -1,0 +1,109 @@
+{
+  "modele": "Random Forest",
+  "version": "3.0.0",
+  "accuracy": 63.39,
+  "balanced_accuracy": 63.13,
+  "f1_macro": 63.08,
+  "recall_p1": 60.87,
+  "cv_mean": 63.58,
+  "cv_std": 3.01,
+  "features_num": [
+    "age",
+    "sex",
+    "patients_number_per_hour",
+    "arrival_mode",
+    "injury",
+    "mental",
+    "pain",
+    "nrs_pain"
+  ],
+  "features_cat": [
+    "chief_complain"
+  ],
+  "classes": [
+    "P1",
+    "P2",
+    "P3"
+  ],
+  "chief_map": {
+    "chest": "douleur_thoracique",
+    "cardiac": "arret_cardiaque",
+    "heart": "arret_cardiaque",
+    "dyspnea": "detresse_resp",
+    "breath": "detresse_resp",
+    "respiratory": "detresse_resp",
+    "stroke": "avc",
+    "neuro": "avc",
+    "seizure": "avc",
+    "trauma": "traumatisme",
+    "injury": "traumatisme",
+    "accident": "accident_route",
+    "fall": "chute",
+    "burn": "brulure",
+    "poison": "intoxication",
+    "overdose": "intoxication",
+    "obstetric": "accouchement",
+    "abdominal": "malaise",
+    "fever": "malaise",
+    "syncope": "malaise",
+    "pain": "douleur",
+    "dizz": "malaise"
+  },
+  "comparaison": [
+    {
+      "nom": "Logistic Regression",
+      "accuracy": 53.54,
+      "bal_accuracy": 51.56,
+      "f1_macro": 50.66,
+      "recall_p1": 39.13
+    },
+    {
+      "nom": "Random Forest",
+      "accuracy": 63.39,
+      "bal_accuracy": 63.13,
+      "f1_macro": 63.08,
+      "recall_p1": 60.87
+    },
+    {
+      "nom": "Gradient Boosting",
+      "accuracy": 59.06,
+      "bal_accuracy": 56.32,
+      "f1_macro": 56.76,
+      "recall_p1": 47.83
+    }
+  ],
+  "top_features": [
+    {
+      "name": "chief_complain",
+      "importance": 0.215
+    },
+    {
+      "name": "age",
+      "importance": 0.1946
+    },
+    {
+      "name": "arrival_mode",
+      "importance": 0.125
+    },
+    {
+      "name": "patients_number_per_hour",
+      "importance": 0.1161
+    },
+    {
+      "name": "mental",
+      "importance": 0.0972
+    },
+    {
+      "name": "nrs_pain",
+      "importance": 0.0882
+    },
+    {
+      "name": "injury",
+      "importance": 0.0679
+    },
+    {
+      "name": "pain",
+      "importance": 0.0646
+    }
+  ]
+}

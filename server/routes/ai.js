@@ -1,8 +1,17 @@
 const express = require("express");
 const router = express.Router();
 const { protect } = require("../middleware/auth");
-const { analyzeIncident } = require("../controllers/aiController");
+const {
+  analyzeIntervention,
+  analyzeAndSave,
+  getOptions,
+  getModelStatus,
+} = require("../controllers/aiController");
 
-router.post("/analyze", protect, analyzeIncident);
+router.post("/analyze", protect, analyzeIntervention);
+router.post("/analyze-and-save", protect, analyzeAndSave);
+router.get("/options", protect, getOptions);
+router.get("/status", protect, getModelStatus);
 
 module.exports = router;
+

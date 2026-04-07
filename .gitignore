@@ -1,27 +1,53 @@
-
+# ── Node ──────────────────────────────────────────────
 node_modules/
 client/node_modules/
 server/node_modules/
 
-# Build
+# ── Build ─────────────────────────────────────────────
 client/build/
 client/.env.local
 client/.env
 
-# Environment variables
+# ── Variables d'environnement (SÉCURITÉ) ──────────────
 .env
 server/.env
+ai-model/.env
 
-# Logs
+# ── Logs ──────────────────────────────────────────────
 *.log
 npm-debug.log*
 yarn-debug.log*
 
-# OS files
+# ── OS ────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# React
+# ── React ─────────────────────────────────────────────
 client/src/reportWebVitals.js
 client/src/setupTests.js
 client/src/App.test.js
+
+# ── Python ────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+
+# ── Modèle ML (fichier lourd) ─────────────────────────
+ai-model/model/triage_model.pkl
+ai-model/model/evaluation.png
+
+# ── Datasets (données sensibles) ──────────────────────
+ai-model/data.csv
+ai-model/data_clean.csv
+
+# ── Jupyter checkpoints ───────────────────────────────
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# ── VS Code ───────────────────────────────────────────
+.vscode/

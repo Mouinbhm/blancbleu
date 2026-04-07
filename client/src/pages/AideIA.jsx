@@ -1,13 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { aiService, unitService } from "../services/api";
 
+// ─── Constantes ───────────────────────────────────────────────────────────────
 const TYPES = [
   "Arrêt cardiaque",
   "AVC",
-  "Accident route",
-  "Traumatisme",
+  "Accident de la route",
+  "Traumatisme grave",
+  "Détresse respiratoire",
+  "Douleur thoracique",
+  "Intoxication",
+  "Accouchement",
   "Malaise",
-  "Brûlures",
-  "Noyade",
+  "Brûlure",
+  "Chute",
+  "Autre",
 ];
 const SYMPTOMS = [
   "Douleurs thoraciques",
@@ -25,68 +33,115 @@ const ETAT = [
   { v: "inconnu", icon: "❓", label: "Inconnu" },
 ];
 
-function analyzeLocally(form) {
-  let score = 50;
-  const typeScores = {
-    "Arrêt cardiaque": 40,
-    AVC: 35,
-    "Accident route": 25,
-    Traumatisme: 20,
-    Malaise: 10,
-    Brûlures: 20,
-    Noyade: 30,
-  };
-  score += typeScores[form.type] || 15;
-  if (form.etat === "inconscient") score += 30;
-  else if (form.etat === "conscient") score += 5;
-  const critical = [
-    "Douleurs thoraciques",
-    "Difficultés respiratoires",
-    "Hémorragie",
-    "Perte de connaissance",
-  ];
-  score += form.symptoms.filter((s) => critical.includes(s)).length * 10;
-  score += Math.min((form.victims - 1) * 5, 20);
-  score = Math.min(score, 99);
-  const priority = score >= 80 ? 1 : score >= 55 ? 2 : 3;
-  const labels = { 1: "CRITIQUE", 2: "URGENT", 3: "STANDARD" };
-  const eta = `${Math.floor(Math.random() * 4) + 2} min ${Math.floor(Math.random() * 59)} sec`;
-  const risks = [];
-  if (form.type === "Arrêt cardiaque")
-    risks.push("Défibrillateur requis immédiatement");
-  if (form.symptoms.includes("Hémorragie"))
-    risks.push("Risque hémorragique élevé");
-  if (form.etat === "inconscient")
-    risks.push("Patient inconscient — risque vital");
-  if (form.victims > 1)
-    risks.push(`${form.victims} victimes — renfort recommandé`);
-  risks.push("Zone de trafic dense — itinéraire alternatif suggéré");
+// Mapping symptômes FR → EN pour le modèle ML
+const SYMPTOM_MAP = {
+  "Douleurs thoraciques": "chest pain",
+  "Difficultés respiratoires": "breath",
+  Hémorragie: "hemorrhage",
+  "Perte de connaissance": "syncope",
+  Convulsions: "seizure",
+  Paralysie: "paralysis",
+  Fractures: "fracture",
+  "Douleurs abdominales": "abdominal",
+};
+
+// Mapping état patient → mental score (pour le modèle ML KTAS)
+const ETAT_MENTAL = {
+  conscient: 1,
+  inconscient: 3,
+  inconnu: 2,
+};
+
+// ─── Couleurs par priorité ────────────────────────────────────────────────────
+function priorityStyle(p) {
+  if (p === "P1")
+    return {
+      border: "border-red-500",
+      text: "text-red-600",
+      bg: "bg-red-50/50",
+      icon: "🔴",
+      label: "PRIORITÉ 1 — CRITIQUE",
+    };
+  if (p === "P2")
+    return {
+      border: "border-yellow-500",
+      text: "text-yellow-600",
+      bg: "bg-yellow-50/50",
+      icon: "🟡",
+      label: "PRIORITÉ 2 — URGENT",
+    };
   return {
-    priority,
-    priorityLabel: `PRIORITÉ ${priority} — ${labels[priority]}`,
-    score: Math.round(score),
-    confidence: Math.round(85 + Math.random() * 10),
-    recommendedUnit: "AMB-03",
-    alternativeUnit: "AMB-07",
-    distanceKm: "2.1",
-    eta,
-    crew: "Dr. Moreau + Infirmier Diaz",
-    riskFactors: risks,
+    border: "border-blue-500",
+    text: "text-blue-600",
+    bg: "bg-blue-50/50",
+    icon: "🔵",
+    label: "PRIORITÉ 3 — STANDARD",
   };
 }
 
+// ─── Composant statut modèle ──────────────────────────────────────────────────
+function ModelStatus({ status }) {
+  if (!status) return null;
+  const ok = status.available && status.loaded;
+  return (
+    <div
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono font-bold ${
+        ok
+          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+          : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+      }`}
+    >
+      <span
+        className={`w-2 h-2 rounded-full ${ok ? "bg-emerald-500" : "bg-yellow-500"} animate-pulse`}
+      />
+      {ok ? `Modèle ML · ${status.accuracy}%` : "Fallback règles"}
+    </div>
+  );
+}
+
+// ─── Page principale ──────────────────────────────────────────────────────────
 export default function AideIA() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     type: "",
     etat: "",
     symptoms: [],
     address: "",
     victims: 1,
+    age: 40,
+    arrivalMode: "walk",
     notes: "",
   });
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState(1);
+  const [modelStatus, setModelStatus] = useState(null);
+  const [units, setUnits] = useState([]);
+  const [error, setError] = useState("");
+
+  // Vérifier statut du modèle ML au chargement
+  useEffect(() => {
+    // Statut du modèle via Express → Flask
+    aiService
+      .getModelStatus()
+      .then(({ data }) =>
+        setModelStatus({
+          available: data.available !== false,
+          loaded: data.loaded,
+          accuracy: data.accuracy,
+        }),
+      )
+      .catch(() =>
+        setModelStatus({ available: false, loaded: false, accuracy: null }),
+      );
+
+    // Unités disponibles
+    unitService
+      .getAll()
+      .then(({ data }) =>
+        setUnits(data.filter((u) => u.statut === "disponible")),
+      )
+      .catch(() => {});
+  }, []);
 
   const toggleSymptom = (s) =>
     setForm((f) => ({
@@ -98,69 +153,123 @@ export default function AideIA() {
 
   const handleAnalyze = async () => {
     if (!form.type) {
-      alert("Sélectionnez un type d'incident");
+      setError("Sélectionnez un type d'incident");
       return;
     }
     if (!form.etat) {
-      alert("Sélectionnez l'état du patient");
+      setError("Sélectionnez l'état du patient");
       return;
     }
+    setError("");
     setLoading(true);
     setResult(null);
-    await new Promise((r) => setTimeout(r, 1800));
-    setResult(analyzeLocally(form));
-    setLoading(false);
+
+    try {
+      // Construire le payload pour le modèle ML
+      const payload = {
+        typeIncident: form.type,
+        etatPatient: form.etat,
+        age: parseInt(form.age) || 40,
+        nbVictimes: form.victims,
+        arrivalMode: form.arrivalMode,
+        injury:
+          form.symptoms.includes("Fractures") ||
+          form.symptoms.includes("Hémorragie"),
+        mental: ETAT_MENTAL[form.etat] || 1,
+        pain: form.symptoms.length > 0 ? 1 : 0,
+        nrsPain: form.symptoms.includes("Douleurs thoraciques")
+          ? 8
+          : form.symptoms.includes("Douleurs abdominales")
+            ? 5
+            : 3,
+        patientsPerHour: 5,
+        symptomes: form.symptoms.map((s) => SYMPTOM_MAP[s] || s.toLowerCase()),
+        adresse: form.address,
+        notes: form.notes,
+      };
+
+      const { data } = await aiService.analyze(payload);
+
+      // Trouver une unité disponible correspondante
+      const uniteRec =
+        units.find((u) => u.type === data.uniteRecommandee) || units[0];
+
+      // Construire les facteurs de risque
+      const risks = [];
+      if (form.type === "Arrêt cardiaque")
+        risks.push("Défibrillateur requis immédiatement");
+      if (form.symptoms.includes("Hémorragie"))
+        risks.push("Risque hémorragique élevé");
+      if (form.etat === "inconscient")
+        risks.push("Patient inconscient — risque vital");
+      if (form.victims > 1)
+        risks.push(`${form.victims} victimes — renfort recommandé`);
+      if (data.priorite === "P1")
+        risks.push("Intervention immédiate — délai critique < 8 min");
+      if (form.symptoms.includes("Difficultés respiratoires"))
+        risks.push("Détresse respiratoire — O₂ requis");
+      if (risks.length === 0)
+        risks.push("Situation standard — surveiller évolution");
+
+      setResult({
+        priorite: data.priorite,
+        score: data.score,
+        confiance: data.confiance || 75,
+        probabilites: data.probabilites || {},
+        uniteRecommandee: data.uniteRecommandee || "VSAV",
+        uniteObj: uniteRec,
+        justification: data.justification || [],
+        modele: data.modele || "BlancBleu IA",
+        source: data.source || "rules",
+        riskFactors: risks,
+        eta: `${Math.floor(Math.random() * 4) + 2} min ${Math.floor(Math.random() * 59)} sec`,
+      });
+    } catch (err) {
+      setError(
+        "Erreur de connexion au modèle IA. Vérifiez que python app.py est lancé.",
+      );
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const pBorder =
-    result?.priority === 1
-      ? "border-red-500"
-      : result?.priority === 2
-        ? "border-yellow-500"
-        : "border-blue-500";
-  const pColor =
-    result?.priority === 1
-      ? "text-red-600"
-      : result?.priority === 2
-        ? "text-yellow-600"
-        : "text-blue-600";
-  const pIcon =
-    result?.priority === 1 ? "🔴" : result?.priority === 2 ? "🟡" : "🔵";
+  const style = result ? priorityStyle(result.priorite) : {};
 
   return (
     <div className="p-7 fade-in">
-      <div className="mb-6">
-        <h1 className="font-brand font-bold text-2xl text-navy">
-          🤖 Aide à la décision — IA
-        </h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Priorisation automatique et optimisation des ressources BlancBleu
-        </p>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="font-brand font-bold text-2xl text-navy">
+            🤖 Aide à la décision — IA
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">
+            Priorisation automatique et optimisation des ressources BlancBleu
+          </p>
+        </div>
+        <ModelStatus status={modelStatus} />
       </div>
 
       <div className="grid grid-cols-2 gap-6 items-start">
         {/* ═══ FORMULAIRE ═══ */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="bg-gradient-to-r from-navy to-blue-900 px-6 py-4 flex items-center justify-between">
-            <div>
-              <p className="font-mono text-xs text-blue-400 tracking-widest uppercase">
-                FORM-BB-2025
-              </p>
-              <h2 className="font-brand font-bold text-white text-base">
-                Nouvelle intervention
-              </h2>
-            </div>
-            <div className="flex items-center gap-1">
-              {[1, 2, 3].map((s) => (
-                <div
-                  key={s}
-                  className={`w-2 h-2 rounded-full ${step >= s ? "bg-primary" : "bg-white/20"}`}
-                />
-              ))}
-            </div>
+          <div className="bg-gradient-to-r from-navy to-blue-900 px-6 py-4">
+            <p className="font-mono text-xs text-blue-400 tracking-widest uppercase">
+              FORM-BB-2025
+            </p>
+            <h2 className="font-brand font-bold text-white text-base">
+              Nouvelle intervention
+            </h2>
           </div>
 
           <div className="p-6 space-y-5">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-600">
+                ⚠ {error}
+              </div>
+            )}
+
             {/* Type */}
             <div>
               <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
@@ -240,17 +349,32 @@ export default function AideIA() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, address: e.target.value }))
                   }
-                  placeholder="Ex: 14 Rue Victor Hugo, Lyon"
+                  placeholder="Ex: 14 Rue Victor Hugo, Nice"
                   className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all"
                 />
               </div>
             </div>
 
-            {/* Victimes + Notes */}
+            {/* Age + Victimes */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Nombre de victimes
+                  Âge du patient
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={form.age}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, age: e.target.value }))
+                  }
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono outline-none focus:border-primary transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Nb de victimes
                 </label>
                 <div className="flex border border-slate-200 rounded-xl overflow-hidden">
                   <button
@@ -264,7 +388,7 @@ export default function AideIA() {
                   >
                     −
                   </button>
-                  <span className="flex-1 text-center font-mono font-bold text-navy py-2.5 text-base border-x border-slate-200">
+                  <span className="flex-1 text-center font-mono font-bold text-navy py-2.5 border-x border-slate-200">
                     {form.victims}
                   </span>
                   <button
@@ -277,21 +401,41 @@ export default function AideIA() {
                   </button>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Heure d'appel
-                </label>
-                <input
-                  type="time"
-                  defaultValue={new Date().toTimeString().slice(0, 5)}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono outline-none focus:border-primary transition-all"
-                />
+            </div>
+
+            {/* Mode arrivée */}
+            <div>
+              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
+                Mode d'arrivée
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { v: "walk", label: "Piéton", icon: "directions_walk" },
+                  { v: "ambulance", label: "Ambulance", icon: "ambulance" },
+                  { v: "transfer", label: "Transfert", icon: "local_hospital" },
+                ].map((m) => (
+                  <button
+                    key={m.v}
+                    onClick={() => setForm((f) => ({ ...f, arrivalMode: m.v }))}
+                    className={`py-2.5 rounded-xl border-2 text-xs font-semibold transition-all flex flex-col items-center gap-1 ${
+                      form.arrivalMode === m.v
+                        ? "border-primary bg-blue-50 text-primary"
+                        : "border-slate-200 text-slate-500 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      {m.icon}
+                    </span>
+                    {m.label}
+                  </button>
+                ))}
               </div>
             </div>
 
+            {/* Notes */}
             <div>
               <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                Notes complémentaires
+                Notes
               </label>
               <textarea
                 value={form.notes}
@@ -304,7 +448,7 @@ export default function AideIA() {
               />
             </div>
 
-            {/* CTA */}
+            {/* Bouton */}
             <button
               onClick={handleAnalyze}
               disabled={loading}
@@ -337,6 +481,19 @@ export default function AideIA() {
                 Renseignez le formulaire et cliquez sur analyser pour obtenir
                 une recommandation IA
               </p>
+              {modelStatus && (
+                <div
+                  className={`mt-2 px-4 py-2 rounded-full text-xs font-mono ${
+                    modelStatus.available
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-yellow-50 text-yellow-700"
+                  }`}
+                >
+                  {modelStatus.available
+                    ? `✓ Modèle ML actif · Précision ${modelStatus.accuracy}%`
+                    : "⚠ Modèle ML non démarré · Mode règles actif"}
+                </div>
+              )}
             </div>
           ) : loading ? (
             <div className="bg-white rounded-xl border border-slate-200 min-h-96 flex flex-col items-center justify-center gap-6">
@@ -346,52 +503,76 @@ export default function AideIA() {
                   Analyse en cours...
                 </p>
                 <p className="text-sm text-slate-400 mt-1">
-                  L'IA BlancBleu analyse l'incident
+                  Le modèle ML BlancBleu analyse l'incident
                 </p>
               </div>
               <div className="flex gap-2">
-                {[
-                  "Évaluation priorité",
-                  "Ressources disponibles",
-                  "Calcul ETA",
-                ].map((s, i) => (
-                  <span
-                    key={i}
-                    className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-medium animate-pulse"
-                    style={{ animationDelay: `${i * 0.2}s` }}
-                  >
-                    {s}
-                  </span>
-                ))}
+                {["Vectorisation", "Prédiction ML", "Calcul confiance"].map(
+                  (s, i) => (
+                    <span
+                      key={i}
+                      className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-medium animate-pulse"
+                      style={{ animationDelay: `${i * 0.2}s` }}
+                    >
+                      {s}
+                    </span>
+                  ),
+                )}
               </div>
             </div>
           ) : (
             <div
-              className={`bg-white rounded-xl border-l-4 overflow-hidden shadow-xl slide-up ${pBorder}`}
+              className={`bg-white rounded-xl border-l-4 overflow-hidden shadow-xl slide-up ${style.border}`}
             >
-              {/* Header */}
+              {/* Header priorité */}
               <div
-                className={`px-5 py-4 border-b border-slate-100 ${result.priority === 1 ? "bg-red-50/50" : ""}`}
+                className={`px-5 py-4 border-b border-slate-100 ${style.bg}`}
               >
                 <div
-                  className={`font-brand font-bold text-2xl ${pColor} flex items-center gap-2`}
+                  className={`font-brand font-bold text-2xl ${style.text} flex items-center gap-2`}
                 >
-                  {pIcon} {result.priorityLabel}
+                  {style.icon} {style.label}
                 </div>
+                {/* Barre confiance */}
                 <div className="flex items-center gap-3 mt-3">
                   <span className="text-xs text-slate-400 font-mono">
-                    Confiance IA
+                    Confiance ML
                   </span>
                   <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-primary to-emerald-500 rounded-full transition-all duration-1000"
-                      style={{ width: `${result.confidence}%` }}
+                      style={{ width: `${result.confiance}%` }}
                     />
                   </div>
                   <span className="font-mono font-bold text-navy">
-                    {result.confidence}%
+                    {result.confiance}%
                   </span>
                 </div>
+                {/* Probabilités */}
+                {result.probabilites &&
+                  Object.keys(result.probabilites).length > 0 && (
+                    <div className="flex gap-3 mt-3">
+                      {Object.entries(result.probabilites).map(([k, v]) => (
+                        <div
+                          key={k}
+                          className={`flex-1 text-center rounded-lg py-1.5 ${
+                            k === result.priorite
+                              ? "bg-primary text-white"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          <p className="text-xs font-bold">{k}</p>
+                          <p className="font-mono text-sm font-bold">{v}%</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                {/* Source */}
+                <p className="text-xs text-slate-400 mt-2 font-mono">
+                  {result.source === "ml"
+                    ? `⚡ ${result.modele}`
+                    : "⚙ Scoring par règles (modèle ML non démarré)"}
+                </p>
               </div>
 
               {/* ETA */}
@@ -424,35 +605,50 @@ export default function AideIA() {
                   </div>
                   <div className="flex-1">
                     <p className="font-mono font-bold text-navy text-lg">
-                      {result.recommendedUnit}
+                      {result.uniteObj?.nom || result.uniteRecommandee}
                     </p>
-                    <p className="text-sm text-slate-600">{result.crew}</p>
+                    <p className="text-sm text-slate-600">
+                      {result.uniteObj?.equipage
+                        ?.map((e) => e.nom)
+                        .join(" + ") || "Équipe disponible"}
+                    </p>
                     <p className="text-xs text-slate-400">
-                      {result.distanceKm} km • Équipe disponible
+                      Type : {result.uniteRecommandee} ·{" "}
+                      {result.uniteObj?.position?.adresse || "Nice"}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <span className="bg-primary text-white font-mono text-xs px-3 py-1.5 rounded-lg font-bold">
-                      {result.eta.split(" ").slice(0, 2).join(" ")}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">
-                    info
+                  <span className="bg-primary text-white font-mono text-xs px-3 py-1.5 rounded-lg font-bold">
+                    {result.eta.split(" ").slice(0, 2).join(" ")}
                   </span>
-                  Alternative:{" "}
-                  <span className="font-mono font-bold">
-                    {result.alternativeUnit}
-                  </span>{" "}
-                  — 3.4 km
-                </p>
+                </div>
               </div>
 
-              {/* Risques */}
+              {/* Justification IA */}
+              {result.justification?.length > 0 && (
+                <div className="px-5 pb-4">
+                  <p className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
+                    🧠 Analyse IA
+                  </p>
+                  <div className="space-y-1.5">
+                    {result.justification.map((j, i) => (
+                      <div
+                        key={i}
+                        className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2"
+                      >
+                        <span className="material-symbols-outlined text-primary text-base mt-0.5 flex-shrink-0">
+                          info
+                        </span>
+                        <span className="text-xs text-slate-700">{j}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Facteurs de risque */}
               <div className="px-5 pb-4">
                 <p className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
-                  ⚠️ Facteurs de risque détectés
+                  ⚠️ Facteurs de risque
                 </p>
                 <div className="space-y-2">
                   {result.riskFactors.map((r, i) => (
@@ -471,11 +667,17 @@ export default function AideIA() {
 
               {/* Actions */}
               <div className="px-5 pb-5 flex gap-3">
-                <button className="flex-1 py-3.5 bg-danger text-white rounded-xl font-brand font-bold text-sm hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-200">
+                <button
+                  onClick={() => navigate("/interventions")}
+                  className="flex-1 py-3.5 bg-danger text-white rounded-xl font-brand font-bold text-sm hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-200"
+                >
                   <span className="material-symbols-outlined">task_alt</span>
-                  AFFECTER {result.recommendedUnit}
+                  CRÉER L'INTERVENTION
                 </button>
-                <button className="flex-1 py-3.5 border-2 border-primary text-primary rounded-xl font-brand font-bold text-sm hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
+                <button
+                  onClick={() => navigate("/carte")}
+                  className="flex-1 py-3.5 border-2 border-primary text-primary rounded-xl font-brand font-bold text-sm hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                >
                   <span className="material-symbols-outlined">map</span>
                   VOIR CARTE
                 </button>
