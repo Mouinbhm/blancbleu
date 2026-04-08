@@ -189,3 +189,13 @@ export const escaladeService = {
   unitesStatus: () => api.get("/escalade/unites/status"),
   scan: () => api.post("/escalade/scan"),
 };
+
+// ════════════════════════════════════════════════════════════════════════════
+// AUDIT & TRAÇABILITÉ
+// ════════════════════════════════════════════════════════════════════════════
+export const auditService = {
+  getLogs: (params = {}) => api.get("/audit", { params }),
+  getStats: () => api.get("/audit/stats"),
+  getByIntervention: (id) => api.get(`/audit/intervention/${id}`),
+  getOne: (id) => api.get(`/audit/${id}`),
+};

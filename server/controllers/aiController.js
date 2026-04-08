@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { audit } = require("../services/auditService");
 
 const AI_API_URL = process.env.AI_API_URL || "http://localhost:5001";
 
@@ -123,6 +124,12 @@ const analyzeIntervention = async (req, res) => {
     }
 
     res.json(result);
+
+    // ── Audit traçabilité IA ──────────────────────────────────────────────
+    const fakeIntervention = { _id: null, numero: `ANALYSE-${Date.now()}` };
+    audit
+      .predictionIA(fakeIntervention, result.priorite, result.confiance || 0)
+      .catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

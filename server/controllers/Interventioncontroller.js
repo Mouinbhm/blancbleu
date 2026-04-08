@@ -3,6 +3,7 @@ const Unit = require("../models/Unit");
 const Facture = require("../models/Facture");
 const { autoDispatch } = require("../services/dispatchService");
 const socketService = require("../services/socketService");
+const { audit } = require("../services/auditService");
 const { haversine, calculerETA, formatETA } = require("../utils/geoUtils");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -132,6 +133,17 @@ const createIntervention = async (req, res) => {
       socketService.emitDispatch(
         intervention._id,
         dispatchResult.unite,
+        dispatchResult.etaFormate,
+      );
+    }
+
+    // ── Audit traçabilité ─────────────────────────────────────────────────
+    await audit.interventionCreee(intervention, req.user);
+    if (dispatchResult?.unite) {
+      await audit.dispatchAuto(
+        intervention,
+        dispatchResult.unite,
+        dispatchResult.scoreTotal,
         dispatchResult.etaFormate,
       );
     }

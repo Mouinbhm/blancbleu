@@ -32,6 +32,10 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// ─── Middleware d'audit (avant les routes) ────────────────────────────────────
+const auditMiddleware = require("./middleware/auditMiddleware");
+app.use(auditMiddleware);
+
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/interventions", require("./routes/interventions"));
@@ -40,6 +44,7 @@ app.use("/api/ai", require("./routes/ai"));
 app.use("/api/geo", require("./routes/geo"));
 app.use("/api/workflow", require("./routes/workflow"));
 app.use("/api/escalade", require("./routes/escalade"));
+app.use("/api/audit", require("./routes/audit"));
 app.use("/api/personnel", require("./routes/personnel"));
 app.use("/api/equipements", require("./routes/equipements"));
 app.use("/api/maintenances", require("./routes/maintenances"));
