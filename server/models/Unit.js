@@ -1,8 +1,22 @@
 /**
- * BlancBleu — Modèle Unit v2.0
- * Ambulances avec géolocalisation temps réel
+ * ╔══════════════════════════════════════════════════════════════╗
+ * ║  BlancBleu — Modèle Unit v3.0 — Mode Réel Métier            ║
+ * ╚══════════════════════════════════════════════════════════════╝
  */
 const mongoose = require("mongoose");
+
+// ─── Sous-schémas ─────────────────────────────────────────────────────────────
+const locationSchema = new mongoose.Schema(
+  {
+    lat: { type: Number, min: -90, max: 90 },
+    lng: { type: Number, min: -180, max: 180 },
+    adresse: { type: String, default: "" },
+    vitesse: { type: Number, default: 0, min: 0 },
+    cap: { type: Number, default: 0, min: 0, max: 360 },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
 
 const equipageSchema = new mongoose.Schema(
   {
@@ -10,52 +24,42 @@ const equipageSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ["Médecin", "Infirmier", "Ambulancier", "Secouriste", "Chauffeur"],
-      required: true,
     },
   },
   { _id: false },
 );
 
-const locationSchema = new mongoose.Schema(
+const specsSchema = new mongoose.Schema(
   {
-    lat: { type: Number, required: true, min: -90, max: 90 },
-    lng: { type: Number, required: true, min: -180, max: 180 },
-    adresse: { type: String, default: "" },
-    vitesse: { type: Number, default: 0, min: 0 }, // km/h
-    cap: { type: Number, default: 0, min: 0, max: 360 }, // degrés
-    precision: { type: Number, default: 10 }, // mètres
-    updatedAt: { type: Date, default: Date.now },
+    consommationL100: { type: Number, default: 12 }, // L/100km
+    capaciteReservoir: { type: Number, default: 80 }, // litres
+    vitesseMoyenneUrb: { type: Number, default: 45 }, // km/h urbain
+    vitesseMoyennePrio: { type: Number, default: 75 }, // km/h prioritaire
   },
   { _id: false },
 );
 
+// ─── Schéma principal ─────────────────────────────────────────────────────────
 const unitSchema = new mongoose.Schema(
   {
-    // ── Identification ─────────────────────────────────────────────────────
+    // ── Identification ────────────────────────────────────────────────────────
     immatriculation: {
       type: String,
-      required: [true, "Immatriculation obligatoire"],
+      required: true,
       unique: true,
       uppercase: true,
       trim: true,
-      match: [/^[A-Z0-9\-]+$/, "Format immatriculation invalide"],
     },
-
-    nom: {
-      type: String,
-      required: [true, "Nom obligatoire"],
-      trim: true,
-      index: true,
-    },
-
+    nom: { type: String, required: true, trim: true, index: true },
     type: {
       type: String,
       required: true,
       enum: ["VSAV", "SMUR", "VSL", "VPSP", "AR"],
       index: true,
     },
+    annee: { type: Number, min: 2000 },
 
-    // ── Statut opérationnel ────────────────────────────────────────────────
+    // ── STATUT OPÉRATIONNEL ───────────────────────────────────────────────────
     statut: {
       type: String,
       enum: [
@@ -64,97 +68,95 @@ const unitSchema = new mongoose.Schema(
         "maintenance",
         "hors_service",
         "pause",
+        "retour_base",
       ],
       default: "disponible",
       index: true,
     },
+    lastStatusChangeAt: { type: Date, default: Date.now },
 
-    // ── Géolocalisation temps réel ─────────────────────────────────────────
+    // ── GÉOLOCALISATION TEMPS RÉEL ────────────────────────────────────────────
     position: {
       type: locationSchema,
       default: () => ({
         lat: 43.7102,
         lng: 7.262,
-        adresse: "Base principale Nice",
+        adresse: "Base principale — 59 Bd Madeleine, Nice",
       }),
     },
 
-    // Historique des 10 dernières positions (trail sur la carte)
-    positionsHistorique: {
-      type: [locationSchema],
-      default: [],
-      validate: {
-        validator: (arr) => arr.length <= 10,
-        message: "Maximum 10 positions dans l'historique",
-      },
+    // ── BASE ──────────────────────────────────────────────────────────────────
+    baseAdresse: { type: String, default: "59 Bd Madeleine, Nice" },
+    basePosition: {
+      lat: { type: Number, default: 43.7102 },
+      lng: { type: Number, default: 7.262 },
     },
 
-    // ── Équipage ───────────────────────────────────────────────────────────
-    equipage: {
-      type: [equipageSchema],
-      default: [],
-      validate: {
-        validator: (arr) => arr.length <= 5,
-        message: "Maximum 5 membres d'équipage",
-      },
-    },
+    // ── MÉTRIQUES PHYSIQUES ───────────────────────────────────────────────────
+    kilometrage: { type: Number, default: 0, min: 0 }, // km total
+    carburant: { type: Number, default: 100, min: 0, max: 100 }, // %
 
-    // ── Véhicule ───────────────────────────────────────────────────────────
-    carburant: { type: Number, min: 0, max: 100, default: 100 },
-    annee: { type: Number, min: 2000, max: new Date().getFullYear() + 1 },
-    kilometrage: { type: Number, min: 0, default: 0 },
+    // ── SPECS TECHNIQUES ──────────────────────────────────────────────────────
+    specs: { type: specsSchema, default: () => ({}) },
 
-    // ── Intervention en cours ──────────────────────────────────────────────
+    // ── MISSION EN COURS ──────────────────────────────────────────────────────
     interventionEnCours: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Intervention",
       default: null,
     },
+    missionStartedAt: { type: Date, default: null },
+    missionKmDebut: { type: Number, default: null },
+    missionFuelDebut: { type: Number, default: null },
 
-    // ── Socket.IO ─────────────────────────────────────────────────────────
-    socketId: { type: String, default: null }, // socket de l'ambulance mobile
-
-    // ── Notes ─────────────────────────────────────────────────────────────
+    // ── ÉQUIPAGE ──────────────────────────────────────────────────────────────
+    equipage: { type: [equipageSchema], default: [] },
+    socketId: { type: String, default: null },
     notes: { type: String, default: "" },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
-// ── Index géospatial 2dsphere ──────────────────────────────────────────────
-unitSchema.index({ "position.lat": 1, "position.lng": 1 });
+// ── Index ──────────────────────────────────────────────────────────────────────
 unitSchema.index({ statut: 1, type: 1 });
-unitSchema.index({ socketId: 1 }, { sparse: true });
+unitSchema.index({ "position.lat": 1, "position.lng": 1 });
 
-// ── Méthodes ───────────────────────────────────────────────────────────────
-unitSchema.methods.updateLocation = async function (lat, lng, metadata = {}) {
-  // Sauvegarder position actuelle dans l'historique (max 10)
-  if (this.position?.lat) {
-    this.positionsHistorique.unshift({
-      ...(this.position.toObject?.() || this.position),
-    });
-    if (this.positionsHistorique.length > 10) {
-      this.positionsHistorique = this.positionsHistorique.slice(0, 10);
-    }
-  }
-  // Mettre à jour position courante
+// ── Méthode : démarrer mission ─────────────────────────────────────────────────
+unitSchema.methods.demarrerMission = function (interventionId) {
+  this.statut = "en_mission";
+  this.interventionEnCours = interventionId;
+  this.missionStartedAt = new Date();
+  this.missionKmDebut = this.kilometrage;
+  this.missionFuelDebut = this.carburant;
+  this.lastStatusChangeAt = new Date();
+  return this.save();
+};
+
+// ── Méthode : terminer mission ─────────────────────────────────────────────────
+unitSchema.methods.terminerMission = function () {
+  this.statut = "disponible";
+  this.interventionEnCours = null;
+  this.missionStartedAt = null;
+  this.missionKmDebut = null;
+  this.missionFuelDebut = null;
+  this.lastStatusChangeAt = new Date();
   this.position = {
-    lat,
-    lng,
-    adresse: metadata.adresse || this.position.adresse,
-    vitesse: metadata.vitesse || 0,
-    cap: metadata.cap || 0,
-    precision: metadata.precision || 10,
+    ...this.basePosition,
+    adresse: this.baseAdresse,
     updatedAt: new Date(),
   };
   return this.save();
 };
 
-// ── Virtual : est disponible ───────────────────────────────────────────────
-unitSchema.virtual("estDisponible").get(function () {
-  return this.statut === "disponible";
-});
+// ── Méthode : consommer carburant selon distance ───────────────────────────────
+unitSchema.methods.consommerCarburant = function (distanceKm) {
+  const conso = this.specs?.consommationL100 || 12; // L/100km
+  const reservoir = this.specs?.capaciteReservoir || 80; // litres
+  const litres = (distanceKm * conso) / 100;
+  const pctConso = (litres / reservoir) * 100;
+  this.carburant = Math.max(0, this.carburant - pctConso);
+  this.kilometrage += distanceKm;
+};
 
 unitSchema.set("toJSON", { virtuals: true });
 unitSchema.set("toObject", { virtuals: true });

@@ -6,6 +6,7 @@ import {
   equipementService,
   maintenanceService,
 } from "../services/api";
+import useSocket from "../hooks/useSocket";
 
 const TABS = ["Ambulances", "Personnel", "Équipements", "Maintenance"];
 
@@ -2042,6 +2043,44 @@ export default function Flotte() {
   const [membreDesactiver, setMembreDesactiver] = useState(null);
   const [showNouvelleUnite, setShowNouvelleUnite] = useState(false);
   const [uniteVoir, setUniteVoir] = useState(null);
+
+  // ── Socket.IO — mises à jour temps réel ──────────────────────────────────
+  const { subscribe, connected } = useSocket();
+
+  useEffect(() => {
+    // Position + carburant + km mis à jour en temps réel
+    const unsubLocation = subscribe("unit:location_updated", (data) => {
+      setUnits((prev) =>
+        prev.map((u) =>
+          u._id?.toString() === data.unitId?.toString()
+            ? {
+                ...u,
+                position: data.position ?? u.position,
+                carburant: data.carburant ?? u.carburant,
+                kilometrage: data.kilometrage ?? u.kilometrage,
+                statut: data.statut ?? u.statut,
+              }
+            : u,
+        ),
+      );
+    });
+
+    // Statut changé
+    const unsubStatus = subscribe("unit:status_changed", (data) => {
+      setUnits((prev) =>
+        prev.map((u) =>
+          u._id?.toString() === data.unitId?.toString()
+            ? { ...u, statut: data.nouveauStatut }
+            : u,
+        ),
+      );
+    });
+
+    return () => {
+      unsubLocation();
+      unsubStatus();
+    };
+  }, [subscribe]);
 
   const load = useCallback(async (t) => {
     setLoading(true);

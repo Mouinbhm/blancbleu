@@ -88,5 +88,5 @@ io.on("connection", (socket) => {
 // ─── Simulation GPS (développement) ──────────────────────────────────────────
 if (process.env.NODE_ENV !== "production") {
   const sim = require("./services/simulationService");
-  setTimeout(() => sim.demarrer(), 8000); // démarrer après 8s
+  setTimeout(() => sim.demarrer(), 5000);
 }
