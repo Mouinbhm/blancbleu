@@ -220,3 +220,25 @@ export const unitLifecycleService = {
   updateStatut: (unitId, statut) =>
     api.patch(`/units/${unitId}/statut`, { statut }),
 };
+
+// Fin de mission semi-automatique
+export const missionCompletionService = {
+  evaluate: (id) => api.post(`/interventions/${id}/evaluate-completion`),
+  suggest: (id) => api.post(`/interventions/${id}/suggest-completion`),
+  confirm: (id) => api.post(`/interventions/${id}/confirm-completion`),
+  markDestination: (id, coords) =>
+    api.post(`/interventions/${id}/mark-destination-reached`, coords || {}),
+  completeReport: (id, data) =>
+    api.post(`/interventions/${id}/complete-mission-report`, { rapport: data }),
+  scan: () => api.get("/interventions/scan-completions"),
+};
+
+// Alias sur interventionService
+export const interventionCompletionExtension = {
+  evaluateCompletion: (id) =>
+    api.post(`/interventions/${id}/evaluate-completion`),
+  confirmCompletion: (id) =>
+    api.post(`/interventions/${id}/confirm-completion`),
+  markDestinationReached: (id, c) =>
+    api.post(`/interventions/${id}/mark-destination-reached`, c || {}),
+};

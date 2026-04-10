@@ -378,3 +378,19 @@ module.exports = {
   emitEscalade,
   emitStats,
 };
+
+// ─── Ajout : position GPS unité ───────────────────────────────────────────────
+function emitLocationUpdated(data) {
+  if (!_io) return;
+  _io.emit("unit:location_updated", { ...data, timestamp: new Date() });
+}
+// Exporter en plus
+module.exports.emitLocationUpdated = emitLocationUpdated;
+
+// ─── Événements mission completion ───────────────────────────────────────────
+function emitMissionEvent(event, data) {
+  if (!_io) return;
+  _io.emit(event, { ...data, timestamp: new Date() });
+  console.log(`📡 [SOCKET] ${event}`);
+}
+module.exports.emitMissionEvent = emitMissionEvent;

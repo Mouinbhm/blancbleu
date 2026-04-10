@@ -138,6 +138,25 @@ const interventionSchema = new mongoose.Schema(
     // ── Annulation ────────────────────────────────────────────────────────────
     raisonAnnulation: { type: String, default: "" },
 
+    // ── Fin de mission semi-automatique ──────────────────────────────────────
+    completedAt: { type: Date },
+    completionMode: {
+      type: String,
+      enum: ["manual", "semi_auto", "auto"],
+      default: null,
+    },
+    completionConfirmedBy: { type: String, default: null },
+    completionCandidate: { type: Boolean, default: false },
+    completionSuggestedAt: { type: Date },
+    completionDecisionNiveau: { type: Number, default: 0 },
+
+    // Destination (hôpital)
+    destinationReachedAt: { type: Date },
+
+    // Rapport de mission
+    missionReportCompleted: { type: Boolean, default: false },
+    missionReportData: { type: mongoose.Schema.Types.Mixed },
+
     // ── Notes ─────────────────────────────────────────────────────────────────
     notes: { type: String, default: "" },
   },

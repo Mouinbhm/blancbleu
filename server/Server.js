@@ -39,6 +39,7 @@ app.use(auditMiddleware);
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/interventions", require("./routes/interventions"));
+app.use("/api/interventions", require("./routes/missionCompletion"));
 app.use("/api/units", require("./routes/units"));
 app.use("/api/ai", require("./routes/ai"));
 app.use("/api/geo", require("./routes/geo"));
@@ -70,7 +71,10 @@ mongoose
       console.log(`🚀 Serveur BlancBleu lancé sur le port ${PORT}`);
       // Démarrer la surveillance d'escalade
       const { demarrerSurveillance } = require("./services/escaladeService");
-      demarrerSurveillance(2); // scan toutes les 2 minutes
+      demarrerSurveillance(2);
+      // Démarrer le scan fin de mission semi-automatique
+      const { demarrerScan } = require("./services/missionCompletion");
+      demarrerScan(5);
     });
   })
   .catch((err) => {
