@@ -19,32 +19,25 @@ const auditLogSchema = new mongoose.Schema(
       type: String,
       required: true,
       enum: [
-        // Interventions
         "INTERVENTION_CREATED",
         "INTERVENTION_UPDATED",
         "INTERVENTION_DELETED",
         "STATUT_CHANGED",
         "UNITE_ASSIGNED",
         "UNITE_UNASSIGNED",
-        // IA
         "IA_PREDICTION",
         "IA_OVERRIDE",
         "IA_FALLBACK",
-        // Dispatch
         "DISPATCH_AUTO",
         "DISPATCH_MANUEL",
-        // Escalade
         "ESCALADE_TRIGGERED",
         "ESCALADE_RESOLVED",
-        // Unités
         "UNITE_CREATED",
         "UNITE_UPDATED",
         "UNITE_STATUS_CHANGED",
-        // Auth
         "LOGIN",
         "LOGOUT",
         "LOGIN_FAILED",
-        // Factures
         "FACTURE_CREATED",
         "FACTURE_UPDATED",
         "FACTURE_PAID",
@@ -59,17 +52,19 @@ const auditLogSchema = new mongoose.Schema(
     },
 
     // ── Ressource concernée ───────────────────────────────────────────────────
+    // Défini comme sous-document Mixed — accepte { type, id, reference }
+    // sans contrainte de cast String sur l'objet entier
     ressource: {
-      type: String, // 'Intervention', 'Unit', 'Facture'...
-      id: { type: mongoose.Schema.Types.ObjectId },
-      reference: { type: String }, // numéro lisible ex: INT-20260407-0001
+      type: { type: String, default: "Autre" },
+      id: { type: mongoose.Schema.Types.ObjectId, default: null },
+      reference: { type: String, default: "" },
     },
 
     // ── Détails ───────────────────────────────────────────────────────────────
     details: {
-      avant: { type: mongoose.Schema.Types.Mixed }, // état avant
-      apres: { type: mongoose.Schema.Types.Mixed }, // état après
-      metadata: { type: mongoose.Schema.Types.Mixed }, // données supplémentaires
+      avant: { type: mongoose.Schema.Types.Mixed, default: null },
+      apres: { type: mongoose.Schema.Types.Mixed, default: null },
+      metadata: { type: mongoose.Schema.Types.Mixed, default: null },
       message: { type: String, default: "" },
     },
 
@@ -77,23 +72,26 @@ const auditLogSchema = new mongoose.Schema(
     succes: { type: Boolean, default: true },
     erreur: { type: String, default: "" },
 
-    // ── Technique ─────────────────────────────────────────────────────────────
+    // ── Contexte HTTP ─────────────────────────────────────────────────────────
     route: { type: String, default: "" },
     methode: { type: String, default: "" },
     dureeMs: { type: Number, default: 0 },
   },
   {
     timestamps: true,
-    // TTL : supprimer les logs > 90 jours automatiquement
-    expireAfterSeconds: 90 * 24 * 3600,
   },
 );
 
-// Index pour requêtes fréquentes
+// TTL automatique — suppression après 90 jours
+auditLogSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 90 * 24 * 60 * 60 },
+);
+
+// Index pour les requêtes fréquentes
 auditLogSchema.index({ action: 1, createdAt: -1 });
 auditLogSchema.index({ "ressource.id": 1 });
-auditLogSchema.index({ "utilisateur.id": 1 });
+auditLogSchema.index({ "utilisateur.email": 1 });
 auditLogSchema.index({ origine: 1 });
-auditLogSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("AuditLog", auditLogSchema);

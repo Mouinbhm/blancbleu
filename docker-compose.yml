@@ -1,0 +1,109 @@
+version: "3.9"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BlancBleu — Orchestration complète
+# Démarrage : docker-compose up --build
+# ══════════════════════════════════════════════════════════════════════════════
+
+services:
+  # ─── MongoDB ────────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7.0
+    container_name: blancbleu-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-blancbleu}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-blancbleu2024}
+      MONGO_INITDB_DATABASE: blancbleu
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - blancbleu-net
+
+  # ─── Backend Node.js / Express ──────────────────────────────────────────────
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: blancbleu-server
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      ia:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGO_URI: mongodb://${MONGO_USER:-blancbleu}:${MONGO_PASSWORD:-blancbleu2024}@mongo:27017/blancbleu?authSource=admin
+      JWT_SECRET: ${JWT_SECRET}
+      AI_API_URL: http://ia:5001
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      ALLOWED_ORIGINS: ${CLIENT_URL:-http://localhost:3000}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@blancbleu.fr}
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - blancbleu-net
+
+  # ─── Module IA Python / Flask ────────────────────────────────────────────────
+  ia:
+    build:
+      context: ./ai-Model
+      dockerfile: Dockerfile
+    container_name: blancbleu-ia
+    restart: unless-stopped
+    environment:
+      NODE_ORIGIN: http://server:5000
+    volumes:
+      - ./ai-Model/model:/app/model:ro # modèle entraîné en lecture seule
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - blancbleu-net
+
+  # ─── Frontend React (optionnel — prod only) ──────────────────────────────────
+  # Décommentez pour servir le frontend compilé via Nginx
+  # client:
+  #   build:
+  #     context: ./client
+  #     dockerfile: Dockerfile
+  #   container_name: blancbleu-client
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #   depends_on:
+  #     - server
+  #   networks:
+  #     - blancbleu-net
+
+volumes:
+  mongo_data:
+    driver: local
+
+networks:
+  blancbleu-net:
+    driver: bridge

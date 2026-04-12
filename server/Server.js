@@ -9,11 +9,12 @@ require("dotenv").config();
 
 const { noSqlSanitize, xssSanitize } = require("./middleware/sanitize");
 const { globalLimiter } = require("./middleware/rateLimiter");
+const { setupSwagger } = require("./middleware/swagger");
 
 const app = express();
 const server = http.createServer(app);
 
-// ─── CORS — origines autorisées ───────────────────────────────────────────────
+// ─── CORS ─────────────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS =
   process.env.NODE_ENV === "production"
     ? (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean)
@@ -21,11 +22,10 @@ const ALLOWED_ORIGINS =
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Autoriser les requêtes sans origin (Postman, mobile natif)
     if (!origin || ALLOWED_ORIGINS.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error(`CORS bloqué pour l'origine : ${origin}`));
+      callback(new Error(`CORS bloqué pour : ${origin}`));
     }
   },
   credentials: true,
@@ -40,17 +40,12 @@ const io = new Server(server, {
     credentials: true,
   },
 });
-
 app.set("io", io);
 
-// ─── Initialiser le service Socket.IO (gestion complète des connexions) ───────
-// NOTE : c'est ici et SEULEMENT ici que les événements socket sont gérés.
-// Ne pas dupliquer io.on("connection") plus bas dans ce fichier.
 const socketService = require("./services/socketService");
 socketService.init(io);
 
-// ─── Sécurité headers HTTP (helmet) ──────────────────────────────────────────
-// Désactive contentSecurityPolicy en dev pour éviter les blocages du frontend CRA
+// ─── Sécurité headers ─────────────────────────────────────────────────────────
 app.use(
   helmet({
     contentSecurityPolicy: process.env.NODE_ENV === "production",
@@ -60,20 +55,25 @@ app.use(
 
 // ─── Parsing ──────────────────────────────────────────────────────────────────
 app.use(cors(corsOptions));
-app.use(express.json({ limit: "10kb" })); // limite la taille du body
+app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: false, limit: "10kb" }));
-app.use(cookieParser()); // nécessaire pour les cookies refresh token
+app.use(cookieParser());
 
-// ─── Sanitisation des inputs (AVANT les routes) ───────────────────────────────
+// ─── Sanitisation ────────────────────────────────────────────────────────────
 app.use(noSqlSanitize);
 app.use(xssSanitize);
 
-// ─── Rate limiting global (AVANT les routes) ─────────────────────────────────
+// ─── Rate limiting ────────────────────────────────────────────────────────────
 app.use(globalLimiter);
 
-// ─── Middleware d'audit (AVANT les routes) ───────────────────────────────────
+// ─── Audit ────────────────────────────────────────────────────────────────────
 const auditMiddleware = require("./middleware/auditMiddleware");
 app.use(auditMiddleware);
+
+// ─── Swagger (dev uniquement) ────────────────────────────────────────────────
+if (process.env.NODE_ENV !== "production") {
+  setupSwagger(app);
+}
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/auth", require("./routes/auth"));
@@ -91,12 +91,13 @@ app.use("/api/maintenances", require("./routes/maintenances"));
 app.use("/api/factures", require("./routes/factures"));
 
 // ─── Health check ─────────────────────────────────────────────────────────────
-app.get("/api/health", (req, res) => {
+app.get("/api/health", (_req, res) => {
   res.json({
     status: "OK",
-    message: "BlancBleu API is running",
     env: process.env.NODE_ENV || "development",
     uptime: Math.round(process.uptime()),
+    mongo: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -106,41 +107,51 @@ app.use((req, res) => res.status(404).json({ message: "Route non trouvée" }));
 // ─── Gestionnaire d'erreurs global ────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  // Ne pas exposer les détails d'erreur en production
   const isProd = process.env.NODE_ENV === "production";
   console.error(`[ERROR] ${req.method} ${req.path} —`, err.message);
   res.status(err.status || 500).json({
-    message: isProd ? "Erreur interne du serveur" : err.message,
+    message: isProd ? "Erreur interne" : err.message,
     ...(isProd ? {} : { stack: err.stack }),
   });
 });
 
-// ─── Démarrage ────────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
+// ─── Export pour Supertest ────────────────────────────────────────────────────
+// IMPORTANT : exporter app AVANT mongoose.connect
+// Supertest monte l'app directement sans démarrer de serveur HTTP
+// ce qui évite les conflits de port (EADDRINUSE) entre les suites de tests
+module.exports = app;
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("✅ MongoDB connecté");
-    server.listen(PORT, () => {
-      console.log(
-        `🚀 Serveur BlancBleu démarré sur le port ${PORT} [${process.env.NODE_ENV || "development"}]`,
-      );
+// ─── Démarrage serveur HTTP ───────────────────────────────────────────────────
+// require.main === module est vrai uniquement quand on fait : node Server.js
+// Quand Jest importe ce fichier via require(), cette condition est fausse
+// → le serveur n'écoute jamais sur un port pendant les tests
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
 
-      const { demarrerSurveillance } = require("./services/escaladeService");
-      demarrerSurveillance(2);
-
-      const { demarrerScan } = require("./services/missionCompletion");
-      demarrerScan(5);
+  mongoose
+    .connect(process.env.MONGO_URI)
+    .then(() => {
+      console.log("✅ MongoDB connecté");
+      server.listen(PORT, () => {
+        console.log(
+          `🚀 BlancBleu démarré — port ${PORT} [${process.env.NODE_ENV || "development"}]`,
+        );
+        if (process.env.NODE_ENV !== "production") {
+          console.log(`📄 Swagger UI : http://localhost:${PORT}/api-docs`);
+        }
+        const { demarrerSurveillance } = require("./services/escaladeService");
+        demarrerSurveillance(2);
+        const { demarrerScan } = require("./services/missionCompletion");
+        demarrerScan(5);
+      });
+    })
+    .catch((err) => {
+      console.error("❌ MongoDB connexion échouée :", err.message);
+      process.exit(1);
     });
-  })
-  .catch((err) => {
-    console.error("❌ Erreur connexion MongoDB:", err.message);
-    process.exit(1);
-  });
 
-// ─── Simulation GPS (développement uniquement) ────────────────────────────────
-if (process.env.NODE_ENV !== "production") {
-  const sim = require("./services/simulationService");
-  setTimeout(() => sim.demarrer(), 5000);
+  if (process.env.NODE_ENV !== "production") {
+    const sim = require("./services/simulationService");
+    setTimeout(() => sim.demarrer(), 5000);
+  }
 }
