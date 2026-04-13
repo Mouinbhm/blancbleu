@@ -7,6 +7,9 @@ const cookieParser = require("cookie-parser");
 const { Server } = require("socket.io");
 require("dotenv").config();
 
+const logger = require("./utils/logger");
+const httpLogger = require("./middleware/httpLogger");
+const { healthHandler } = require("./utils/healthCheck");
 const { noSqlSanitize, xssSanitize } = require("./middleware/sanitize");
 const { globalLimiter } = require("./middleware/rateLimiter");
 const { setupSwagger } = require("./middleware/swagger");
@@ -22,11 +25,8 @@ const ALLOWED_ORIGINS =
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS bloqué pour : ${origin}`));
-    }
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) callback(null, true);
+    else callback(new Error(`CORS bloqué pour : ${origin}`));
   },
   credentials: true,
   methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
@@ -45,32 +45,29 @@ app.set("io", io);
 const socketService = require("./services/socketService");
 socketService.init(io);
 
-// ─── Sécurité headers ─────────────────────────────────────────────────────────
+// ─── Sécurité ─────────────────────────────────────────────────────────────────
 app.use(
   helmet({
     contentSecurityPolicy: process.env.NODE_ENV === "production",
     crossOriginEmbedderPolicy: process.env.NODE_ENV === "production",
   }),
 );
-
-// ─── Parsing ──────────────────────────────────────────────────────────────────
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: false, limit: "10kb" }));
 app.use(cookieParser());
-
-// ─── Sanitisation ────────────────────────────────────────────────────────────
 app.use(noSqlSanitize);
 app.use(xssSanitize);
-
-// ─── Rate limiting ────────────────────────────────────────────────────────────
 app.use(globalLimiter);
+
+// ─── HTTP Logger ──────────────────────────────────────────────────────────────
+app.use(httpLogger);
 
 // ─── Audit ────────────────────────────────────────────────────────────────────
 const auditMiddleware = require("./middleware/auditMiddleware");
 app.use(auditMiddleware);
 
-// ─── Swagger (dev uniquement) ────────────────────────────────────────────────
+// ─── Swagger (dev uniquement) ─────────────────────────────────────────────────
 if (process.env.NODE_ENV !== "production") {
   setupSwagger(app);
 }
@@ -89,17 +86,10 @@ app.use("/api/personnel", require("./routes/personnel"));
 app.use("/api/equipements", require("./routes/equipements"));
 app.use("/api/maintenances", require("./routes/maintenances"));
 app.use("/api/factures", require("./routes/factures"));
+app.use("/api/analytics", require("./routes/analytics")); // NOUVEAU Phase 3
 
-// ─── Health check ─────────────────────────────────────────────────────────────
-app.get("/api/health", (_req, res) => {
-  res.json({
-    status: "OK",
-    env: process.env.NODE_ENV || "development",
-    uptime: Math.round(process.uptime()),
-    mongo: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-    timestamp: new Date().toISOString(),
-  });
-});
+// ─── Health check enrichi ─────────────────────────────────────────────────────
+app.get("/api/health", healthHandler);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ message: "Route non trouvée" }));
@@ -108,7 +98,10 @@ app.use((req, res) => res.status(404).json({ message: "Route non trouvée" }));
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   const isProd = process.env.NODE_ENV === "production";
-  console.error(`[ERROR] ${req.method} ${req.path} —`, err.message);
+  logger.error(`${req.method} ${req.path}`, {
+    err: err.message,
+    stack: err.stack,
+  });
   res.status(err.status || 500).json({
     message: isProd ? "Erreur interne" : err.message,
     ...(isProd ? {} : { stack: err.stack }),
@@ -116,37 +109,34 @@ app.use((err, req, res, next) => {
 });
 
 // ─── Export pour Supertest ────────────────────────────────────────────────────
-// IMPORTANT : exporter app AVANT mongoose.connect
-// Supertest monte l'app directement sans démarrer de serveur HTTP
-// ce qui évite les conflits de port (EADDRINUSE) entre les suites de tests
 module.exports = app;
 
-// ─── Démarrage serveur HTTP ───────────────────────────────────────────────────
-// require.main === module est vrai uniquement quand on fait : node Server.js
-// Quand Jest importe ce fichier via require(), cette condition est fausse
-// → le serveur n'écoute jamais sur un port pendant les tests
+// ─── Démarrage ────────────────────────────────────────────────────────────────
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
 
   mongoose
     .connect(process.env.MONGO_URI)
     .then(() => {
-      console.log("✅ MongoDB connecté");
+      logger.info("MongoDB connecté");
       server.listen(PORT, () => {
-        console.log(
-          `🚀 BlancBleu démarré — port ${PORT} [${process.env.NODE_ENV || "development"}]`,
-        );
+        logger.info(`BlancBleu démarré`, {
+          port: PORT,
+          env: process.env.NODE_ENV || "development",
+        });
         if (process.env.NODE_ENV !== "production") {
-          console.log(`📄 Swagger UI : http://localhost:${PORT}/api-docs`);
+          logger.info(`Swagger UI : http://localhost:${PORT}/api-docs`);
         }
+
         const { demarrerSurveillance } = require("./services/escaladeService");
         demarrerSurveillance(2);
+
         const { demarrerScan } = require("./services/missionCompletion");
         demarrerScan(5);
       });
     })
     .catch((err) => {
-      console.error("❌ MongoDB connexion échouée :", err.message);
+      logger.error("MongoDB connexion échouée", { err: err.message });
       process.exit(1);
     });
 
