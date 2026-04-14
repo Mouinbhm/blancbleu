@@ -64,11 +64,11 @@ const getStats = async (req, res) => {
 // ─── GET /api/equipements/alerts/expiring ─────────────────────────────────────
 const getExpiring = async (req, res) => {
   try {
-    const { expires, expirentBientot } = await service.detecterAlertes();
+    const { expirationProche, enPanne } = await service.getAlertes();
     res.json({
-      expires,
-      expirentBientot,
-      total: expires.length + expirentBientot.length,
+      expires: enPanne,
+      expirentBientot: expirationProche,
+      total: (enPanne?.length || 0) + (expirationProche?.length || 0),
     });
   } catch (err) {
     erreur(res, err);
@@ -78,13 +78,12 @@ const getExpiring = async (req, res) => {
 // ─── GET /api/equipements/alerts/check-required ───────────────────────────────
 const getCheckRequired = async (req, res) => {
   try {
-    const { controleRetard, controleBientot, enPanne } =
-      await service.detecterAlertes();
+    const { controleProchain, enPanne } = await service.getAlertes();
     res.json({
-      controleRetard,
-      controleBientot,
+      controleRetard: [],
+      controleBientot: controleProchain,
       enPanne,
-      total: controleRetard.length + controleBientot.length,
+      total: controleProchain?.length || 0,
     });
   } catch (err) {
     erreur(res, err);

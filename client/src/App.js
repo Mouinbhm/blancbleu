@@ -1,3 +1,4 @@
+// Fichier : client/src/App.js
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import PrivateRoute from "./components/PrivateRoute";
@@ -7,12 +8,17 @@ import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
-import Interventions from "./pages/Interventions";
-import Carte from "./pages/Carte";
+import Transports from "./pages/Transports";
+import NouveauTransport from "./pages/NouveauTransport";
+import TransportDetail from "./pages/TransportDetail";
 import Flotte from "./pages/Flotte";
-import AideIA from "./pages/AideIA";
-import Rapports from "./pages/Rapports";
+import Planning from "./pages/Planning";
+import Patients from "./pages/Patients";
+import Personnel from "./pages/Personnel";
+import Equipements from "./pages/Equipements";
+import Maintenances from "./pages/Maintenances";
 import Factures from "./pages/Factures";
+import AideIA from "./pages/AideIA";
 
 function App() {
   return (
@@ -33,16 +39,21 @@ function App() {
             }
           >
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/interventions" element={<Interventions />} />
-            <Route path="/carte" element={<Carte />} />
+            <Route path="/transports" element={<Transports />} />
+            <Route path="/transports/new" element={<NouveauTransport />} />
+            <Route path="/transports/:id" element={<TransportDetail />} />
             <Route path="/flotte" element={<Flotte />} />
-            <Route path="/aide-ia" element={<AideIA />} />
-            <Route path="/rapports" element={<Rapports />} />
+            <Route path="/planning" element={<Planning />} />
+            <Route path="/patients" element={<Patients />} />
+            <Route path="/personnel" element={<Personnel />} />
+            <Route path="/equipements" element={<Equipements />} />
+            <Route path="/maintenances" element={<Maintenances />} />
             <Route path="/factures" element={<Factures />} />
+            <Route path="/aide-ia" element={<AideIA />} />
           </Route>
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

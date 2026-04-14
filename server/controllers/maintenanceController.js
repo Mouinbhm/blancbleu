@@ -1,10 +1,10 @@
+/**
+ * BlancBleu — Contrôleur Maintenances
+ * Adapté transport sanitaire — utilise Vehicle au lieu de Unit
+ */
 const Maintenance = require("../models/Maintenance");
-const Unit = require("../models/Unit");
+const Vehicle = require("../models/Vehicle"); // ← remplace Unit
 
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Lister toutes les maintenances (filtres: statut, uniteId)
-// @route   GET /api/maintenances
-// ─────────────────────────────────────────────────────────────────────────────
 const getMaintenances = async (req, res) => {
   try {
     const { statut, uniteId } = req.query;
@@ -23,10 +23,6 @@ const getMaintenances = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Détail d'une maintenance
-// @route   GET /api/maintenances/:id
-// ─────────────────────────────────────────────────────────────────────────────
 const getMaintenance = async (req, res) => {
   try {
     const m = await Maintenance.findById(req.params.id)
@@ -39,23 +35,19 @@ const getMaintenance = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Créer une maintenance + passer l'unité en statut "maintenance"
-// @route   POST /api/maintenances
-// ─────────────────────────────────────────────────────────────────────────────
 const createMaintenance = async (req, res) => {
   try {
     const data = { ...req.body, responsable: req.user._id };
     const m = await Maintenance.create(data);
 
-    // Mettre l'unité en maintenance si statut en-cours
+    // Passer le véhicule en maintenance si statut en-cours
     if (m.statut === "en-cours") {
-      await Unit.findByIdAndUpdate(m.unite, { statut: "maintenance" });
+      await Vehicle.findByIdAndUpdate(m.unite, { statut: "maintenance" });
     }
 
     const populated = await Maintenance.findById(m._id).populate(
       "unite",
-      "nom immatriculation",
+      "nom immatriculation type",
     );
 
     res
@@ -66,16 +58,12 @@ const createMaintenance = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Modifier une maintenance
-// @route   PATCH /api/maintenances/:id
-// ─────────────────────────────────────────────────────────────────────────────
 const updateMaintenance = async (req, res) => {
   try {
     const m = await Maintenance.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
-    }).populate("unite", "nom immatriculation");
+    }).populate("unite", "nom immatriculation type");
     if (!m) return res.status(404).json({ message: "Maintenance introuvable" });
     res.json({ message: "Maintenance mise à jour", maintenance: m });
   } catch (err) {
@@ -83,11 +71,6 @@ const updateMaintenance = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Changer le statut d'une maintenance
-//          Si terminé → remettre l'unité disponible
-// @route   PATCH /api/maintenances/:id/status
-// ─────────────────────────────────────────────────────────────────────────────
 const updateStatut = async (req, res) => {
   try {
     const { statut } = req.body;
@@ -98,23 +81,24 @@ const updateStatut = async (req, res) => {
         .json({ message: `Statut invalide. Valeurs : ${valides.join(", ")}` });
     }
 
-    const update = { statut };
-    if (statut === "terminé") update.dateFin = new Date();
-
-    const m = await Maintenance.findByIdAndUpdate(req.params.id, update, {
-      new: true,
-    }).populate("unite", "nom immatriculation _id");
-
+    const m = await Maintenance.findById(req.params.id);
     if (!m) return res.status(404).json({ message: "Maintenance introuvable" });
 
-    // Libérer l'unité si maintenance terminée ou annulée
-    if ((statut === "terminé" || statut === "annulé") && m.unite) {
-      await Unit.findByIdAndUpdate(m.unite._id, { statut: "disponible" });
-    }
+    const ancienStatut = m.statut;
+    m.statut = statut;
+    if (statut === "terminé") m.dateFin = new Date();
+    await m.save();
 
-    // Mettre l'unité en maintenance si démarrage
-    if (statut === "en-cours" && m.unite) {
-      await Unit.findByIdAndUpdate(m.unite._id, { statut: "maintenance" });
+    // Remettre le véhicule disponible si maintenance terminée/annulée
+    if (
+      ["terminé", "annulé"].includes(statut) &&
+      ["en-cours", "planifié"].includes(ancienStatut)
+    ) {
+      await Vehicle.findByIdAndUpdate(m.unite, { statut: "disponible" });
+    }
+    // Passer en maintenance si en-cours
+    if (statut === "en-cours") {
+      await Vehicle.findByIdAndUpdate(m.unite, { statut: "maintenance" });
     }
 
     res.json({ message: "Statut mis à jour", maintenance: m });
@@ -123,55 +107,24 @@ const updateStatut = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Supprimer une maintenance
-// @route   DELETE /api/maintenances/:id
-// ─────────────────────────────────────────────────────────────────────────────
 const deleteMaintenance = async (req, res) => {
   try {
-    const m = await Maintenance.findByIdAndDelete(req.params.id);
-    if (!m) return res.status(404).json({ message: "Maintenance introuvable" });
-
-    // Libérer l'unité si elle était en maintenance
-    if (m.unite && m.statut === "en-cours") {
-      await Unit.findByIdAndUpdate(m.unite, { statut: "disponible" });
-    }
-
+    await Maintenance.findByIdAndDelete(req.params.id);
     res.json({ message: "Maintenance supprimée" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Stats maintenance pour le dashboard
-// @route   GET /api/maintenances/stats
-// ─────────────────────────────────────────────────────────────────────────────
 const getStats = async (req, res) => {
   try {
-    const [total, planifie, enCours, termine, annule, coutTotal, parType] =
-      await Promise.all([
-        Maintenance.countDocuments(),
-        Maintenance.countDocuments({ statut: "planifié" }),
-        Maintenance.countDocuments({ statut: "en-cours" }),
-        Maintenance.countDocuments({ statut: "terminé" }),
-        Maintenance.countDocuments({ statut: "annulé" }),
-        Maintenance.aggregate([
-          { $match: { statut: "terminé" } },
-          { $group: { _id: null, total: { $sum: "$cout" } } },
-        ]),
-        Maintenance.aggregate([
-          { $group: { _id: "$type", count: { $sum: 1 } } },
-          { $sort: { count: -1 } },
-        ]),
-      ]);
-
-    res.json({
-      total,
-      parStatut: { planifie, enCours, termine, annule },
-      coutTotalTermine: coutTotal[0]?.total || 0,
-      parType,
-    });
+    const [total, planifiees, enCours, terminees] = await Promise.all([
+      Maintenance.countDocuments(),
+      Maintenance.countDocuments({ statut: "planifié" }),
+      Maintenance.countDocuments({ statut: "en-cours" }),
+      Maintenance.countDocuments({ statut: "terminé" }),
+    ]);
+    res.json({ total, planifiees, enCours, terminees });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -1,3 +1,7 @@
+/**
+ * BlancBleu — Contrôleur Factures
+ * Adapté transport sanitaire — ref Transport au lieu de Intervention
+ */
 const Facture = require("../models/Facture");
 
 const getFactures = async (req, res) => {
@@ -8,7 +12,7 @@ const getFactures = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const [factures, total] = await Promise.all([
       Facture.find(filter)
-        .populate("intervention", "numero typeIncident")
+        .populate("transport", "numero motif dateTransport")
         .sort({ date: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
@@ -28,8 +32,8 @@ const getFactures = async (req, res) => {
 const getFacture = async (req, res) => {
   try {
     const f = await Facture.findById(req.params.id).populate(
-      "intervention",
-      "numero typeIncident adresse",
+      "transport",
+      "numero motif dateTransport adresseDestination patient",
     );
     if (!f) return res.status(404).json({ message: "Facture introuvable" });
     res.json(f);

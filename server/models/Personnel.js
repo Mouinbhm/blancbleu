@@ -30,7 +30,7 @@ const personnelSchema = new mongoose.Schema(
     // ─── Unité assignée ───────────────────────────────────────────
     uniteAssignee: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Unit",
+      ref: "Vehicle",
       default: null,
     },
 

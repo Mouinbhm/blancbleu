@@ -1,134 +1,87 @@
+/**
+ * BlancBleu — Contrôleur IA
+ * Adapté transport sanitaire NON urgent
+ * L'analyse IA porte sur la priorisation des transports (récurrence, urgence relative)
+ */
 const axios = require("axios");
 const { audit } = require("../services/auditService");
 
 const AI_API_URL = process.env.AI_API_URL || "http://localhost:5001";
 
-// ─── Scoring fallback (si Flask non disponible) ───────────────────────────────
-function scoringLocal(
-  typeIncident,
-  etatPatient,
-  symptomes = [],
-  nbVictimes = 1,
-) {
+// ─── Scoring local (si Flask non disponible) ──────────────────────────────────
+function scoringLocal(motif, mobilite = "ASSIS") {
   let score = 0;
-  const scoreType = {
-    "Arrêt cardiaque": 40,
-    AVC: 38,
-    "Détresse respiratoire": 35,
-    "Douleur thoracique": 30,
-    "Traumatisme grave": 33,
-    "Accident de la route": 28,
-    Intoxication: 25,
-    Accouchement: 30,
-    Malaise: 15,
-    Brûlure: 20,
-    Chute: 12,
-    Autre: 10,
+  const scoreMotif = {
+    Dialyse: 85,
+    Chimiothérapie: 80,
+    Radiothérapie: 75,
+    Hospitalisation: 70,
+    "Sortie hospitalisation": 65,
+    Rééducation: 50,
+    Consultation: 40,
+    Analyse: 30,
+    Autre: 20,
   };
-  const scoreEtat = {
-    critique: 30,
-    inconscient: 25,
-    inconnu: 10,
-    conscient: 8,
-    stable: 5,
+  const scoreMobilite = {
+    CIVIERE: 30,
+    ALLONGE: 25,
+    FAUTEUIL_ROULANT: 15,
+    ASSIS: 5,
   };
-  score += scoreType[typeIncident] || 10;
-  score += scoreEtat[etatPatient] || 8;
-  if (nbVictimes > 1) score += Math.min((nbVictimes - 1) * 5, 25);
-  const priorite = score >= 80 ? "P1" : score >= 55 ? "P2" : "P3";
+  score += scoreMotif[motif] || 20;
+  score += scoreMobilite[mobilite] || 5;
+  const priorite = score >= 80 ? "URGENT" : score >= 50 ? "NORMAL" : "FAIBLE";
   return { score, priorite, source: "rules" };
 }
 
 // POST /api/ai/analyze
 const analyzeIntervention = async (req, res) => {
   try {
-    const {
-      typeIncident,
-      etatPatient,
-      symptomes,
-      nbVictimes,
-      age,
-      adresse,
-      arrivalMode,
-      injury,
-      mental,
-      pain,
-      nrsPain,
-      patientsPerHour,
-    } = req.body;
+    const { motif, mobilite, oxygene, brancardage, recurrence } = req.body;
 
-    if (!typeIncident || !etatPatient)
-      return res
-        .status(400)
-        .json({ message: "typeIncident et etatPatient sont requis" });
+    if (!motif)
+      return res.status(400).json({ message: "motif est requis" });
 
     let result;
     try {
       const { data } = await axios.post(
         `${AI_API_URL}/predict`,
-        {
-          typeIncident,
-          etatPatient,
-          nbVictimes: nbVictimes || 1,
-          age: age || 40,
-          symptomes: symptomes || [],
-          adresse: adresse || "",
-          arrivalMode: arrivalMode || "walk",
-          injury: injury || false,
-          mental: mental || 1,
-          pain: pain || 0,
-          nrsPain: nrsPain || 0,
-          patientsPerHour: patientsPerHour || 5,
-        },
+        { motif, mobilite, oxygene, brancardage, recurrence },
         { timeout: 5000 },
       );
-
       result = {
         priorite: data.priorite,
         score: data.score,
         confiance: data.confiance,
-        probabilites: data.probabilites,
-        uniteRecommandee: data.uniteRecommandee,
+        typeTransportRecommande: data.typeTransportRecommande,
         justification: data.justification,
         modele: data.modele,
         source: "ml",
       };
     } catch (mlError) {
-      console.warn(
-        "Modèle ML indisponible — fallback règles:",
-        mlError.message,
-      );
-      const fallback = scoringLocal(
-        typeIncident,
-        etatPatient,
-        symptomes,
-        nbVictimes,
-      );
+      console.warn("Modèle ML indisponible — fallback règles:", mlError.message);
+      const fallback = scoringLocal(motif, mobilite);
       result = {
         priorite: fallback.priorite,
         score: fallback.score,
         confiance: null,
-        probabilites: {},
-        uniteRecommandee:
-          fallback.priorite === "P1"
-            ? "SMUR"
-            : fallback.priorite === "P2"
-              ? "VSAV"
+        typeTransportRecommande:
+          mobilite === "ALLONGE" || mobilite === "CIVIERE"
+            ? "AMBULANCE"
+            : mobilite === "FAUTEUIL_ROULANT"
+              ? "TPMR"
               : "VSL",
-        justification: [
-          "Analyse par règles médicales (modèle ML indisponible)",
-        ],
-        modele: "Règles BlancBleu v1.0",
+        justification: ["Analyse par règles métier (modèle ML indisponible)"],
+        modele: "Règles BlancBleu v2.0",
         source: "rules",
       };
     }
 
     res.json(result);
 
-    // ── Audit traçabilité IA ──────────────────────────────────────────────
-    const fakeIntervention = { _id: null, numero: `ANALYSE-${Date.now()}` };
+    const fakeTransport = { _id: null, numero: `ANALYSE-${Date.now()}` };
     audit
-      .predictionIA(fakeIntervention, result.priorite, result.confiance || 0)
+      .predictionIA(fakeTransport, result.priorite, result.confiance || 0)
       .catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -138,44 +91,31 @@ const analyzeIntervention = async (req, res) => {
 // POST /api/ai/analyze-and-save
 const analyzeAndSave = async (req, res) => {
   try {
-    const Intervention = require("../models/Intervention");
-    const {
-      interventionId,
-      typeIncident,
-      etatPatient,
-      symptomes,
-      nbVictimes,
-      age,
-    } = req.body;
+    const Transport = require("../models/Transport");
+    const { transportId, motif, mobilite } = req.body;
 
     let priorite, score;
     try {
       const { data } = await axios.post(
         `${AI_API_URL}/predict`,
-        {
-          typeIncident,
-          etatPatient,
-          nbVictimes: nbVictimes || 1,
-          age: age || 40,
-          symptomes: symptomes || [],
-        },
+        { motif, mobilite },
         { timeout: 5000 },
       );
       priorite = data.priorite;
       score = data.score;
     } catch {
-      const fb = scoringLocal(typeIncident, etatPatient, symptomes, nbVictimes);
+      const fb = scoringLocal(motif, mobilite);
       priorite = fb.priorite;
       score = fb.score;
     }
 
-    if (interventionId)
-      await Intervention.findByIdAndUpdate(interventionId, {
-        priorite,
-        scoreIA: score,
+    if (transportId) {
+      await Transport.findByIdAndUpdate(transportId, {
+        "prescription.extractionIA": { priorite, score },
       });
+    }
 
-    res.json({ priorite, score, message: "Intervention mise à jour" });
+    res.json({ priorite, score, message: "Transport mis à jour" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -191,41 +131,19 @@ const getOptions = async (req, res) => {
       return res.json(data);
     } catch {}
     res.json({
-      typeIncidents: [
-        "Arrêt cardiaque",
-        "AVC",
-        "Détresse respiratoire",
-        "Douleur thoracique",
-        "Traumatisme grave",
-        "Accident de la route",
-        "Intoxication",
-        "Accouchement",
-        "Malaise",
-        "Brûlure",
-        "Chute",
+      motifs: [
+        "Dialyse",
+        "Chimiothérapie",
+        "Radiothérapie",
+        "Consultation",
+        "Hospitalisation",
+        "Sortie hospitalisation",
+        "Rééducation",
+        "Analyse",
         "Autre",
       ],
-      etatsPatient: [
-        "critique",
-        "inconscient",
-        "conscient",
-        "stable",
-        "inconnu",
-      ],
-      symptomes: [
-        "arrêt cardiaque",
-        "perte de connaissance",
-        "détresse respiratoire",
-        "hémorragie",
-        "paralysie",
-        "convulsions",
-        "douleurs thoraciques",
-        "fracture",
-        "brûlures",
-        "hypotension",
-        "cyanose",
-        "confusion",
-      ],
+      mobilites: ["ASSIS", "FAUTEUIL_ROULANT", "ALLONGE", "CIVIERE"],
+      typesTransport: ["VSL", "AMBULANCE", "TPMR"],
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

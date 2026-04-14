@@ -1,27 +1,38 @@
+// Fichier : client/src/components/layout/Layout.jsx
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { interventionService } from "../../services/api";
+import { transportService } from "../../services/api";
 import useSocket from "../../hooks/useSocket";
 
-const NAV_BASE = [
+const NAV_OPERATIONS = [
   { path: "/dashboard", icon: "dashboard", label: "Tableau de bord" },
-  { path: "/interventions", icon: "emergency", label: "Interventions" },
-  { path: "/carte", icon: "map", label: "Carte en direct" },
-  { path: "/flotte", icon: "ambulance", label: "Flotte & Véhicules" },
-  { path: "/aide-ia", icon: "psychology", label: "Aide IA" },
-  { path: "/rapports", icon: "assessment", label: "Rapports" },
+  { path: "/transports", icon: "directions_car", label: "Transports" },
+  { path: "/planning", icon: "calendar_month", label: "Planning" },
+  { path: "/flotte", icon: "airport_shuttle", label: "Flotte" },
+  { path: "/patients", icon: "personal_injury", label: "Patients" },
+];
+
+const NAV_GESTION = [
+  { path: "/personnel", icon: "badge", label: "Personnel" },
+  { path: "/equipements", icon: "medical_services", label: "Équipements" },
+  { path: "/maintenances", icon: "build", label: "Maintenances" },
   { path: "/factures", icon: "receipt_long", label: "Factures" },
+  { path: "/aide-ia", icon: "psychology", label: "Aide IA" },
 ];
 
 const pageTitles = {
   "/dashboard": "Tableau de bord — Vue opérationnelle",
-  "/interventions": "Interventions — Gestion des appels",
-  "/carte": "Carte en direct — Suivi des unités",
-  "/flotte": "Flotte & Véhicules — Gestion des ambulances",
-  "/aide-ia": "Aide IA — Priorisation intelligente",
-  "/rapports": "Rapports Opérationnels",
-  "/factures": "Factures — Gestion de la facturation",
+  "/transports": "Transports — Gestion des transports",
+  "/transports/new": "Nouveau transport",
+  "/planning": "Planning — Organisation journalière",
+  "/flotte": "Flotte — Véhicules sanitaires",
+  "/patients": "Patients — Historique et récurrences",
+  "/personnel": "Personnel — Équipes",
+  "/equipements": "Équipements — Matériel médical",
+  "/maintenances": "Maintenances — Suivi véhicules",
+  "/factures": "Factures — Facturation",
+  "/aide-ia": "Aide IA — Optimisation",
 };
 
 export default function Layout() {
@@ -34,107 +45,62 @@ export default function Layout() {
   const [notifCount, setNotifCount] = useState(0);
   const notifRef = useRef(null);
 
-  // ── Socket temps réel ─────────────────────────────────────────────────
-  const { connected, lastInterventionCreated, alertes, nbAlertes } =
-    useSocket();
+  const { connected, subscribe } = useSocket();
 
-  // Nouvelle intervention → notif temps réel
+  // ── Écoute Socket.IO : nouveau transport ─────────────────────────────────
   useEffect(() => {
-    if (!lastInterventionCreated) return;
-    const d = lastInterventionCreated.data;
-    const notif = {
-      id: d._id + "_socket",
-      title: `${d.priorite} — ${d.typeIncident}`,
-      sub:
-        d.priorite === "P1"
-          ? "🚨 CRITIQUE — intervention immédiate"
-          : "Intervention créée",
-      color:
-        d.priorite === "P1"
-          ? "text-danger"
-          : d.priorite === "P2"
-            ? "text-warning"
-            : "text-primary",
-      path: "/interventions",
-      time: new Date(d.createdAt || Date.now()),
-    };
-    setNotifs((prev) => [notif, ...prev].slice(0, 8));
-    setNotifCount((prev) => prev + 1);
-  }, [lastInterventionCreated]);
+    const unsub = subscribe("transport:created", (data) => {
+      const notif = {
+        id: data._id + "_socket",
+        title: `Nouveau transport — ${data.motif}`,
+        sub: `${data.patient?.nom || "Patient"} · ${data.typeTransport}`,
+        path: `/transports/${data._id}`,
+        time: new Date(),
+      };
+      setNotifs((prev) => [notif, ...prev].slice(0, 8));
+      setNotifCount((prev) => prev + 1);
+    });
+    return unsub;
+  }, [subscribe]);
 
-  // Escalades → badge rouge
-  useEffect(() => {
-    if (nbAlertes > 0) setNotifCount((prev) => prev + nbAlertes);
-  }, [nbAlertes]);
-
-  // ── Charger interventions actives comme notifications ─────────────────────
+  // ── Chargement notifications initiales ───────────────────────────────────
   useEffect(() => {
     const loadNotifs = async () => {
       try {
-        const { data } = await interventionService.getAll({
-          statut: "CREATED",
+        const { data } = await transportService.getAll({
+          statut: "REQUESTED",
           limit: 10,
         });
-        const enAttente = data.interventions || [];
-        const { data: data2 } = await interventionService.getAll({
-          statut: "EN_ROUTE",
-          limit: 5,
-        });
-        const enCours = data2.interventions || [];
-
-        const notifList = [
-          ...enAttente.map((i) => ({
-            id: i._id,
-            title: `${i.priorite} — ${i.typeIncident}`,
-            sub: "En attente d'une unité",
-            color:
-              i.priorite === "P1"
-                ? "text-danger"
-                : i.priorite === "P2"
-                  ? "text-warning"
-                  : "text-primary",
-            path: "/interventions",
-            time: new Date(i.createdAt),
-          })),
-          ...enCours.slice(0, 3).map((i) => ({
-            id: i._id + "_cours",
-            title: `${i.priorite} — ${i.typeIncident}`,
-            sub: `Unité ${i.unitAssignee?.nom || "—"} dispatchée`,
-            color:
-              i.priorite === "P1"
-                ? "text-danger"
-                : i.priorite === "P2"
-                  ? "text-warning"
-                  : "text-primary",
-            path: "/interventions",
-            time: new Date(i.createdAt),
-          })),
-        ]
-          .sort((a, b) => b.time - a.time)
-          .slice(0, 8);
-
-        setNotifs(notifList);
-        setNotifCount(enAttente.length);
+        const enAttente = data.transports || data.data || [];
+        const list = enAttente.map((t) => ({
+          id: t._id,
+          title: `${t.motif} — ${t.patient?.nom || "Patient"}`,
+          sub: `En attente de confirmation · ${t.typeTransport}`,
+          path: `/transports/${t._id}`,
+          time: new Date(t.createdAt),
+        }));
+        setNotifs(list.slice(0, 8));
+        setNotifCount(list.length);
       } catch {
         /* silencieux */
       }
     };
     loadNotifs();
-    const iv = setInterval(loadNotifs, 30000);
+    const iv = setInterval(loadNotifs, 60000);
     return () => clearInterval(iv);
   }, []);
 
-  // ── Fermer le panneau si clic en dehors ───────────────────────────────────
+  // ── Fermer notifs si clic en dehors ──────────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) {
+      if (notifRef.current && !notifRef.current.contains(e.target))
         setNotifOpen(false);
-      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // ── Timer shift ──────────────────────────────────────────────────────────
   useEffect(() => {
     const start = Date.now();
     const iv = setInterval(() => {
@@ -151,6 +117,11 @@ export default function Layout() {
     ? `${user.prenom?.[0] ?? ""}${user.nom?.[0] ?? ""}`.toUpperCase()
     : "??";
 
+  const pageTitle =
+    Object.entries(pageTitles).find(([k]) =>
+      location.pathname.startsWith(k),
+    )?.[1] || "Ambulances Blanc Bleu";
+
   return (
     <div className="flex min-h-screen bg-surface">
       {/* ═══════════════ SIDEBAR ═══════════════ */}
@@ -163,7 +134,7 @@ export default function Layout() {
                 className="material-symbols-outlined text-white"
                 style={{ fontSize: "18px" }}
               >
-                emergency
+                airport_shuttle
               </span>
             </div>
             <div>
@@ -182,7 +153,7 @@ export default function Layout() {
                 className="text-slate-600 font-mono tracking-widest"
                 style={{ fontSize: "8px", marginTop: "2px" }}
               >
-                NICE · DISPATCH · AI
+                NICE · TRANSPORT SANITAIRE
               </p>
             </div>
           </div>
@@ -193,7 +164,7 @@ export default function Layout() {
           <p className="text-xs font-mono text-slate-600 uppercase tracking-widest px-4 py-2">
             Opérations
           </p>
-          {NAV_BASE.slice(0, 3).map((item) => (
+          {NAV_OPERATIONS.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -211,7 +182,7 @@ export default function Layout() {
                 </span>
                 {item.label}
               </div>
-              {item.path === "/interventions" && notifCount > 0 && (
+              {item.path === "/transports" && notifCount > 0 && (
                 <span className="bg-danger text-white text-xs font-mono font-bold px-1.5 py-0.5 rounded-full">
                   {notifCount}
                 </span>
@@ -222,7 +193,7 @@ export default function Layout() {
           <p className="text-xs font-mono text-slate-600 uppercase tracking-widest px-4 py-2 mt-3">
             Gestion
           </p>
-          {NAV_BASE.slice(3).map((item) => (
+          {NAV_GESTION.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -242,7 +213,7 @@ export default function Layout() {
           ))}
         </nav>
 
-        {/* Infos entreprise */}
+        {/* Infos société */}
         <div className="px-4 py-3 border-t border-white/5">
           <div className="flex items-center gap-2 px-1 mb-2">
             <span
@@ -269,12 +240,12 @@ export default function Layout() {
               className="text-slate-600 font-mono"
               style={{ fontSize: "9px", letterSpacing: "0.05em" }}
             >
-              SAMU 15 · POMPIERS 18
+              04 93 00 00 00
             </span>
           </div>
         </div>
 
-        {/* Dispatcher */}
+        {/* Utilisateur */}
         <div className="px-4 pb-4 border-t border-white/10 pt-3 space-y-2">
           <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3 border border-white/10">
             <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
@@ -305,12 +276,14 @@ export default function Layout() {
             </button>
           </div>
           <div className="flex items-center gap-2 px-1">
-            <span className="w-2 h-2 rounded-full bg-success animate-pulse flex-shrink-0" />
+            <span
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? "bg-success animate-pulse" : "bg-slate-600"}`}
+            />
             <span
               className="text-slate-600 font-mono"
               style={{ fontSize: "9px", letterSpacing: "0.1em" }}
             >
-              SYSTÈME OPÉRATIONNEL
+              {connected ? "TEMPS RÉEL ACTIF" : "RECONNEXION..."}
             </span>
           </div>
         </div>
@@ -322,22 +295,11 @@ export default function Layout() {
         <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-40 flex items-center justify-between px-8 shadow-sm">
           <div>
             <h1 className="font-brand font-semibold text-navy text-sm">
-              {pageTitles[location.pathname] || "Ambulances Blanc Bleu"}
+              {pageTitle}
             </h1>
             <p style={{ fontSize: "11px", color: "#94a3b8" }}>
               Ambulances Blanc Bleu · Nice, Alpes-Maritimes
             </p>
-          </div>
-
-          <div className="flex items-center gap-2 bg-surface rounded-lg border border-slate-200 px-3 py-2 w-56">
-            <span className="material-symbols-outlined text-slate-400 text-lg">
-              search
-            </span>
-            <input
-              type="text"
-              placeholder="Rechercher une intervention…"
-              className="bg-transparent text-sm outline-none w-full text-slate-700 placeholder-slate-400"
-            />
           </div>
 
           <div className="flex items-center gap-3">
@@ -387,12 +349,11 @@ export default function Layout() {
                         onClick={() => {
                           navigate(n.path);
                           setNotifOpen(false);
+                          setNotifCount(0);
                         }}
                         className="px-4 py-3 border-b border-slate-50 hover:bg-surface cursor-pointer transition-colors"
                       >
-                        <p className={`text-xs font-bold ${n.color}`}>
-                          {n.title}
-                        </p>
+                        <p className="text-xs font-bold text-navy">{n.title}</p>
                         <p className="text-xs text-slate-500 mt-0.5">{n.sub}</p>
                         <p className="text-xs text-slate-300 mt-0.5">
                           {n.time.toLocaleTimeString("fr-FR", {
@@ -406,12 +367,12 @@ export default function Layout() {
                   <div className="p-3 border-t border-slate-100">
                     <button
                       onClick={() => {
-                        navigate("/interventions");
+                        navigate("/transports");
                         setNotifOpen(false);
                       }}
                       className="w-full text-xs font-bold text-primary text-center hover:underline"
                     >
-                      Voir toutes les interventions →
+                      Voir tous les transports →
                     </button>
                   </div>
                 </div>

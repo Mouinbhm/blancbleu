@@ -1,261 +1,169 @@
 /**
- * BlancBleu — Routes Analytics
- *
- * GET /api/analytics/dashboard     → KPIs globaux temps réel
- * GET /api/analytics/interventions → Stats interventions (TMR, priorités, types)
- * GET /api/analytics/flotte        → Stats flotte (dispo, km, carburant)
- * GET /api/analytics/ia            → Performance module IA
- * GET /api/analytics/historique    → Tendances sur N jours
+ * BlancBleu — Routes Analytics Transport Sanitaire
+ * Adapté transport non urgent — utilise Transport et Vehicle
  */
-
 const express = require("express");
 const router = express.Router();
-const mongoose = require("mongoose");
-const { protect, authorize } = require("../middleware/auth");
-const Intervention = require("../models/Intervention");
-const Unit = require("../models/Unit");
+const { protect } = require("../middleware/auth");
+const Transport = require("../models/Transport");
+const Vehicle = require("../models/Vehicle");
 const AuditLog = require("../models/AuditLog");
 
-// ─── Helper : plage de dates ───────────────────────────────────────────────────
 function plage(jours = 30) {
   return new Date(Date.now() - jours * 24 * 60 * 60 * 1000);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// GET /api/analytics/dashboard
-// KPIs globaux pour le tableau de bord principal
-// ══════════════════════════════════════════════════════════════════════════════
+// ── GET /api/analytics/dashboard ─────────────────────────────────────────────
 router.get("/dashboard", protect, async (req, res) => {
   try {
     const depuis = plage(30);
 
     const [
-      totalInterventions,
-      actives,
-      completees30j,
-      annulees30j,
-      totalUnites,
-      unitesDisponibles,
-      unitesEnMission,
-      unitesMaintenances,
-      tmrData,
-      parPriorite,
-      escalades30j,
+      totalTransports,
+      actifs,
+      completes30j,
+      annules30j,
+      noShows30j,
+      totalVehicules,
+      vehiculesDisponibles,
+      vehiculesEnMission,
+      vehiculesMaintenance,
+      dureeMoyenne,
+      parMotif,
     ] = await Promise.all([
-      Intervention.countDocuments(),
-      Intervention.countDocuments({
+      Transport.countDocuments({ deletedAt: null }),
+      Transport.countDocuments({
+        deletedAt: null,
         statut: {
           $in: [
-            "CREATED",
-            "VALIDATED",
+            "CONFIRMED",
+            "SCHEDULED",
             "ASSIGNED",
-            "EN_ROUTE",
-            "ON_SITE",
-            "TRANSPORTING",
+            "EN_ROUTE_TO_PICKUP",
+            "ARRIVED_AT_PICKUP",
+            "PATIENT_ON_BOARD",
+            "ARRIVED_AT_DESTINATION",
           ],
         },
       }),
-      Intervention.countDocuments({
+      Transport.countDocuments({
+        deletedAt: null,
         statut: "COMPLETED",
         updatedAt: { $gte: depuis },
       }),
-      Intervention.countDocuments({
+      Transport.countDocuments({
+        deletedAt: null,
         statut: "CANCELLED",
         updatedAt: { $gte: depuis },
       }),
-      Unit.countDocuments(),
-      Unit.countDocuments({ statut: "disponible" }),
-      Unit.countDocuments({ statut: "en_mission" }),
-      Unit.countDocuments({ statut: "maintenance" }),
-
-      // TMR moyen — Temps Médian de Réponse (création → arrivée sur site)
-      Intervention.aggregate([
+      Transport.countDocuments({
+        deletedAt: null,
+        statut: "NO_SHOW",
+        updatedAt: { $gte: depuis },
+      }),
+      Vehicle.countDocuments({ deletedAt: null }),
+      Vehicle.countDocuments({ deletedAt: null, statut: "disponible" }),
+      Vehicle.countDocuments({ deletedAt: null, statut: "en_mission" }),
+      Vehicle.countDocuments({ deletedAt: null, statut: "maintenance" }),
+      Transport.aggregate([
         {
           $match: {
+            deletedAt: null,
             statut: "COMPLETED",
-            heureCreation: { $gte: depuis },
-            heureArrivee: { $exists: true },
+            createdAt: { $gte: depuis },
+            dureeReelleMinutes: { $exists: true, $gt: 0 },
           },
         },
-        {
-          $project: {
-            tmrMinutes: {
-              $divide: [
-                { $subtract: ["$heureArrivee", "$heureCreation"] },
-                60000,
-              ],
-            },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            tmrMoyen: { $avg: "$tmrMinutes" },
-            tmrMin: { $min: "$tmrMinutes" },
-            tmrMax: { $max: "$tmrMinutes" },
-            count: { $sum: 1 },
-          },
-        },
+        { $group: { _id: null, moyenne: { $avg: "$dureeReelleMinutes" } } },
       ]),
-
-      // Distribution par priorité (30 derniers jours)
-      Intervention.aggregate([
-        { $match: { createdAt: { $gte: depuis } } },
-        { $group: { _id: "$priorite", count: { $sum: 1 } } },
+      Transport.aggregate([
+        { $match: { deletedAt: null, createdAt: { $gte: depuis } } },
+        { $group: { _id: "$motif", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
       ]),
-
-      // Nombre d'escalades déclenchées
-      AuditLog.countDocuments({
-        action: "ESCALADE_TRIGGERED",
-        createdAt: { $gte: depuis },
-      }),
     ]);
 
-    const tmr = tmrData[0] || {
-      tmrMoyen: null,
-      tmrMin: null,
-      tmrMax: null,
-      count: 0,
-    };
-    const priorites = { P1: 0, P2: 0, P3: 0 };
-    parPriorite.forEach((p) => {
-      if (p._id) priorites[p._id] = p.count;
-    });
-
     const tauxDisponibilite =
-      totalUnites > 0 ? Math.round((unitesDisponibles / totalUnites) * 100) : 0;
-
+      totalVehicules > 0
+        ? Math.round((vehiculesDisponibles / totalVehicules) * 100)
+        : 0;
     const tauxCompletion =
-      completees30j + annulees30j > 0
-        ? Math.round((completees30j / (completees30j + annulees30j)) * 100)
+      completes30j + annules30j > 0
+        ? Math.round((completes30j / (completes30j + annules30j)) * 100)
+        : 0;
+    const tauxNoShow =
+      completes30j + noShows30j > 0
+        ? Math.round((noShows30j / (completes30j + noShows30j)) * 100)
         : 0;
 
     res.json({
       timestamp: new Date(),
       periode: "30 derniers jours",
-      interventions: {
-        total: totalInterventions,
-        actives,
-        completees: completees30j,
-        annulees: annulees30j,
+      transports: {
+        total: totalTransports,
+        actifs,
+        completes: completes30j,
+        annules: annules30j,
+        noShows: noShows30j,
         tauxCompletion,
-        parPriorite: priorites,
+        tauxNoShow,
       },
       flotte: {
-        total: totalUnites,
-        disponibles: unitesDisponibles,
-        enMission: unitesEnMission,
-        maintenance: unitesMaintenances,
+        total: totalVehicules,
+        disponibles: vehiculesDisponibles,
+        enMission: vehiculesEnMission,
+        maintenance: vehiculesMaintenance,
         tauxDisponibilite,
       },
       performance: {
-        tmrMoyenMinutes: tmr.tmrMoyen
-          ? Math.round(tmr.tmrMoyen * 10) / 10
+        dureeMoyenneMinutes: dureeMoyenne[0]?.moyenne
+          ? Math.round(dureeMoyenne[0].moyenne)
           : null,
-        tmrMinMinutes: tmr.tmrMin ? Math.round(tmr.tmrMin * 10) / 10 : null,
-        tmrMaxMinutes: tmr.tmrMax ? Math.round(tmr.tmrMax * 10) / 10 : null,
-        nbInterventionsAvecTMR: tmr.count,
-        escalades30j,
       },
+      parMotif,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
-// GET /api/analytics/interventions
-// Stats détaillées interventions
-// ══════════════════════════════════════════════════════════════════════════════
-router.get("/interventions", protect, async (req, res) => {
+// ── GET /api/analytics/transports ────────────────────────────────────────────
+router.get("/transports", protect, async (req, res) => {
   try {
     const jours = parseInt(req.query.jours) || 30;
     const depuis = plage(jours);
 
-    const [
-      parType,
-      parStatut,
-      parPriorite,
-      dureeMoyenne,
-      tauxEscalade,
-      topAdresses,
-    ] = await Promise.all([
-      // Top 10 types d'incidents
-      Intervention.aggregate([
-        { $match: { createdAt: { $gte: depuis } } },
-        { $group: { _id: "$typeIncident", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 10 },
+    const [parType, parMotif, parStatut, dureeMoyenne] = await Promise.all([
+      Transport.aggregate([
+        { $match: { deletedAt: null, createdAt: { $gte: depuis } } },
+        { $group: { _id: "$typeTransport", count: { $sum: 1 } } },
       ]),
-
-      // Par statut
-      Intervention.aggregate([
+      Transport.aggregate([
+        { $match: { deletedAt: null, createdAt: { $gte: depuis } } },
+        { $group: { _id: "$motif", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      Transport.aggregate([
+        { $match: { deletedAt: null } },
         { $group: { _id: "$statut", count: { $sum: 1 } } },
       ]),
-
-      // Par priorité avec TMR
-      Intervention.aggregate([
-        { $match: { createdAt: { $gte: depuis } } },
-        {
-          $group: {
-            _id: "$priorite",
-            count: { $sum: 1 },
-            tmrMoyen: {
-              $avg: {
-                $cond: [
-                  { $and: ["$heureArrivee", "$heureCreation"] },
-                  {
-                    $divide: [
-                      { $subtract: ["$heureArrivee", "$heureCreation"] },
-                      60000,
-                    ],
-                  },
-                  null,
-                ],
-              },
-            },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]),
-
-      // Durée moyenne de mission (COMPLETED)
-      Intervention.aggregate([
+      Transport.aggregate([
         {
           $match: {
+            deletedAt: null,
             statut: "COMPLETED",
             createdAt: { $gte: depuis },
-            dureeMinutes: { $exists: true, $gt: 0 },
+            dureeReelleMinutes: { $exists: true, $gt: 0 },
           },
         },
         {
           $group: {
             _id: null,
-            moyenne: { $avg: "$dureeMinutes" },
-            mediane: { $avg: "$dureeMinutes" }, // approximation
-            min: { $min: "$dureeMinutes" },
-            max: { $max: "$dureeMinutes" },
+            moyenne: { $avg: "$dureeReelleMinutes" },
+            min: { $min: "$dureeReelleMinutes" },
+            max: { $max: "$dureeReelleMinutes" },
           },
         },
-      ]),
-
-      // Taux d'escalade par priorité
-      AuditLog.aggregate([
-        {
-          $match: {
-            action: "ESCALADE_TRIGGERED",
-            createdAt: { $gte: depuis },
-          },
-        },
-        { $group: { _id: null, total: { $sum: 1 } } },
-      ]),
-
-      // Top 5 adresses récurrentes
-      Intervention.aggregate([
-        { $match: { createdAt: { $gte: depuis } } },
-        { $group: { _id: "$adresse", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 5 },
       ]),
     ]);
 
@@ -267,39 +175,30 @@ router.get("/interventions", protect, async (req, res) => {
     res.json({
       periode: `${jours} derniers jours`,
       parType,
+      parMotif,
       parStatut: statutMap,
-      parPriorite: parPriorite.map((p) => ({
-        priorite: p._id,
-        count: p.count,
-        tmrMoyen: p.tmrMoyen ? Math.round(p.tmrMoyen * 10) / 10 : null,
-      })),
-      dureesMission: dureeMoyenne[0]
+      durees: dureeMoyenne[0]
         ? {
-            moyenneMinutes: Math.round(dureeMoyenne[0].moyenne),
-            minMinutes: Math.round(dureeMoyenne[0].min),
-            maxMinutes: Math.round(dureeMoyenne[0].max),
+            moyenne: Math.round(dureeMoyenne[0].moyenne),
+            min: Math.round(dureeMoyenne[0].min),
+            max: Math.round(dureeMoyenne[0].max),
           }
         : null,
-      escalades: tauxEscalade[0]?.total || 0,
-      topAdresses: topAdresses.map((a) => ({ adresse: a._id, count: a.count })),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
-// GET /api/analytics/flotte
-// Stats flotte ambulancière
-// ══════════════════════════════════════════════════════════════════════════════
+// ── GET /api/analytics/flotte ─────────────────────────────────────────────────
 router.get("/flotte", protect, async (req, res) => {
   try {
-    const [unites, statsFlotte] = await Promise.all([
-      Unit.find().select(
-        "nom type statut carburant kilometrage lastStatusChangeAt",
+    const [vehicles, statsParType] = await Promise.all([
+      Vehicle.find({ deletedAt: null }).select(
+        "nom type statut carburant kilometrage",
       ),
-
-      Unit.aggregate([
+      Vehicle.aggregate([
+        { $match: { deletedAt: null } },
         {
           $group: {
             _id: "$type",
@@ -309,27 +208,24 @@ router.get("/flotte", protect, async (req, res) => {
             },
             kmMoyen: { $avg: "$kilometrage" },
             carburantMoyen: { $avg: "$carburant" },
-            carburantBas: {
-              $sum: { $cond: [{ $lte: ["$carburant", 20] }, 1, 0] },
-            },
           },
         },
         { $sort: { _id: 1 } },
       ]),
     ]);
 
-    const alertesCarburant = unites
-      .filter((u) => u.carburant <= 20)
-      .map((u) => ({
-        id: u._id,
-        nom: u.nom,
-        type: u.type,
-        carburant: u.carburant,
-        niveau: u.carburant <= 10 ? "CRITIQUE" : "BAS",
+    const alertesCarburant = vehicles
+      .filter((v) => v.carburant <= 25)
+      .map((v) => ({
+        id: v._id,
+        nom: v.nom,
+        type: v.type,
+        carburant: v.carburant,
+        niveau: v.carburant <= 10 ? "CRITIQUE" : "BAS",
       }));
 
     res.json({
-      parType: statsFlotte,
+      parType: statsParType,
       alertesCarburant,
       nbAlertes: alertesCarburant.length,
     });
@@ -338,68 +234,14 @@ router.get("/flotte", protect, async (req, res) => {
   }
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
-// GET /api/analytics/ia
-// Performance module IA de triage
-// ══════════════════════════════════════════════════════════════════════════════
-router.get("/ia", protect, async (req, res) => {
-  try {
-    const jours = parseInt(req.query.jours) || 30;
-    const depuis = plage(jours);
-
-    const [predictions, overrides, fallbacks] = await Promise.all([
-      // Nombre total de prédictions
-      AuditLog.countDocuments({
-        action: "IA_PREDICTION",
-        createdAt: { $gte: depuis },
-      }),
-
-      // Nombre d'overrides (règles expertes ont modifié la prédiction ML)
-      AuditLog.countDocuments({
-        action: "IA_OVERRIDE",
-        createdAt: { $gte: depuis },
-      }),
-
-      // Nombre de fallbacks (Flask indisponible, règles métier utilisées)
-      AuditLog.countDocuments({
-        action: "IA_FALLBACK",
-        createdAt: { $gte: depuis },
-      }),
-    ]);
-
-    const tauxOverride =
-      predictions > 0 ? Math.round((overrides / predictions) * 100) : 0;
-    const tauxFallback =
-      predictions > 0 ? Math.round((fallbacks / predictions) * 100) : 0;
-    const tauxML = 100 - tauxOverride - tauxFallback;
-
-    res.json({
-      periode: `${jours} derniers jours`,
-      predictions,
-      overrides,
-      fallbacks,
-      tauxML: Math.max(0, tauxML),
-      tauxOverride,
-      tauxFallback,
-      sante:
-        tauxFallback > 20 ? "DEGRADEE" : tauxFallback > 5 ? "PARTIELLE" : "OK",
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// ══════════════════════════════════════════════════════════════════════════════
-// GET /api/analytics/historique
-// Tendances journalières sur N jours (pour graphiques)
-// ══════════════════════════════════════════════════════════════════════════════
+// ── GET /api/analytics/historique ────────────────────────────────────────────
 router.get("/historique", protect, async (req, res) => {
   try {
     const jours = Math.min(parseInt(req.query.jours) || 7, 90);
     const depuis = plage(jours);
 
-    const historique = await Intervention.aggregate([
-      { $match: { createdAt: { $gte: depuis } } },
+    const historique = await Transport.aggregate([
+      { $match: { deletedAt: null, createdAt: { $gte: depuis } } },
       {
         $group: {
           _id: {
@@ -408,11 +250,13 @@ router.get("/historique", protect, async (req, res) => {
             jour: { $dayOfMonth: "$createdAt" },
           },
           total: { $sum: 1 },
-          p1: { $sum: { $cond: [{ $eq: ["$priorite", "P1"] }, 1, 0] } },
-          p2: { $sum: { $cond: [{ $eq: ["$priorite", "P2"] }, 1, 0] } },
-          p3: { $sum: { $cond: [{ $eq: ["$priorite", "P3"] }, 1, 0] } },
-          completees: {
+          completes: {
             $sum: { $cond: [{ $eq: ["$statut", "COMPLETED"] }, 1, 0] },
+          },
+          noShows: { $sum: { $cond: [{ $eq: ["$statut", "NO_SHOW"] }, 1, 0] } },
+          dialyse: { $sum: { $cond: [{ $eq: ["$motif", "Dialyse"] }, 1, 0] } },
+          chimio: {
+            $sum: { $cond: [{ $eq: ["$motif", "Chimiothérapie"] }, 1, 0] },
           },
         },
       },
@@ -422,10 +266,10 @@ router.get("/historique", protect, async (req, res) => {
     const data = historique.map((h) => ({
       date: `${h._id.annee}-${String(h._id.mois).padStart(2, "0")}-${String(h._id.jour).padStart(2, "0")}`,
       total: h.total,
-      p1: h.p1,
-      p2: h.p2,
-      p3: h.p3,
-      completees: h.completees,
+      completes: h.completes,
+      noShows: h.noShows,
+      dialyse: h.dialyse,
+      chimio: h.chimio,
     }));
 
     res.json({ jours, data });

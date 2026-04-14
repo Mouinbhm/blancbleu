@@ -1,29 +1,62 @@
+/**
+ * BlancBleu — Seed Transport Sanitaire Non Urgent
+ * Données réalistes : dialyse, chimio, RDV médicaux, Nice
+ */
 require("dotenv").config();
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
-const User = require("./models/User");
-const Unit = require("./models/Unit");
-const Intervention = require("./models/Intervention");
-const Personnel = require("./models/Personnel");
-const Equipement = require("./models/Equipement");
-const Maintenance = require("./models/Maintenance");
 
-// ─── GPS réels à Nice ─────────────────────────────────────────────────────────
-const NICE = [
+const User = require("./models/User");
+const Vehicle = require("./models/Vehicle");
+const Transport = require("./models/Transport");
+
+const NICE_BASE = {
+  lat: 43.7102,
+  lng: 7.262,
+  adresse: "59 Bd Madeleine, Nice",
+};
+
+const HOPITAUX_NICE = [
   {
-    lat: 43.7102,
-    lng: 7.262,
-    adresse: "59 Bd Madeleine, Nice (Base principale)",
+    nom: "CHU Hôpital Pasteur",
+    rue: "30 Voie Romaine",
+    ville: "Nice",
+    service: "Dialyse",
+    lat: 43.72,
+    lng: 7.245,
   },
-  { lat: 43.72, lng: 7.245, adresse: "Hôpital Pasteur, 30 Voie Romaine, Nice" },
-  { lat: 43.6961, lng: 7.2692, adresse: "CHU de Nice, 4 Av. Reine Victoria" },
-  { lat: 43.703, lng: 7.278, adresse: "Place Masséna, Nice" },
-  { lat: 43.718, lng: 7.27, adresse: "Aéroport Nice Côte d'Azur, Terminal 1" },
-  { lat: 43.705, lng: 7.255, adresse: "Gare de Nice-Ville, Av. Thiers" },
-  { lat: 43.69, lng: 7.26, adresse: "Promenade des Anglais, Nice (face n°52)" },
-  { lat: 43.73, lng: 7.28, adresse: "Secteur Nord Nice — Lingostière" },
-  { lat: 43.71, lng: 7.29, adresse: "Secteur Est Nice — Saint-Roch" },
-  { lat: 43.7, lng: 7.24, adresse: "Secteur Ouest Nice — Saint-Augustin" },
+  {
+    nom: "Clinique Saint-George",
+    rue: "2 Av. de Verdun",
+    ville: "Nice",
+    service: "Oncologie",
+    lat: 43.715,
+    lng: 7.26,
+  },
+  {
+    nom: "Centre Hospitalier Cimiez",
+    rue: "4 Av. Reine Victoria",
+    ville: "Nice",
+    service: "Rééducation",
+    lat: 43.725,
+    lng: 7.27,
+  },
+  {
+    nom: "Clinique du Parc Impérial",
+    rue: "8 Rue de la Buffa",
+    ville: "Nice",
+    service: "Consultation",
+    lat: 43.705,
+    lng: 7.255,
+  },
+  {
+    nom: "CHU Hôpital de l'Archet",
+    rue: "151 Route de Ginestière",
+    ville: "Nice",
+    service: "Chimiothérapie",
+    lat: 43.69,
+    lng: 7.235,
+  },
 ];
 
 const seed = async () => {
@@ -31,13 +64,11 @@ const seed = async () => {
     await mongoose.connect(process.env.MONGO_URI);
     console.log("✅ MongoDB connecté");
 
+    // Nettoyage
     await Promise.all([
       User.deleteMany(),
-      Unit.deleteMany(),
-      Intervention.deleteMany(),
-      Personnel.deleteMany(),
-      Equipement.deleteMany(),
-      Maintenance.deleteMany(),
+      Vehicle.deleteMany(),
+      Transport.deleteMany(),
     ]);
     console.log("🗑️  Collections nettoyées");
 
@@ -61,478 +92,399 @@ const seed = async () => {
         actif: true,
       },
       {
-        nom: "Farhat",
-        prenom: "Chokri",
-        email: "superviseur@blancbleu.fr",
-        password: await bcrypt.hash("superviseur123", salt),
-        role: "superviseur",
+        nom: "Faure",
+        prenom: "Nicolas",
+        email: "chauffeur1@blancbleu.fr",
+        password: await bcrypt.hash("chauffeur123", salt),
+        role: "dispatcher",
+        actif: true,
+      },
+      {
+        nom: "Laurent",
+        prenom: "Eva",
+        email: "chauffeur2@blancbleu.fr",
+        password: await bcrypt.hash("chauffeur123", salt),
+        role: "dispatcher",
         actif: true,
       },
     ]);
     console.log(`👤 ${users.length} utilisateurs créés`);
 
-    // ── UNITÉS (toutes à Nice) ────────────────────────────────────────────────
-    const units = await Unit.insertMany([
+    // ── VÉHICULES ─────────────────────────────────────────────────────────────
+    const vehicles = await Vehicle.insertMany([
       {
         immatriculation: "AA-001-NI",
-        nom: "VSAV-01",
-        type: "VSAV",
-        statut: "disponible",
-        position: NICE[0],
-        kilometrage: 48320,
-        carburant: 95,
-        annee: 2022,
-        equipage: [
-          { nom: "Durand Paul", role: "Ambulancier" },
-          { nom: "Leroy Claire", role: "Secouriste" },
-        ],
-        notes: "Unité principale — secteur centre Nice",
-      },
-      {
-        immatriculation: "AB-002-NI",
-        nom: "SMUR-01",
-        type: "SMUR",
-        statut: "disponible",
-        position: NICE[1],
-        kilometrage: 61890,
-        carburant: 88,
-        annee: 2023,
-        equipage: [
-          { nom: "Moreau Dr Jean", role: "Médecin" },
-          { nom: "Petit Marc", role: "Infirmier" },
-        ],
-        notes: "SMUR rattaché à Hôpital Pasteur Nice",
-      },
-      {
-        immatriculation: "AC-003-NI",
-        nom: "VSAV-02",
-        type: "VSAV",
-        statut: "en_mission",
-        position: NICE[3],
-        kilometrage: 29450,
-        carburant: 62,
-        annee: 2021,
-        equipage: [{ nom: "Simon Antoine", role: "Ambulancier" }],
-        notes: "Secteur Place Masséna — en mission",
-      },
-      {
-        immatriculation: "AD-004-NI",
         nom: "VSL-01",
         type: "VSL",
         statut: "disponible",
-        position: NICE[5],
-        kilometrage: 38990,
-        carburant: 78,
+        position: {
+          lat: 43.7102,
+          lng: 7.262,
+          adresse: "Base — 59 Bd Madeleine, Nice",
+        },
+        baseAdresse: "59 Bd Madeleine, Nice",
+        basePosition: { lat: 43.7102, lng: 7.262 },
+        kilometrage: 48320,
+        carburant: 95,
         annee: 2022,
-        equipage: [{ nom: "Laurent Eva", role: "Ambulancier" }],
-        notes: "Transport sanitaire — secteur gare Nice-Ville",
+        capacitePassagers: 3,
+        tauxPonctualite: 97,
+        chauffeurAssigne: users[2]._id,
+        notes: "VSL principal — secteur centre Nice",
       },
       {
-        immatriculation: "AE-005-NI",
-        nom: "VSAV-03",
-        type: "VSAV",
-        statut: "disponible",
-        position: NICE[7],
-        kilometrage: 55780,
-        carburant: 91,
-        annee: 2023,
-        equipage: [
-          { nom: "Blanc Thomas", role: "Ambulancier" },
-          { nom: "Martin Sophie", role: "Infirmier" },
-        ],
-        notes: "Secteur Nord Nice — Lingostière",
-      },
-      {
-        immatriculation: "AF-006-NI",
-        nom: "SMUR-02",
-        type: "SMUR",
-        statut: "disponible",
-        position: NICE[2],
-        kilometrage: 27330,
-        carburant: 85,
-        annee: 2024,
-        equipage: [{ nom: "Rossi Dr Lucie", role: "Médecin" }],
-        notes: "SMUR CHU Nice — Secteur Cimiez",
-      },
-      {
-        immatriculation: "AG-007-NI",
-        nom: "VSAV-04",
-        type: "VSAV",
-        statut: "maintenance",
-        position: NICE[0],
-        kilometrage: 71200,
-        carburant: 30,
-        annee: 2019,
-        equipage: [],
-        notes: "En révision — retour prévu le 10/04/2026",
-      },
-      {
-        immatriculation: "AH-008-NI",
+        immatriculation: "AB-002-NI",
         nom: "VSL-02",
         type: "VSL",
         statut: "disponible",
-        position: NICE[9],
-        kilometrage: 44200,
-        carburant: 70,
-        annee: 2022,
-        equipage: [{ nom: "Faure Nicolas", role: "Chauffeur" }],
-        notes: "Secteur Ouest Nice — Saint-Augustin",
-      },
-    ]);
-    console.log(`🚑 ${units.length} unités créées — toutes à Nice`);
-
-    // ── INTERVENTIONS (toutes à Nice) ─────────────────────────────────────────
-    const interventions = await Intervention.insertMany([
-      {
-        typeIncident: "Arrêt cardiaque",
-        priorite: "P1",
-        scoreIA: 92,
-        statut: "EN_ROUTE",
-        patient: {
-          nom: "Dupuis Michel",
-          age: 67,
-          etat: "inconscient",
-          symptomes: ["arrêt cardiaque"],
-          nbVictimes: 1,
+        position: {
+          lat: 43.7,
+          lng: 7.255,
+          adresse: "Secteur Ouest Nice — Saint-Augustin",
         },
-        adresse: "14 Rue de la Préfecture, Nice",
-        coordonnees: { lat: 43.697, lng: 7.272 },
-        unitAssignee: units[1]._id,
-        dispatcher: users[1]._id,
-        heureAppel: new Date(Date.now() - 900000),
-        heureDepart: new Date(Date.now() - 720000),
-      },
-      {
-        typeIncident: "Accident de la route",
-        priorite: "P2",
-        scoreIA: 68,
-        statut: "CREATED",
-        patient: {
-          nom: "Inconnu",
-          etat: "conscient",
-          symptomes: ["fracture membre"],
-          nbVictimes: 2,
-        },
-        adresse: "Promenade des Anglais, Nice (face n°52)",
-        coordonnees: { lat: 43.6942, lng: 7.2567 },
-        dispatcher: users[1]._id,
-        heureAppel: new Date(Date.now() - 600000),
-      },
-      {
-        typeIncident: "AVC",
-        priorite: "P1",
-        scoreIA: 88,
-        statut: "EN_ROUTE",
-        patient: {
-          nom: "Ferrero Anna",
-          age: 72,
-          etat: "conscient",
-          symptomes: ["AVC"],
-          nbVictimes: 1,
-        },
-        adresse: "Avenue Jean Médecin, Nice",
-        coordonnees: { lat: 43.704, lng: 7.268 },
-        unitAssignee: units[0]._id,
-        dispatcher: users[1]._id,
-        heureAppel: new Date(Date.now() - 1200000),
-        heureDepart: new Date(Date.now() - 1000000),
-      },
-      {
-        typeIncident: "Malaise",
-        priorite: "P3",
-        scoreIA: 35,
-        statut: "COMPLETED",
-        patient: {
-          nom: "Rosso Pierre",
-          age: 45,
-          etat: "stable",
-          symptomes: ["vertiges"],
-          nbVictimes: 1,
-        },
-        adresse: "Place Garibaldi, Nice",
-        coordonnees: { lat: 43.703, lng: 7.28 },
-        unitAssignee: units[3]._id,
-        dispatcher: users[1]._id,
-        heureAppel: new Date(Date.now() - 7200000),
-        heureDepart: new Date(Date.now() - 7000000),
-        heureTerminee: new Date(Date.now() - 5400000),
-      },
-      {
-        typeIncident: "Traumatisme grave",
-        priorite: "P2",
-        scoreIA: 71,
-        statut: "COMPLETED",
-        patient: {
-          nom: "Garcia Luis",
-          age: 28,
-          etat: "conscient",
-          symptomes: ["fracture"],
-          nbVictimes: 1,
-        },
-        adresse: "Rue Masséna, Nice",
-        coordonnees: { lat: 43.6961, lng: 7.2719 },
-        unitAssignee: units[4]._id,
-        dispatcher: users[1]._id,
-        heureAppel: new Date(Date.now() - 10800000),
-        heureDepart: new Date(Date.now() - 10500000),
-        heureTerminee: new Date(Date.now() - 9000000),
-      },
-      {
-        typeIncident: "Détresse respiratoire",
-        priorite: "P1",
-        scoreIA: 85,
-        statut: "CREATED",
-        patient: {
-          nom: "Inconnu",
-          etat: "critique",
-          symptomes: ["détresse respiratoire"],
-          nbVictimes: 1,
-        },
-        adresse: "Boulevard Gambetta, Nice",
-        coordonnees: { lat: 43.705, lng: 7.262 },
-        dispatcher: users[1]._id,
-        heureAppel: new Date(Date.now() - 300000),
-      },
-    ]);
-    console.log(
-      `🚨 ${interventions.length} interventions créées — toutes à Nice`,
-    );
-
-    // ── PERSONNEL ────────────────────────────────────────────────────────────
-    const personnel = await Personnel.insertMany([
-      {
-        nom: "Durand",
-        prenom: "Paul",
-        role: "Ambulancier",
-        statut: "en-service",
-        uniteAssignee: units[0]._id,
-        telephone: "06 11 22 33 44",
-        email: "p.durand@blancbleu.fr",
-        dateEmbauche: new Date("2020-03-15"),
-      },
-      {
-        nom: "Leroy",
-        prenom: "Claire",
-        role: "Secouriste",
-        statut: "en-service",
-        uniteAssignee: units[0]._id,
-        telephone: "06 22 33 44 55",
-        email: "c.leroy@blancbleu.fr",
-        dateEmbauche: new Date("2021-06-01"),
-      },
-      {
-        nom: "Moreau",
-        prenom: "Jean",
-        role: "Médecin",
-        statut: "en-service",
-        uniteAssignee: units[1]._id,
-        telephone: "06 33 44 55 66",
-        email: "j.moreau@blancbleu.fr",
-        dateEmbauche: new Date("2019-09-10"),
-      },
-      {
-        nom: "Petit",
-        prenom: "Marc",
-        role: "Infirmier",
-        statut: "en-service",
-        uniteAssignee: units[1]._id,
-        telephone: "06 44 55 66 77",
-        email: "m.petit@blancbleu.fr",
-        dateEmbauche: new Date("2022-01-20"),
-      },
-      {
-        nom: "Simon",
-        prenom: "Antoine",
-        role: "Ambulancier",
-        statut: "conge",
-        uniteAssignee: units[2]._id,
-        telephone: "06 55 66 77 88",
-        email: "a.simon@blancbleu.fr",
-        dateEmbauche: new Date("2021-11-05"),
-      },
-      {
-        nom: "Laurent",
-        prenom: "Eva",
-        role: "Ambulancier",
-        statut: "en-service",
-        uniteAssignee: units[3]._id,
-        telephone: "06 66 77 88 99",
-        email: "e.laurent@blancbleu.fr",
-        dateEmbauche: new Date("2023-04-12"),
-      },
-      {
-        nom: "Blanc",
-        prenom: "Thomas",
-        role: "Ambulancier",
-        statut: "formation",
-        uniteAssignee: units[4]._id,
-        telephone: "06 77 88 99 00",
-        email: "t.blanc@blancbleu.fr",
-        dateEmbauche: new Date("2024-01-08"),
-      },
-      {
-        nom: "Martin",
-        prenom: "Sophie",
-        role: "Infirmier",
-        statut: "en-service",
-        uniteAssignee: units[4]._id,
-        telephone: "06 88 99 00 11",
-        email: "s.martin@blancbleu.fr",
-        dateEmbauche: new Date("2022-07-18"),
-      },
-      {
-        nom: "Faure",
-        prenom: "Nicolas",
-        role: "Chauffeur",
-        statut: "en-service",
-        uniteAssignee: units[7]._id,
-        telephone: "06 99 00 11 22",
-        email: "n.faure@blancbleu.fr",
-        dateEmbauche: new Date("2023-09-01"),
-      },
-      {
-        nom: "Rossi",
-        prenom: "Lucie",
-        role: "Médecin",
-        statut: "en-service",
-        uniteAssignee: units[5]._id,
-        telephone: "06 00 11 22 33",
-        email: "l.rossi@blancbleu.fr",
-        dateEmbauche: new Date("2020-05-22"),
-      },
-    ]);
-    console.log(`👥 ${personnel.length} membres du personnel créés`);
-
-    // ── ÉQUIPEMENTS ───────────────────────────────────────────────────────────
-    await Equipement.insertMany([
-      {
-        nom: "Défibrillateur ZOLL AED",
-        categorie: "Défibrillateur",
-        uniteAssignee: units[0]._id,
-        etat: "opérationnel",
-        dernierControle: new Date("2026-04-01"),
-        dateExpiration: new Date("2027-04-01"),
-      },
-      {
-        nom: "Oxymètre de pouls Nonin",
-        categorie: "Oxymétrie",
-        uniteAssignee: units[0]._id,
-        etat: "opérationnel",
-        dernierControle: new Date("2026-03-28"),
-        dateExpiration: new Date("2027-03-28"),
-      },
-      {
-        nom: "Moniteur cardiaque Lifepak",
-        categorie: "Monitoring",
-        uniteAssignee: units[1]._id,
-        etat: "opérationnel",
-        dernierControle: new Date("2026-03-15"),
-        dateExpiration: new Date("2027-03-15"),
-      },
-      {
-        nom: "Bouteille O₂ 15L",
-        categorie: "Ventilation",
-        uniteAssignee: units[1]._id,
-        etat: "à-vérifier",
-        dernierControle: new Date("2026-02-10"),
-        dateExpiration: new Date("2026-08-10"),
-      },
-      {
-        nom: "Kit trauma avancé",
-        categorie: "Autre",
-        uniteAssignee: units[2]._id,
-        etat: "opérationnel",
-        dernierControle: new Date("2026-03-25"),
-        dateExpiration: new Date("2027-03-25"),
-      },
-      {
-        nom: "Tensiomètre automatique",
-        categorie: "Monitoring",
-        uniteAssignee: units[3]._id,
-        etat: "opérationnel",
-        dernierControle: new Date("2026-04-02"),
-        dateExpiration: new Date("2027-04-02"),
-      },
-      {
-        nom: "Défibrillateur Philips",
-        categorie: "Défibrillateur",
-        uniteAssignee: units[4]._id,
-        etat: "opérationnel",
-        dernierControle: new Date("2026-03-30"),
-        dateExpiration: new Date("2027-03-30"),
-      },
-      {
-        nom: "Respirateur de transport",
-        categorie: "Ventilation",
-        uniteAssignee: units[5]._id,
-        etat: "en-panne",
-        dernierControle: new Date("2026-03-01"),
-        dateExpiration: new Date("2027-03-01"),
-      },
-    ]);
-    console.log("🔧 8 équipements créés");
-
-    // ── MAINTENANCES ──────────────────────────────────────────────────────────
-    await Maintenance.insertMany([
-      {
-        unite: units[6]._id,
-        type: "Révision complète",
-        statut: "en-cours",
-        dateDebut: new Date("2026-04-01"),
-        dateFin: new Date("2026-04-10"),
-        garage: "Garage Azur Nice — Bd Auguste Raynaud",
-        kilometrage: 71200,
-        cout: 850,
-      },
-      {
-        unite: units[0]._id,
-        type: "Vidange + filtres",
-        statut: "planifié",
-        dateDebut: new Date("2026-04-15"),
-        dateFin: new Date("2026-04-15"),
-        garage: "Garage Central Nice — Av. de la Victoire",
-        kilometrage: 48320,
-        cout: 180,
-      },
-      {
-        unite: units[3]._id,
-        type: "Contrôle technique",
-        statut: "planifié",
-        dateDebut: new Date("2026-04-20"),
-        dateFin: new Date("2026-04-20"),
-        garage: "Contrôle Auto 06 — Nice Nord",
+        baseAdresse: "59 Bd Madeleine, Nice",
+        basePosition: { lat: 43.7102, lng: 7.262 },
         kilometrage: 38990,
-        cout: 120,
+        carburant: 78,
+        annee: 2022,
+        capacitePassagers: 3,
+        tauxPonctualite: 93,
+        chauffeurAssigne: users[3]._id,
+        notes: "Secteur Ouest Nice",
       },
       {
-        unite: units[1]._id,
-        type: "Changement pneus",
-        statut: "terminé",
-        dateDebut: new Date("2026-03-20"),
-        dateFin: new Date("2026-03-20"),
-        garage: "Pneumatiques Nice — Rue de Roquebillière",
-        kilometrage: 61500,
-        cout: 420,
+        immatriculation: "AC-003-NI",
+        nom: "TPMR-01",
+        type: "TPMR",
+        statut: "disponible",
+        position: { lat: 43.718, lng: 7.27, adresse: "Secteur Nord Nice" },
+        baseAdresse: "59 Bd Madeleine, Nice",
+        basePosition: { lat: 43.7102, lng: 7.262 },
+        kilometrage: 29450,
+        carburant: 85,
+        annee: 2021,
+        capacitePassagers: 1,
+        equipeFauteuil: true,
+        tauxPonctualite: 91,
+        notes: "Aménagé fauteuil roulant — rampe motorisée",
+      },
+      {
+        immatriculation: "AD-004-NI",
+        nom: "AMB-01",
+        type: "AMBULANCE",
+        statut: "disponible",
+        position: { lat: 43.705, lng: 7.268, adresse: "Secteur Jean Médecin" },
+        baseAdresse: "59 Bd Madeleine, Nice",
+        basePosition: { lat: 43.7102, lng: 7.262 },
+        kilometrage: 61890,
+        carburant: 88,
+        annee: 2023,
+        capacitePassagers: 1,
+        equipeBrancard: true,
+        equipeOxygene: true,
+        tauxPonctualite: 95,
+        notes: "Ambulance équipée brancard + O2",
+      },
+      {
+        immatriculation: "AE-005-NI",
+        nom: "VSL-03",
+        type: "VSL",
+        statut: "maintenance",
+        position: {
+          lat: 43.7102,
+          lng: 7.262,
+          adresse: "Base — 59 Bd Madeleine, Nice",
+        },
+        baseAdresse: "59 Bd Madeleine, Nice",
+        basePosition: { lat: 43.7102, lng: 7.262 },
+        kilometrage: 71200,
+        carburant: 30,
+        annee: 2019,
+        tauxPonctualite: 88,
+        notes: "En révision — retour prévu le 10/04/2026",
       },
     ]);
-    console.log("🔩 4 maintenances créées");
+    console.log(`🚐 ${vehicles.length} véhicules créés`);
 
-    console.log("\n" + "━".repeat(50));
-    console.log("  ✅ Seed Nice terminé !");
-    console.log("━".repeat(50));
-    console.log("  belhajmouin@gmail.com    / admin123");
-    console.log("  dispatcher@blancbleu.fr  / dispatcher123");
-    console.log("  superviseur@blancbleu.fr / superviseur123");
-    console.log("━".repeat(50));
-    console.log(`  🚑 ${units.length} ambulances à Nice`);
-    console.log(`  👥 ${personnel.length} membres du personnel`);
-    console.log(`  🚨 ${interventions.length} interventions à Nice`);
-    console.log("━".repeat(50) + "\n");
-  } catch (err) {
-    console.error("❌ Erreur seed:", err.message);
-  } finally {
-    await mongoose.disconnect();
+    // ── TRANSPORTS ────────────────────────────────────────────────────────────
+    const aujourd_hui = new Date();
+    const demain = new Date();
+    demain.setDate(demain.getDate() + 1);
+    const apres_demain = new Date();
+    apres_demain.setDate(apres_demain.getDate() + 2);
+
+    const transports = await Transport.insertMany([
+      // 1. Dialyse récurrente — patient en fauteuil
+      {
+        patient: {
+          nom: "Dubois",
+          prenom: "Marcel",
+          dateNaissance: new Date("1945-03-12"),
+          telephone: "06 11 22 33 44",
+          mobilite: "FAUTEUIL_ROULANT",
+          brancardage: false,
+        },
+        typeTransport: "TPMR",
+        motif: "Dialyse",
+        dateTransport: aujourd_hui,
+        heureRDV: "08:00",
+        heureDepart: "07:15",
+        allerRetour: true,
+        adresseDepart: {
+          rue: "12 Rue de France",
+          ville: "Nice",
+          codePostal: "06000",
+          coordonnees: { lat: 43.698, lng: 7.262 },
+        },
+        adresseDestination: {
+          nom: HOPITAUX_NICE[0].nom,
+          rue: HOPITAUX_NICE[0].rue,
+          ville: "Nice",
+          service: "Dialyse — Bât. B",
+          coordonnees: { lat: HOPITAUX_NICE[0].lat, lng: HOPITAUX_NICE[0].lng },
+        },
+        prescription: {
+          medecin: "Dr. Martin",
+          validee: true,
+          motif: "Insuffisance rénale chronique",
+        },
+        recurrence: {
+          active: true,
+          frequence: "3x/semaine",
+          joursSemaine: [1, 3, 5],
+        },
+        statut: "ASSIGNED",
+        vehicule: vehicles[2]._id, // TPMR
+        chauffeur: users[2]._id,
+        tauxPriseEnCharge: 100,
+        createdBy: users[1]._id,
+        heureConfirmation: new Date(Date.now() - 86400000),
+        heurePlanification: new Date(Date.now() - 86400000),
+        heureAssignation: new Date(Date.now() - 3600000),
+        notes: "Patient dialysé 3x/semaine depuis 2019",
+      },
+
+      // 2. Chimiothérapie — patient assis
+      {
+        patient: {
+          nom: "Ferrero",
+          prenom: "Anna",
+          dateNaissance: new Date("1958-07-22"),
+          telephone: "06 22 33 44 55",
+          mobilite: "ASSIS",
+          accompagnateur: true,
+        },
+        typeTransport: "VSL",
+        motif: "Chimiothérapie",
+        dateTransport: aujourd_hui,
+        heureRDV: "10:00",
+        heureDepart: "09:15",
+        allerRetour: true,
+        adresseDepart: {
+          rue: "5 Avenue Jean Médecin",
+          ville: "Nice",
+          codePostal: "06000",
+          coordonnees: { lat: 43.704, lng: 7.268 },
+        },
+        adresseDestination: {
+          nom: HOPITAUX_NICE[4].nom,
+          rue: HOPITAUX_NICE[4].rue,
+          ville: "Nice",
+          service: "Oncologie — Unité chimio",
+          coordonnees: { lat: HOPITAUX_NICE[4].lat, lng: HOPITAUX_NICE[4].lng },
+        },
+        prescription: {
+          medecin: "Dr. Rossi",
+          validee: true,
+          motif: "Cancer du sein — protocole AC",
+        },
+        statut: "EN_ROUTE_TO_PICKUP",
+        vehicule: vehicles[0]._id, // VSL-01
+        chauffeur: users[2]._id,
+        tauxPriseEnCharge: 100,
+        createdBy: users[1]._id,
+        heureConfirmation: new Date(Date.now() - 86400000),
+        heurePlanification: new Date(Date.now() - 86400000),
+        heureAssignation: new Date(Date.now() - 7200000),
+        heureEnRoute: new Date(Date.now() - 1800000),
+        notes: "Accompagnateur autorisé — séance toutes les 3 semaines",
+      },
+
+      // 3. Consultation — patient assis
+      {
+        patient: {
+          nom: "Rosso",
+          prenom: "Pierre",
+          dateNaissance: new Date("1952-11-05"),
+          telephone: "06 33 44 55 66",
+          mobilite: "ASSIS",
+        },
+        typeTransport: "VSL",
+        motif: "Consultation",
+        dateTransport: aujourd_hui,
+        heureRDV: "14:30",
+        heureDepart: "14:00",
+        allerRetour: false,
+        adresseDepart: {
+          rue: "Place Garibaldi",
+          ville: "Nice",
+          codePostal: "06300",
+          coordonnees: { lat: 43.703, lng: 7.28 },
+        },
+        adresseDestination: {
+          nom: HOPITAUX_NICE[3].nom,
+          rue: HOPITAUX_NICE[3].rue,
+          ville: "Nice",
+          service: "Cardiologie",
+          coordonnees: { lat: HOPITAUX_NICE[3].lat, lng: HOPITAUX_NICE[3].lng },
+        },
+        prescription: {
+          medecin: "Dr. Bernard",
+          validee: true,
+          motif: "Suivi cardiaque post-infarctus",
+        },
+        statut: "CONFIRMED",
+        createdBy: users[1]._id,
+        heureConfirmation: new Date(Date.now() - 43200000),
+        tauxPriseEnCharge: 65,
+        notes: "Patient autonome — RDV de contrôle",
+      },
+
+      // 4. Hospitalisation — patient allongé
+      {
+        patient: {
+          nom: "Garcia",
+          prenom: "Luis",
+          dateNaissance: new Date("1938-04-18"),
+          telephone: "06 44 55 66 77",
+          mobilite: "ALLONGE",
+          brancardage: true,
+          oxygene: false,
+        },
+        typeTransport: "AMBULANCE",
+        motif: "Hospitalisation",
+        dateTransport: demain,
+        heureRDV: "09:00",
+        heureDepart: "08:30",
+        allerRetour: false,
+        adresseDepart: {
+          rue: "14 Rue de la Préfecture",
+          ville: "Nice",
+          codePostal: "06000",
+          coordonnees: { lat: 43.697, lng: 7.272 },
+        },
+        adresseDestination: {
+          nom: HOPITAUX_NICE[0].nom,
+          rue: HOPITAUX_NICE[0].rue,
+          ville: "Nice",
+          service: "Cardiologie — Chambre 214",
+          coordonnees: { lat: HOPITAUX_NICE[0].lat, lng: HOPITAUX_NICE[0].lng },
+        },
+        prescription: {
+          medecin: "Dr. Moreau",
+          validee: false,
+          motif: "Décompensation cardiaque",
+        },
+        statut: "REQUESTED",
+        createdBy: users[1]._id,
+        tauxPriseEnCharge: 100,
+        notes: "Brancardage requis — patient ne peut pas marcher",
+      },
+
+      // 5. Transport complété
+      {
+        patient: {
+          nom: "Martin",
+          prenom: "Sophie",
+          dateNaissance: new Date("1965-09-30"),
+          mobilite: "ASSIS",
+        },
+        typeTransport: "VSL",
+        motif: "Dialyse",
+        dateTransport: new Date(Date.now() - 86400000),
+        heureRDV: "08:00",
+        heureDepart: "07:15",
+        allerRetour: true,
+        adresseDepart: {
+          rue: "Promenade des Anglais",
+          ville: "Nice",
+          codePostal: "06000",
+          coordonnees: { lat: 43.694, lng: 7.256 },
+        },
+        adresseDestination: {
+          nom: HOPITAUX_NICE[0].nom,
+          rue: HOPITAUX_NICE[0].rue,
+          ville: "Nice",
+          service: "Dialyse",
+          coordonnees: { lat: HOPITAUX_NICE[0].lat, lng: HOPITAUX_NICE[0].lng },
+        },
+        prescription: {
+          medecin: "Dr. Petit",
+          validee: true,
+          motif: "IRC stade 5",
+        },
+        statut: "COMPLETED",
+        vehicule: vehicles[1]._id,
+        chauffeur: users[3]._id,
+        createdBy: users[1]._id,
+        tauxPriseEnCharge: 100,
+        heureConfirmation: new Date(Date.now() - 172800000),
+        heurePlanification: new Date(Date.now() - 172800000),
+        heureAssignation: new Date(Date.now() - 100000000),
+        heureEnRoute: new Date(Date.now() - 93600000),
+        heurePriseEnCharge: new Date(Date.now() - 90000000),
+        heureArriveeDestination: new Date(Date.now() - 86400000),
+        heureTerminee: new Date(Date.now() - 84000000),
+        dureeReelleMinutes: 52,
+      },
+
+      // 6. Radiothérapie planifiée demain
+      {
+        patient: {
+          nom: "Blanc",
+          prenom: "Thomas",
+          dateNaissance: new Date("1970-02-14"),
+          mobilite: "ASSIS",
+        },
+        typeTransport: "VSL",
+        motif: "Radiothérapie",
+        dateTransport: demain,
+        heureRDV: "11:00",
+        heureDepart: "10:20",
+        allerRetour: true,
+        adresseDepart: {
+          rue: "Avenue Thiers",
+          ville: "Nice",
+          codePostal: "06000",
+          coordonnees: { lat: 43.705, lng: 7.255 },
+        },
+        adresseDestination: {
+          nom: HOPITAUX_NICE[4].nom,
+          rue: HOPITAUX_NICE[4].rue,
+          ville: "Nice",
+          service: "Radiothérapie",
+          coordonnees: { lat: HOPITAUX_NICE[4].lat, lng: HOPITAUX_NICE[4].lng },
+        },
+        prescription: {
+          medecin: "Dr. Dupuis",
+          validee: true,
+          motif: "Cancer prostate — 25 séances",
+        },
+        statut: "SCHEDULED",
+        createdBy: users[1]._id,
+        tauxPriseEnCharge: 100,
+        heureConfirmation: new Date(Date.now() - 172800000),
+        heurePlanification: new Date(Date.now() - 86400000),
+        notes: "Séance n°12/25 — protocole en cours",
+      },
+    ]);
+
+    console.log(`🚐 ${transports.length} transports créés`);
+    console.log("✅ Seed terminé");
     process.exit(0);
+  } catch (err) {
+    console.error("❌ Erreur seed :", err.message);
+    process.exit(1);
   }
 };
 

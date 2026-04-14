@@ -13,9 +13,9 @@ const factureSchema = new mongoose.Schema(
       default: "en-attente",
     },
     patient: { type: String, trim: true, default: "" },
-    intervention: {
+    transport: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Intervention",
+      ref: "Transport",
       default: null,
     },
     notes: { type: String, default: "" },

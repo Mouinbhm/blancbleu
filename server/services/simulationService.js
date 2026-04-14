@@ -1,21 +1,18 @@
 /**
- * BlancBleu — Simulation Réaliste des Données Unités
- * Fait varier carburant, km, position selon le statut réel
- * Pas aléatoire — logique métier cohérente
+ * BlancBleu — Simulation GPS Véhicules Transport Sanitaire
+ * Adapté transport non urgent — utilise Vehicle au lieu de Unit
  */
-const Unit = require("../models/Unit");
+const Vehicle = require("../models/Vehicle");
 const socketService = require("./socketService");
 
-const INTERVAL_MS = 6000; // toutes les 6 secondes
+const INTERVAL_MS = 8000;
 let _interval = null;
 let _actif = false;
 
-// Zone Nice GPS
 const ZONE = { latMin: 43.66, latMax: 43.76, lngMin: 7.18, lngMax: 7.32 };
 
-// Déplacer légèrement une position
 function deplacer(lat, lng, vitesse = 30) {
-  const rayon = ((vitesse / 3600) * (INTERVAL_MS / 1000)) / 111; // degrés
+  const rayon = ((vitesse / 3600) * (INTERVAL_MS / 1000)) / 111;
   const angle = Math.random() * 2 * Math.PI;
   return {
     lat: Math.max(
@@ -26,95 +23,82 @@ function deplacer(lat, lng, vitesse = 30) {
       ZONE.lngMin,
       Math.min(ZONE.lngMax, lng + Math.sin(angle) * rayon),
     ),
-    vitesse: Math.round(vitesse + (Math.random() - 0.5) * 10),
-    cap: Math.round(Math.random() * 360),
   };
 }
 
 async function simulerDeplacement() {
   try {
-    const units = await Unit.find({});
+    const vehicles = await Vehicle.find({ deletedAt: null });
 
-    for (const unit of units) {
+    for (const vehicle of vehicles) {
+      if (vehicle.statut === "maintenance" || vehicle.statut === "hors_service")
+        continue;
+
       let modifie = false;
 
-      if (unit.statut === "en_mission" && unit.position?.lat) {
-        // ── EN MISSION : bouge + consomme carburant + augmente km ──────────
-        const vitesse = unit.type === "SMUR" ? 70 : 50;
+      if (vehicle.statut === "en_mission" && vehicle.position?.lat) {
+        const vitesse = vehicle.type === "AMBULANCE" ? 50 : 40;
         const nouvellePos = deplacer(
-          unit.position.lat,
-          unit.position.lng,
+          vehicle.position.lat,
+          vehicle.position.lng,
           vitesse,
         );
-
-        // Distance parcourue ce tick (km)
         const distTick = (vitesse / 3600) * (INTERVAL_MS / 1000);
+        const consoL100 = 12;
+        const reservoir = 80;
+        const pctConso = ((distTick * consoL100) / 100 / reservoir) * 100;
 
-        // Consommation : 12L/100km → % par tick
-        const conso = unit.specs?.consommationL100 || 12;
-        const reservoir = unit.specs?.capaciteReservoir || 80;
-        const litresTick = (distTick * conso) / 100;
-        const pctConso = (litresTick / reservoir) * 100;
-
-        unit.position = {
+        vehicle.position = {
           lat: Math.round(nouvellePos.lat * 100000) / 100000,
           lng: Math.round(nouvellePos.lng * 100000) / 100000,
-          vitesse: Math.max(0, Math.min(120, nouvellePos.vitesse)),
-          cap: nouvellePos.cap,
-          adresse: unit.position.adresse || "En route",
+          adresse: vehicle.position.adresse || "En route",
           updatedAt: new Date(),
         };
-        unit.kilometrage = Math.round((unit.kilometrage + distTick) * 10) / 10;
-        unit.carburant = Math.max(
+        vehicle.kilometrage =
+          Math.round((vehicle.kilometrage + distTick) * 10) / 10;
+        vehicle.carburant = Math.max(
           0,
-          Math.round((unit.carburant - pctConso) * 100) / 100,
+          Math.round((vehicle.carburant - pctConso) * 100) / 100,
         );
         modifie = true;
-      } else if (unit.statut === "disponible") {
-        // ── DISPONIBLE : position fixe, léger tick km moteur au ralenti ────
-        // Carburant ne change pas (moteur éteint à la base)
-        // Juste émettre position pour confirmer présence
-        modifie = true; // émettre heartbeat position
-      } else if (unit.statut === "maintenance") {
-        // ── MAINTENANCE : rien ne bouge ─────────────────────────────────────
-        continue;
+      } else if (vehicle.statut === "disponible") {
+        modifie = true;
       }
 
       if (modifie) {
-        await unit.save();
+        await vehicle.save();
         socketService.emitLocationUpdated?.({
-          unitId: unit._id,
-          nom: unit.nom,
-          type: unit.type,
-          statut: unit.statut,
-          position: unit.position,
-          carburant: Math.round(unit.carburant * 10) / 10,
-          kilometrage: Math.round(unit.kilometrage * 10) / 10,
-          interventionEnCours: unit.interventionEnCours,
+          unitId: vehicle._id,
+          nom: vehicle.nom,
+          type: vehicle.type,
+          statut: vehicle.statut,
+          position: vehicle.position,
+          carburant: vehicle.carburant,
+          kilometrage: vehicle.kilometrage,
+          transportEnCours: vehicle.transportEnCours,
         });
       }
     }
   } catch (err) {
-    console.error("Simulation erreur:", err.message);
+    if (process.env.NODE_ENV !== "test") {
+      console.error("[Simulation] Erreur:", err.message);
+    }
   }
 }
 
 function demarrer() {
   if (_actif) return;
   _actif = true;
-  console.log("🗺️  Simulation GPS démarrée (toutes les 6s)");
-  simulerDeplacement(); // premier tick immédiat
   _interval = setInterval(simulerDeplacement, INTERVAL_MS);
+  console.log("🚐 Simulation GPS véhicules démarrée");
 }
 
 function arreter() {
-  if (_interval) clearInterval(_interval);
+  if (_interval) {
+    clearInterval(_interval);
+    _interval = null;
+  }
   _actif = false;
-  console.log("🗺️  Simulation GPS arrêtée");
 }
 
-function estActif() {
-  return _actif;
-}
-
-module.exports = { demarrer, arreter, estActif };
+module.exports = { demarrer, arreter };
