@@ -1,6 +1,9 @@
 /**
- * BlancBleu — Modèle AuditLog
- * Trace chaque action critique de la plateforme
+ * BlancBleu — Modèle AuditLog v4.0
+ * Transport sanitaire NON urgent
+ *
+ * Trace chaque action critique de la plateforme.
+ * Conservation : 90 jours (TTL) — conformité RGPD données de santé.
  */
 const mongoose = require("mongoose");
 
@@ -19,32 +22,54 @@ const auditLogSchema = new mongoose.Schema(
       type: String,
       required: true,
       enum: [
-        "INTERVENTION_CREATED",
-        "INTERVENTION_UPDATED",
-        "INTERVENTION_DELETED",
+        // ── Transport (cycle de vie complet) ──────────────────────────────
+        "TRANSPORT_CREATED",
+        "TRANSPORT_UPDATED",
+        "TRANSPORT_DELETED",
+        "TRANSPORT_CONFIRMED",
+        "TRANSPORT_SCHEDULED",
+        "TRANSPORT_CANCELLED",
+        "TRANSPORT_NO_SHOW",
+        "TRANSPORT_RESCHEDULED",
         "STATUT_CHANGED",
-        "UNITE_ASSIGNED",
-        "UNITE_UNASSIGNED",
-        "IA_PREDICTION",
-        "IA_OVERRIDE",
-        "IA_FALLBACK",
+
+        // ── Affectation ───────────────────────────────────────────────────
+        "VEHICULE_ASSIGNED",
+        "VEHICULE_UNASSIGNED",
         "DISPATCH_AUTO",
         "DISPATCH_MANUEL",
-        "ESCALADE_TRIGGERED",
-        "ESCALADE_RESOLVED",
-        "UNITE_CREATED",
-        "UNITE_UPDATED",
-        "UNITE_STATUS_CHANGED",
-        "LOGIN",
-        "LOGOUT",
-        "LOGIN_FAILED",
+
+        // ── Véhicule ──────────────────────────────────────────────────────
+        "VEHICULE_CREATED",
+        "VEHICULE_UPDATED",
+        "VEHICULE_STATUS_CHANGED",
+        "VEHICULE_DELETED",
+
+        // ── PMT (Prescription Médicale de Transport) ──────────────────────
+        "PMT_UPLOADED",
+        "PMT_EXTRACTED",
+        "PMT_VALIDATED",
+        "PMT_REJECTED",
+
+        // ── IA ────────────────────────────────────────────────────────────
+        "IA_DISPATCH_SUGGESTION",
+        "IA_ROUTE_OPTIMIZATION",
+        "IA_FALLBACK",
+
+        // ── Facturation ───────────────────────────────────────────────────
         "FACTURE_CREATED",
         "FACTURE_UPDATED",
         "FACTURE_PAID",
+
+        // ── Authentification ──────────────────────────────────────────────
+        "LOGIN",
+        "LOGOUT",
+        "LOGIN_FAILED",
+        "PASSWORD_RESET",
       ],
     },
 
-    // ── Origine ───────────────────────────────────────────────────────────────
+    // ── Origine de l'action ───────────────────────────────────────────────────
     origine: {
       type: String,
       enum: ["IA", "HUMAIN", "SYSTÈME", "API"],
@@ -52,15 +77,13 @@ const auditLogSchema = new mongoose.Schema(
     },
 
     // ── Ressource concernée ───────────────────────────────────────────────────
-    // Défini comme sous-document Mixed — accepte { type, id, reference }
-    // sans contrainte de cast String sur l'objet entier
     ressource: {
       type: { type: String, default: "Autre" },
       id: { type: mongoose.Schema.Types.ObjectId, default: null },
-      reference: { type: String, default: "" },
+      reference: { type: String, default: "" }, // ex: "TRS-20240115-0042"
     },
 
-    // ── Détails ───────────────────────────────────────────────────────────────
+    // ── Détail de l'événement ─────────────────────────────────────────────────
     details: {
       avant: { type: mongoose.Schema.Types.Mixed, default: null },
       apres: { type: mongoose.Schema.Types.Mixed, default: null },
@@ -79,13 +102,13 @@ const auditLogSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
-// TTL automatique — suppression après 90 jours
+// TTL automatique — suppression après 90 jours (RGPD)
 auditLogSchema.index(
   { createdAt: 1 },
-  { expireAfterSeconds: 90 * 24 * 60 * 60 },
+  { expireAfterSeconds: 90 * 24 * 60 * 60 }
 );
 
 // Index pour les requêtes fréquentes

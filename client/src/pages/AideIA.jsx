@@ -1,303 +1,1089 @@
-import { useState, useEffect } from "react";
+/**
+ * BlancBleu — Page Aide IA v4.0
+ * Transport sanitaire NON urgent
+ *
+ * 3 modules :
+ *   1. Dispatch IA     — recommandation véhicule pour un transport
+ *   2. Extraction PMT  — OCR Prescription Médicale de Transport
+ *   3. Optimisation    — tournée journalière OR-Tools
+ */
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  aiService,
-  unitService,
-  interventionService,
-  geoService,
-} from "../services/api";
+import { aiService, transportService, vehicleService } from "../services/api";
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
-const TYPES = [
-  "Arrêt cardiaque",
-  "AVC",
-  "Accident de la route",
-  "Traumatisme grave",
-  "Détresse respiratoire",
-  "Douleur thoracique",
-  "Intoxication",
-  "Accouchement",
-  "Malaise",
-  "Brûlure",
-  "Chute",
+// ── Constantes métier ─────────────────────────────────────────────────────────
+const MOTIFS = [
+  "Dialyse",
+  "Chimiothérapie",
+  "Radiothérapie",
+  "Consultation",
+  "Hospitalisation",
+  "Sortie hospitalisation",
+  "Rééducation",
+  "Analyse",
   "Autre",
 ];
-const SYMPTOMS = [
-  "Douleurs thoraciques",
-  "Difficultés respiratoires",
-  "Hémorragie",
-  "Perte de connaissance",
-  "Convulsions",
-  "Paralysie",
-  "Fractures",
-  "Douleurs abdominales",
-];
-const ETAT = [
-  { v: "conscient", icon: "😊", label: "Conscient" },
-  { v: "inconscient", icon: "😴", label: "Inconscient" },
-  { v: "inconnu", icon: "❓", label: "Inconnu" },
+
+const MOBILITES = [
+  { v: "ASSIS", label: "Assis", icon: "accessible_forward", color: "emerald", desc: "VSL" },
+  { v: "FAUTEUIL_ROULANT", label: "Fauteuil roulant", icon: "wheelchair_pickup", color: "blue", desc: "TPMR" },
+  { v: "ALLONGE", label: "Allongé", icon: "airline_seat_flat", color: "orange", desc: "Ambulance" },
+  { v: "CIVIERE", label: "Civière", icon: "emergency", color: "red", desc: "Ambulance" },
 ];
 
-// Mapping symptômes FR → EN pour le modèle ML
-const SYMPTOM_MAP = {
-  "Douleurs thoraciques": "chest pain",
-  "Difficultés respiratoires": "breath",
-  Hémorragie: "hemorrhage",
-  "Perte de connaissance": "syncope",
-  Convulsions: "seizure",
-  Paralysie: "paralysis",
-  Fractures: "fracture",
-  "Douleurs abdominales": "abdominal",
+const TYPES_VEHICULE = {
+  VSL: { label: "VSL", color: "emerald", icon: "directions_car" },
+  TPMR: { label: "TPMR", color: "blue", icon: "accessible" },
+  AMBULANCE: { label: "Ambulance", color: "red", icon: "local_shipping" },
 };
 
-// Mapping état patient → mental score (pour le modèle ML KTAS)
-const ETAT_MENTAL = {
-  conscient: 1,
-  inconscient: 3,
-  inconnu: 2,
-};
+// ── Composants utilitaires ────────────────────────────────────────────────────
 
-// ─── Couleurs par priorité ────────────────────────────────────────────────────
-function priorityStyle(p) {
-  if (p === "P1")
-    return {
-      border: "border-red-500",
-      text: "text-red-600",
-      bg: "bg-red-50/50",
-      icon: "🔴",
-      label: "PRIORITÉ 1 — CRITIQUE",
-    };
-  if (p === "P2")
-    return {
-      border: "border-yellow-500",
-      text: "text-yellow-600",
-      bg: "bg-yellow-50/50",
-      icon: "🟡",
-      label: "PRIORITÉ 2 — URGENT",
-    };
-  return {
-    border: "border-blue-500",
-    text: "text-blue-600",
-    bg: "bg-blue-50/50",
-    icon: "🔵",
-    label: "PRIORITÉ 3 — STANDARD",
-  };
-}
-
-// ─── Composant statut modèle ──────────────────────────────────────────────────
-function ModelStatus({ status }) {
+function ServiceBadge({ status }) {
   if (!status) return null;
-  const ok = status.available && status.loaded;
+  const ok = status.available;
   return (
     <div
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono font-bold ${
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono font-bold border ${
         ok
-          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-          : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+          : "bg-amber-50 text-amber-700 border-amber-200"
       }`}
     >
-      <span
-        className={`w-2 h-2 rounded-full ${ok ? "bg-emerald-500" : "bg-yellow-500"} animate-pulse`}
-      />
-      {ok ? `Modèle ML · ${status.accuracy}%` : "Fallback règles"}
+      <span className={`w-2 h-2 rounded-full animate-pulse ${ok ? "bg-emerald-500" : "bg-amber-500"}`} />
+      {ok ? "Service IA actif" : "Mode règles locales"}
     </div>
   );
 }
 
-// ─── Page principale ──────────────────────────────────────────────────────────
-export default function AideIA() {
-  const navigate = useNavigate();
+function TabBtn({ active, onClick, icon, label }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold rounded-xl transition-all ${
+        active
+          ? "bg-primary text-white shadow-md shadow-primary/30"
+          : "text-slate-500 hover:text-navy hover:bg-slate-100"
+      }`}
+    >
+      <span className="material-symbols-outlined text-base">{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function ConfidenceBadge({ value }) {
+  const pct = Math.round(value * 100);
+  const color = pct >= 75 ? "emerald" : pct >= 50 ? "amber" : "red";
+  return (
+    <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-bold bg-${color}-50 text-${color}-700 border border-${color}-200`}>
+      <span className={`w-2 h-2 rounded-full bg-${color}-500`} />
+      Confiance : {pct}%
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// MODULE 1 — DISPATCH IA
+// ════════════════════════════════════════════════════════════════════════════
+function ModuleDispatch({ aiStatus }) {
+  const [transports, setTransports] = useState([]);
+  const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState({
-    type: "",
-    etat: "",
-    symptoms: [],
-    address: "",
-    victims: 1,
-    age: 40,
-    arrivalMode: "walk",
-    notes: "",
+    motif: "",
+    mobilite: "",
+    oxygene: false,
+    brancardage: false,
+    adresseDepart: "",
+    adresseDestination: "",
   });
-  const [result, setResult] = useState(null);
+  const [useManual, setUseManual] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [created, setCreated] = useState(null);
-  const [modelStatus, setModelStatus] = useState(null);
-  const [units, setUnits] = useState([]);
-  const [nearbyUnits, setNearbyUnits] = useState([]);
+  const [result, setResult] = useState(null);
   const [error, setError] = useState("");
 
-  // Vérifier statut du modèle ML au chargement
   useEffect(() => {
-    // Statut du modèle via Express → Flask
-    aiService
-      .getModelStatus()
-      .then(({ data }) =>
-        setModelStatus({
-          available: data.available !== false,
-          loaded: data.loaded,
-          accuracy: data.accuracy,
-        }),
-      )
-      .catch(() =>
-        setModelStatus({ available: false, loaded: false, accuracy: null }),
-      );
-
-    // Unités disponibles
-    unitService
-      .getAll()
-      .then(({ data }) =>
-        setUnits(data.filter((u) => u.statut === "disponible")),
-      )
+    transportService
+      .getAll({ statut: "CONFIRMED,SCHEDULED", limit: 50 })
+      .then(({ data }) => setTransports(data.transports || data || []))
       .catch(() => {});
   }, []);
 
-  const toggleSymptom = (s) =>
-    setForm((f) => ({
-      ...f,
-      symptoms: f.symptoms.includes(s)
-        ? f.symptoms.filter((x) => x !== s)
-        : [...f.symptoms, s],
-    }));
-
-  // ── Créer l'intervention depuis le résultat IA ───────────────────────────
-  const handleCreateIntervention = async () => {
-    if (!result) return;
-    setCreating(true);
-    setError("");
-    try {
-      const payload = {
-        typeIncident: form.type,
-        priorite: result.priorite,
-        adresse: form.address || "Nice",
-        scoreIA: result.score,
-        statut: result.uniteObj ? "ASSIGNED" : "CREATED",
-        patient: {
-          nom: "Inconnu",
-          age: parseInt(form.age) || 40,
-          etat: form.etat,
-          symptomes: form.symptoms,
-          nbVictimes: form.victims,
-        },
-        notes:
-          `[IA BlancBleu] ${result.modele} — Confiance: ${result.confiance}% — ${form.notes || ""}`.trim(),
-        unitAssignee: result.uniteObj?._id || undefined,
-      };
-
-      const { data } = await interventionService.create(payload);
-      setCreated(data.intervention);
-
-      // Rediriger vers interventions après 2s
-      setTimeout(() => navigate("/interventions"), 2000);
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Erreur lors de la création de l'intervention.",
-      );
-    } finally {
-      setCreating(false);
-    }
-  };
-
   const handleAnalyze = async () => {
-    if (!form.type) {
-      setError("Sélectionnez un type d'incident");
+    if (!selectedId && !useManual) {
+      setError("Sélectionnez un transport ou utilisez la saisie manuelle");
       return;
     }
-    if (!form.etat) {
-      setError("Sélectionnez l'état du patient");
+    if (useManual && !form.mobilite) {
+      setError("Sélectionnez la mobilité du patient");
       return;
     }
     setError("");
     setLoading(true);
     setResult(null);
-
     try {
-      // Construire le payload pour le modèle ML
-      const payload = {
-        typeIncident: form.type,
-        etatPatient: form.etat,
-        age: parseInt(form.age) || 40,
-        nbVictimes: form.victims,
-        arrivalMode: form.arrivalMode,
-        injury:
-          form.symptoms.includes("Fractures") ||
-          form.symptoms.includes("Hémorragie"),
-        mental: ETAT_MENTAL[form.etat] || 1,
-        pain: form.symptoms.length > 0 ? 1 : 0,
-        nrsPain: form.symptoms.includes("Douleurs thoraciques")
-          ? 8
-          : form.symptoms.includes("Douleurs abdominales")
-            ? 5
-            : 3,
-        patientsPerHour: 5,
-        symptomes: form.symptoms.map((s) => SYMPTOM_MAP[s] || s.toLowerCase()),
-        adresse: form.address,
-        notes: form.notes,
-      };
-
-      const { data } = await aiService.analyze(payload);
-
-      // ── Unités proches par géodécision ────────────────────────────────
-      // Coordonnées par défaut : centre Nice si pas de GPS saisi
-      const defaultLat = 43.7102;
-      const defaultLng = 7.262;
-      try {
-        const geoRes = await geoService.unitsNearby(
-          defaultLat,
-          defaultLng,
-          data.priorite,
-          3,
-        );
-        setNearbyUnits(geoRes.data.units || []);
-      } catch {
-        /* silencieux */
-      }
-
-      // Trouver une unité disponible correspondante
-      const uniteRec =
-        units.find((u) => u.type === data.uniteRecommandee) || units[0];
-
-      // Construire les facteurs de risque
-      const risks = [];
-      if (form.type === "Arrêt cardiaque")
-        risks.push("Défibrillateur requis immédiatement");
-      if (form.symptoms.includes("Hémorragie"))
-        risks.push("Risque hémorragique élevé");
-      if (form.etat === "inconscient")
-        risks.push("Patient inconscient — risque vital");
-      if (form.victims > 1)
-        risks.push(`${form.victims} victimes — renfort recommandé`);
-      if (data.priorite === "P1")
-        risks.push("Intervention immédiate — délai critique < 8 min");
-      if (form.symptoms.includes("Difficultés respiratoires"))
-        risks.push("Détresse respiratoire — O₂ requis");
-      if (risks.length === 0)
-        risks.push("Situation standard — surveiller évolution");
-
-      setResult({
-        priorite: data.priorite,
-        score: data.score,
-        confiance: data.confiance || 75,
-        probabilites: data.probabilites || {},
-        uniteRecommandee: data.uniteRecommandee || "VSAV",
-        uniteObj: uniteRec,
-        justification: data.justification || [],
-        modele: data.modele || "BlancBleu IA",
-        source: data.source || "rules",
-        riskFactors: risks,
-        eta: `${Math.floor(Math.random() * 4) + 2} min ${Math.floor(Math.random() * 59)} sec`,
-      });
+      // Si transport sélectionné : appel direct sur l'ID
+      // Si manuel : on crée d'abord un transport temporaire (non implémenté ici)
+      // Pour le MVP : on passe l'ID sélectionné
+      const id = selectedId;
+      const { data } = await aiService.recommanderDispatch(id);
+      setResult(data);
     } catch (err) {
       setError(
-        "Erreur de connexion au modèle IA. Vérifiez que python app.py est lancé.",
+        err.response?.data?.message || "Erreur lors de l'analyse dispatch IA"
       );
-      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const style = result ? priorityStyle(result.priorite) : {};
+  const selectedTransport = transports.find((t) => t._id === selectedId);
+
+  return (
+    <div className="grid grid-cols-2 gap-6 items-start">
+      {/* Formulaire */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-navy to-blue-900 px-6 py-4">
+          <p className="font-mono text-xs text-blue-400 tracking-widest uppercase">
+            Module 2 — Smart Dispatch
+          </p>
+          <h2 className="font-brand font-bold text-white text-base">
+            Recommandation de véhicule
+          </h2>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-600">
+              {error}
+            </div>
+          )}
+
+          {/* Sélection transport */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-mono font-bold text-slate-400 uppercase tracking-widest">
+                Transport à dispatcher *
+              </label>
+              <button
+                onClick={() => setUseManual(!useManual)}
+                className="text-xs text-primary font-medium hover:underline"
+              >
+                {useManual ? "Choisir dans la liste" : "Saisie manuelle"}
+              </button>
+            </div>
+
+            {!useManual ? (
+              <select
+                value={selectedId}
+                onChange={(e) => setSelectedId(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-navy outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 bg-surface transition-all"
+              >
+                <option value="">Sélectionner un transport...</option>
+                {transports.map((t) => (
+                  <option key={t._id} value={t._id}>
+                    {t.numero} — {t.patient?.nom} {t.patient?.prenom} —{" "}
+                    {t.motif} ({t.statut})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="space-y-4">
+                <select
+                  value={form.motif}
+                  onChange={(e) => setForm((f) => ({ ...f, motif: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary bg-surface"
+                >
+                  <option value="">Motif du transport...</option>
+                  {MOTIFS.map((m) => <option key={m}>{m}</option>)}
+                </select>
+                <input
+                  type="text"
+                  placeholder="Adresse de prise en charge"
+                  value={form.adresseDepart}
+                  onChange={(e) => setForm((f) => ({ ...f, adresseDepart: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary"
+                />
+                <input
+                  type="text"
+                  placeholder="Adresse de destination"
+                  value={form.adresseDestination}
+                  onChange={(e) => setForm((f) => ({ ...f, adresseDestination: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Aperçu transport sélectionné */}
+          {selectedTransport && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-1">
+              <p className="font-mono font-bold text-navy text-sm">
+                {selectedTransport.numero}
+              </p>
+              <p className="text-xs text-slate-600">
+                Patient : {selectedTransport.patient?.nom}{" "}
+                {selectedTransport.patient?.prenom}
+              </p>
+              <p className="text-xs text-slate-600">
+                Motif : {selectedTransport.motif} · Mobilité :{" "}
+                <strong>{selectedTransport.patient?.mobilite || "—"}</strong>
+              </p>
+              <p className="text-xs text-slate-500">
+                {selectedTransport.adresseDepart} →{" "}
+                {selectedTransport.adresseDestination}
+              </p>
+            </div>
+          )}
+
+          {/* Mobilité (mode manuel) */}
+          {useManual && (
+            <div>
+              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
+                Mobilité du patient *
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {MOBILITES.map((m) => (
+                  <button
+                    key={m.v}
+                    onClick={() => setForm((f) => ({ ...f, mobilite: m.v }))}
+                    className={`py-3 px-3 rounded-xl border-2 text-xs font-semibold transition-all flex items-center gap-2 ${
+                      form.mobilite === m.v
+                        ? "border-primary bg-blue-50 text-primary"
+                        : "border-slate-200 text-slate-500 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-base">{m.icon}</span>
+                    <span>
+                      {m.label}
+                      <br />
+                      <span className="font-normal opacity-70">→ {m.desc}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-4 mt-3">
+                {[
+                  { key: "oxygene", label: "Oxygène requis", icon: "air" },
+                  { key: "brancardage", label: "Brancardage", icon: "transfer_within_a_station" },
+                ].map(({ key, label, icon }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form[key]}
+                      onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.checked }))}
+                      className="w-4 h-4 accent-primary"
+                    />
+                    <span className="material-symbols-outlined text-sm text-slate-400">{icon}</span>
+                    <span className="text-xs text-slate-600">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleAnalyze}
+            disabled={loading || (!selectedId && !useManual)}
+            className="w-full py-4 bg-gradient-to-r from-primary to-navy text-white rounded-xl font-brand font-bold text-sm flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Analyse dispatch en cours...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined">psychology</span>
+                ANALYSER AVEC L'IA
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Résultat */}
+      <div className="sticky top-24">
+        {!result && !loading ? (
+          <div className="bg-white rounded-xl border border-dashed border-slate-200 min-h-96 flex flex-col items-center justify-center gap-4 text-slate-300 p-10">
+            <span className="material-symbols-outlined text-7xl">local_shipping</span>
+            <p className="font-brand font-semibold text-slate-400 text-lg text-center">
+              Recommandation de véhicule
+            </p>
+            <p className="text-sm text-center text-slate-300">
+              Sélectionnez un transport et cliquez sur analyser pour obtenir
+              la meilleure affectation véhicule
+            </p>
+          </div>
+        ) : loading ? (
+          <div className="bg-white rounded-xl border border-slate-200 min-h-96 flex flex-col items-center justify-center gap-6">
+            <div className="w-16 h-16 border-4 border-blue-100 border-t-primary rounded-full animate-spin" />
+            <div className="text-center">
+              <p className="font-brand font-bold text-navy">Scoring en cours...</p>
+              <p className="text-sm text-slate-400 mt-1">
+                Évaluation compatibilité · Proximité · Fiabilité
+              </p>
+            </div>
+            <div className="flex gap-2 flex-wrap justify-center">
+              {["Compatibilité mobilité", "Proximité GPS", "Charge travail", "Fiabilité"].map((s, i) => (
+                <span
+                  key={i}
+                  className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-medium animate-pulse"
+                  style={{ animationDelay: `${i * 0.15}s` }}
+                >
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : result ? (
+          <DispatchResult result={result} />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DispatchResult({ result }) {
+  const rec = result?.recommandation;
+  if (!rec) {
+    return (
+      <div className="bg-white rounded-xl border border-amber-200 p-8 text-center">
+        <span className="material-symbols-outlined text-5xl text-amber-400">warning</span>
+        <p className="font-brand font-bold text-navy mt-3">
+          {result?.message || "Aucun véhicule compatible disponible"}
+        </p>
+        <p className="text-sm text-slate-400 mt-1">
+          Vérifiez la disponibilité des véhicules ou modifiez les critères
+        </p>
+      </div>
+    );
+  }
+
+  const typeInfo = TYPES_VEHICULE[rec.type] || { label: rec.type, color: "blue", icon: "directions_car" };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-5">
+        <p className="text-emerald-100 text-xs font-mono uppercase tracking-wider mb-1">
+          Véhicule recommandé par l'IA
+        </p>
+        <div className="flex items-center gap-3">
+          <span className="material-symbols-outlined text-white text-3xl">local_shipping</span>
+          <div>
+            <p className="font-brand font-bold text-white text-2xl">
+              {rec.immatriculation}
+            </p>
+            <p className="text-emerald-100 text-sm">
+              {typeInfo.label}
+              {rec.etaMinutes && ` · ETA ~${rec.etaMinutes} min`}
+            </p>
+          </div>
+          <div className="ml-auto text-right">
+            <p className="font-mono font-bold text-white text-3xl">{rec.score}</p>
+            <p className="text-emerald-100 text-xs">/ 100 pts</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5 space-y-5">
+        {/* Décomposition du score */}
+        <div>
+          <p className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-3">
+            Décomposition du score
+          </p>
+          <div className="space-y-2">
+            {[
+              { label: "Compatibilité mobilité", val: rec.scoreDetail?.compatibiliteMobilite, max: 40 },
+              { label: "Disponibilité", val: rec.scoreDetail?.disponibilite, max: 20 },
+              { label: "Proximité GPS", val: rec.scoreDetail?.proximite, max: 20 },
+              { label: "Charge de travail", val: rec.scoreDetail?.chargeTravail, max: 10 },
+              { label: "Fiabilité chauffeur", val: rec.scoreDetail?.fiabilite, max: 10 },
+            ].map(({ label, val, max }) => (
+              <div key={label} className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 w-40 flex-shrink-0">{label}</span>
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary to-emerald-500 rounded-full"
+                    style={{ width: `${((val || 0) / max) * 100}%` }}
+                  />
+                </div>
+                <span className="font-mono text-xs font-bold text-navy w-12 text-right">
+                  {val || 0}/{max}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Justification */}
+        {rec.justification?.length > 0 && (
+          <div>
+            <p className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
+              Justification
+            </p>
+            <div className="space-y-1.5">
+              {rec.justification.map((j, i) => (
+                <div key={i} className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                  <span className="material-symbols-outlined text-primary text-sm mt-0.5">check_circle</span>
+                  <span className="text-xs text-slate-700">{j}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Alternatives */}
+        {result.alternatives?.length > 0 && (
+          <div>
+            <p className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
+              Alternatives
+            </p>
+            <div className="space-y-2">
+              {result.alternatives.map((alt, i) => (
+                <div key={alt.vehiculeId} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">
+                    {i + 2}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-mono font-bold text-navy text-sm">{alt.immatriculation}</p>
+                    <p className="text-xs text-slate-400">{TYPES_VEHICULE[alt.type]?.label || alt.type}</p>
+                  </div>
+                  <span className="font-mono font-bold text-sm text-slate-600">
+                    {alt.score}/100
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-slate-300 text-center font-mono">
+          Source : {result.source === "ia" ? "Microservice IA Python" : "Règles métier locales"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// MODULE 2 — EXTRACTION PMT
+// ════════════════════════════════════════════════════════════════════════════
+function ModulePMT({ aiStatus }) {
+  const [file, setFile] = useState(null);
+  const [transportId, setTransportId] = useState("");
+  const [transports, setTransports] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [validating, setValidating] = useState(false);
+  const [validated, setValidated] = useState(false);
+  const [error, setError] = useState("");
+  const inputRef = useRef();
+
+  useEffect(() => {
+    transportService
+      .getAll({ statut: "REQUESTED,CONFIRMED", limit: 50 })
+      .then(({ data }) => setTransports(data.transports || data || []))
+      .catch(() => {});
+  }, []);
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) setFile(droppedFile);
+  };
+
+  const handleExtract = async () => {
+    if (!file) {
+      setError("Sélectionnez un fichier PMT (PDF ou image)");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    setResult(null);
+    setValidated(false);
+    try {
+      const formData = new FormData();
+      formData.append("pmt", file);
+      if (transportId) formData.append("transportId", transportId);
+      const { data } = await aiService.extrairePMT(formData);
+      setResult(data);
+    } catch (err) {
+      if (err.response?.status === 503) {
+        setError("Service OCR indisponible. Assurez-vous que le microservice Python est démarré et que Tesseract est installé.");
+      } else {
+        setError(err.response?.data?.detail || err.response?.data?.message || "Erreur d'extraction PMT");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleValidate = async () => {
+    if (!transportId || !result) return;
+    setValidating(true);
+    try {
+      await aiService.validerPMT(transportId, result.extraction);
+      setValidated(true);
+    } catch (err) {
+      setError(err.response?.data?.message || "Erreur de validation");
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const confPct = result ? Math.round(result.confiance * 100) : 0;
+
+  return (
+    <div className="grid grid-cols-2 gap-6 items-start">
+      {/* Formulaire */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-violet-600 to-purple-700 px-6 py-4">
+          <p className="font-mono text-xs text-violet-300 tracking-widest uppercase">
+            Module 1 — PMT Extraction
+          </p>
+          <h2 className="font-brand font-bold text-white text-base">
+            Prescription Médicale de Transport
+          </h2>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-600">
+              {error}
+            </div>
+          )}
+
+          {/* Transport associé */}
+          <div>
+            <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
+              Transport associé (optionnel)
+            </label>
+            <select
+              value={transportId}
+              onChange={(e) => setTransportId(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-navy outline-none focus:border-primary bg-surface"
+            >
+              <option value="">Lier à un transport...</option>
+              {transports.map((t) => (
+                <option key={t._id} value={t._id}>
+                  {t.numero} — {t.patient?.nom} {t.patient?.prenom}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Zone de dépôt fichier */}
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            onClick={() => inputRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+              file
+                ? "border-violet-400 bg-violet-50"
+                : "border-slate-200 hover:border-violet-300 hover:bg-slate-50"
+            }`}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.tiff"
+              className="hidden"
+              onChange={(e) => setFile(e.target.files[0])}
+            />
+            {file ? (
+              <div className="space-y-2">
+                <span className="material-symbols-outlined text-4xl text-violet-500">
+                  {file.type === "application/pdf" ? "picture_as_pdf" : "image"}
+                </span>
+                <p className="font-semibold text-navy text-sm">{file.name}</p>
+                <p className="text-xs text-slate-400">
+                  {(file.size / 1024).toFixed(0)} Ko · {file.type}
+                </p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                  className="text-xs text-red-400 hover:text-red-600 underline"
+                >
+                  Supprimer
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <span className="material-symbols-outlined text-5xl text-slate-300">upload_file</span>
+                <p className="font-semibold text-slate-500">
+                  Déposez la PMT ici ou cliquez
+                </p>
+                <p className="text-xs text-slate-300">PDF, JPEG, PNG, TIFF — max 10 Mo</p>
+              </div>
+            )}
+          </div>
+
+          {/* Info service */}
+          {!aiStatus?.available && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-700">
+              <strong>Service IA non démarré.</strong> Lancez le microservice Python :{" "}
+              <code className="bg-amber-100 px-1 rounded">cd ai-service && setup_et_lancer.bat</code>
+            </div>
+          )}
+
+          {/* Info Tesseract */}
+          {aiStatus?.available && !aiStatus?.modules?.pmt_ocr && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-700">
+              <strong>Tesseract OCR non détecté.</strong> Installez-le depuis{" "}
+              <a
+                href="https://github.com/UB-Mannheim/tesseract/wiki"
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                UB-Mannheim/tesseract
+              </a>{" "}
+              et ajoutez-le au PATH.
+            </div>
+          )}
+
+          <button
+            onClick={handleExtract}
+            disabled={loading || !file}
+            className="w-full py-4 bg-gradient-to-r from-violet-600 to-purple-700 text-white rounded-xl font-brand font-bold text-sm flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-violet-300 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                OCR en cours...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined">document_scanner</span>
+                EXTRAIRE LA PMT
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Résultat */}
+      <div className="sticky top-24">
+        {!result && !loading ? (
+          <div className="bg-white rounded-xl border border-dashed border-slate-200 min-h-96 flex flex-col items-center justify-center gap-4 text-slate-300 p-10">
+            <span className="material-symbols-outlined text-7xl">clinical_notes</span>
+            <p className="font-brand font-semibold text-slate-400 text-lg text-center">
+              Données extraites de la PMT
+            </p>
+            <p className="text-sm text-center text-slate-300">
+              Téléversez une Prescription Médicale de Transport (PDF ou image)
+              pour extraire automatiquement les informations patient
+            </p>
+          </div>
+        ) : loading ? (
+          <div className="bg-white rounded-xl border border-slate-200 min-h-96 flex flex-col items-center justify-center gap-6">
+            <div className="w-16 h-16 border-4 border-violet-100 border-t-violet-600 rounded-full animate-spin" />
+            <div className="text-center">
+              <p className="font-brand font-bold text-navy">OCR en cours...</p>
+              <p className="text-sm text-slate-400 mt-1">Tesseract analyse le document</p>
+            </div>
+            <div className="flex gap-2 flex-wrap justify-center">
+              {["Conversion", "OCR Tesseract", "Regex extraction", "NER spaCy", "Score confiance"].map((s, i) => (
+                <span
+                  key={i}
+                  className="text-xs bg-violet-50 text-violet-600 px-2 py-1 rounded-full font-medium animate-pulse"
+                  style={{ animationDelay: `${i * 0.2}s` }}
+                >
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : result ? (
+          <PMTResult
+            result={result}
+            onValidate={handleValidate}
+            validating={validating}
+            validated={validated}
+            hasTransport={!!transportId}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function PMTResult({ result, onValidate, validating, validated, hasTransport }) {
+  const confPct = Math.round(result.confiance * 100);
+  const confColor = confPct >= 75 ? "emerald" : confPct >= 50 ? "amber" : "red";
+  const ext = result.extraction;
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden">
+      {/* Header confiance */}
+      <div className={`px-6 py-4 bg-${confColor}-50 border-b border-${confColor}-100`}>
+        <div className="flex items-center justify-between mb-2">
+          <p className={`font-brand font-bold text-${confColor}-700 text-lg`}>
+            {result.validationRequise
+              ? "Validation humaine requise"
+              : "Extraction réussie"}
+          </p>
+          <ConfidenceBadge value={result.confiance} />
+        </div>
+        <div className="h-2 bg-white/50 rounded-full overflow-hidden">
+          <div
+            className={`h-full bg-${confColor}-500 rounded-full transition-all duration-1000`}
+            style={{ width: `${confPct}%` }}
+          />
+        </div>
+
+        {result.champsManquants?.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {result.champsManquants.map((c) => (
+              <span key={c} className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                Manquant : {c}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Données extraites */}
+      <div className="p-5 space-y-4">
+        {/* Patient */}
+        <Section title="Patient" icon="person">
+          <Row label="Nom" val={ext.patient?.nom} />
+          <Row label="Prénom" val={ext.patient?.prenom} />
+          <Row label="Date naissance" val={ext.patient?.dateNaissance} />
+        </Section>
+
+        {/* Médecin */}
+        <Section title="Médecin prescripteur" icon="stethoscope">
+          <Row label="Nom" val={ext.medecin?.nom} />
+          <Row label="RPPS" val={ext.medecin?.rpps} mono />
+          <Row label="Date prescription" val={ext.datePrescription} />
+        </Section>
+
+        {/* Transport */}
+        <Section title="Transport prescrit" icon="local_shipping">
+          <Row
+            label="Type autorisé"
+            val={ext.typeTransportAutorise}
+            highlight
+          />
+          <Row
+            label="Mobilité"
+            val={ext.mobilite?.replace("_", " ")}
+            highlight
+          />
+          <Row label="Destination" val={ext.destination} />
+          <Row
+            label="Aller-retour"
+            val={ext.allerRetour === true ? "Oui" : ext.allerRetour === false ? "Non" : null}
+          />
+          <Row label="Fréquence" val={ext.frequence} />
+          <Row label="Motif" val={ext.motif} />
+        </Section>
+
+        {/* Besoins spéciaux */}
+        {(ext.oxygene || ext.brancardage) && (
+          <div className="flex gap-3">
+            {ext.oxygene && (
+              <span className="flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-3 py-1.5 rounded-full border border-blue-100 font-medium">
+                <span className="material-symbols-outlined text-sm">air</span>
+                Oxygène requis
+              </span>
+            )}
+            {ext.brancardage && (
+              <span className="flex items-center gap-1 bg-orange-50 text-orange-700 text-xs px-3 py-1.5 rounded-full border border-orange-100 font-medium">
+                <span className="material-symbols-outlined text-sm">transfer_within_a_station</span>
+                Brancardage requis
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Remarques */}
+        {ext.remarques && (
+          <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 border border-slate-100">
+            <p className="font-mono text-slate-400 mb-1">REMARQUES</p>
+            {ext.remarques}
+          </div>
+        )}
+
+        {/* Validation */}
+        {validated ? (
+          <div className="py-3.5 bg-emerald-500 text-white rounded-xl font-brand font-bold text-sm flex items-center justify-center gap-2">
+            <span className="material-symbols-outlined">check_circle</span>
+            PMT validée et enregistrée
+          </div>
+        ) : (
+          <button
+            onClick={onValidate}
+            disabled={!hasTransport || validating}
+            className={`w-full py-3.5 rounded-xl font-brand font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+              hasTransport
+                ? "bg-violet-600 text-white hover:bg-violet-700 hover:shadow-lg"
+                : "bg-slate-100 text-slate-400 cursor-not-allowed"
+            }`}
+          >
+            {validating ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Validation...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined">verified</span>
+                {hasTransport ? "VALIDER ET ASSOCIER AU TRANSPORT" : "Sélectionnez un transport pour valider"}
+              </>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, icon, children }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className="material-symbols-outlined text-slate-400 text-sm">{icon}</span>
+        <p className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">{title}</p>
+      </div>
+      <div className="bg-slate-50 rounded-xl p-3 space-y-1.5 border border-slate-100">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, val, highlight, mono }) {
+  if (!val) return (
+    <div className="flex justify-between items-center">
+      <span className="text-xs text-slate-400">{label}</span>
+      <span className="text-xs text-slate-300 italic">Non détecté</span>
+    </div>
+  );
+  return (
+    <div className="flex justify-between items-center">
+      <span className="text-xs text-slate-500">{label}</span>
+      <span className={`text-xs font-semibold ${highlight ? "text-primary" : "text-navy"} ${mono ? "font-mono" : ""}`}>
+        {val}
+      </span>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// MODULE 3 — OPTIMISATION TOURNÉE
+// ════════════════════════════════════════════════════════════════════════════
+function ModuleRouting({ aiStatus }) {
+  const today = new Date().toISOString().split("T")[0];
+  const [date, setDate] = useState(today);
+  const [depot, setDepot] = useState("43.7102,7.2620");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const handleOptimize = async () => {
+    setError("");
+    setLoading(true);
+    setResult(null);
+    try {
+      const [lat, lng] = depot.split(",").map(Number);
+      const { data } = await aiService.optimiserTournee({
+        date,
+        depot: { lat: lat || 43.7102, lng: lng || 7.262 },
+      });
+      setResult(data);
+    } catch (err) {
+      if (err.response?.status === 503) {
+        setError("Service d'optimisation non disponible. Vérifiez que le microservice IA Python est démarré.");
+      } else {
+        setError(err.response?.data?.message || err.response?.data?.detail || "Erreur d'optimisation");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Formulaire */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-teal-600 to-cyan-700 px-6 py-4">
+          <p className="font-mono text-xs text-teal-200 tracking-widest uppercase">
+            Module 3 — Route Optimization
+          </p>
+          <h2 className="font-brand font-bold text-white text-base">
+            Optimisation de tournée — OR-Tools VRP
+          </h2>
+        </div>
+
+        <div className="p-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-600 mb-4">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            <div>
+              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
+                Date de la tournée *
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-navy outline-none focus:border-primary font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
+                Position dépôt (lat,lng)
+              </label>
+              <input
+                type="text"
+                value={depot}
+                onChange={(e) => setDepot(e.target.value)}
+                placeholder="43.7102,7.2620"
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+
+          <div className="bg-teal-50 border border-teal-100 rounded-xl p-4 mb-5 text-xs text-teal-700 space-y-1">
+            <p className="font-semibold flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm">info</span>
+              Comment ça fonctionne
+            </p>
+            <p>L'algorithme Google OR-Tools récupère tous les transports planifiés pour la date sélectionnée (statuts CONFIRMED et SCHEDULED) et optimise leur répartition sur les véhicules disponibles pour minimiser la distance totale parcourue.</p>
+          </div>
+
+          {!aiStatus?.available && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-700 mb-4">
+              <strong>Service IA non démarré.</strong> L'optimisation OR-Tools nécessite le microservice Python. Lancez :{" "}
+              <code className="bg-amber-100 px-1 rounded">cd ai-service && setup_et_lancer.bat</code>
+            </div>
+          )}
+
+          <button
+            onClick={handleOptimize}
+            disabled={loading || !date}
+            className="w-full py-4 bg-gradient-to-r from-teal-600 to-cyan-700 text-white rounded-xl font-brand font-bold text-sm flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-teal-300 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Optimisation OR-Tools en cours...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined">route</span>
+                OPTIMISER LES TOURNÉES
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Résultats */}
+      {result && (
+        <div className="space-y-4">
+          {/* KPIs */}
+          <div className="grid grid-cols-4 gap-4">
+            {[
+              { label: "Transports", val: result.nbTransports, icon: "directions_car" },
+              { label: "Véhicules", val: result.nbVehicules, icon: "local_shipping" },
+              { label: "Distance totale", val: `${result.distanceTotale} km`, icon: "route" },
+              { label: "Durée max", val: `${result.dureeMaxMinutes} min`, icon: "timer" },
+            ].map(({ label, val, icon }) => (
+              <div key={label} className="bg-white rounded-xl border border-slate-200 p-4 text-center">
+                <span className="material-symbols-outlined text-teal-500 text-2xl">{icon}</span>
+                <p className="font-mono font-bold text-navy text-xl mt-1">{val}</p>
+                <p className="text-xs text-slate-400">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Statut */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold w-fit ${
+            result.statut === "OPTIMAL"
+              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+              : result.statut === "FEASIBLE"
+              ? "bg-blue-50 text-blue-700 border border-blue-200"
+              : "bg-red-50 text-red-700 border border-red-200"
+          }`}>
+            <span className="material-symbols-outlined text-sm">
+              {result.statut === "OPTIMAL" ? "check_circle" : result.statut === "FEASIBLE" ? "info" : "error"}
+            </span>
+            {result.statut} — {result.messageOptimiseur}
+          </div>
+
+          {/* Tournées par véhicule */}
+          <div className="grid grid-cols-1 gap-4">
+            {result.routes?.map((route) => (
+              <div key={route.vehiculeId} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-teal-500">local_shipping</span>
+                    <p className="font-mono font-bold text-navy">{route.immatriculation}</p>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-slate-500 font-mono">
+                    <span>{route.nbTransports} transport(s)</span>
+                    <span>{route.distanceTotaleKm} km</span>
+                    <span>{route.dureeMinutes} min</span>
+                  </div>
+                </div>
+                <div className="p-4 space-y-2">
+                  {route.etapes?.map((etape) => (
+                    <div
+                      key={`${etape.transportId}-${etape.type}`}
+                      className={`flex items-start gap-3 p-2.5 rounded-lg border text-xs ${
+                        etape.type === "PRISE_EN_CHARGE"
+                          ? "border-blue-100 bg-blue-50"
+                          : "border-emerald-100 bg-emerald-50"
+                      }`}
+                    >
+                      <span className={`material-symbols-outlined text-sm ${
+                        etape.type === "PRISE_EN_CHARGE" ? "text-blue-500" : "text-emerald-500"
+                      }`}>
+                        {etape.type === "PRISE_EN_CHARGE" ? "person_pin_circle" : "flag"}
+                      </span>
+                      <div>
+                        <p className="font-mono font-bold text-navy">{etape.numero}</p>
+                        <p className="text-slate-500">
+                          {etape.type === "PRISE_EN_CHARGE" ? "Prise en charge" : "Destination"} · {etape.adresse}
+                        </p>
+                        {etape.heureArriveeEstimee && (
+                          <p className="text-slate-400">ETA : {etape.heureArriveeEstimee}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// PAGE PRINCIPALE
+// ════════════════════════════════════════════════════════════════════════════
+export default function AideIA() {
+  const [tab, setTab] = useState("dispatch");
+  const [aiStatus, setAiStatus] = useState(null);
+
+  useEffect(() => {
+    aiService
+      .getStatus()
+      .then(({ data }) => setAiStatus(data))
+      .catch(() => setAiStatus({ available: false, modules: {} }));
+  }, []);
 
   return (
     <div className="p-7 fade-in">
@@ -305,532 +1091,66 @@ export default function AideIA() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-brand font-bold text-2xl text-navy">
-            🤖 Aide à la décision — IA
+            Aide IA — Optimisation
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Priorisation automatique et optimisation des ressources BlancBleu
+            Dispatch intelligent · Extraction PMT · Optimisation de tournée
           </p>
         </div>
-        <ModelStatus status={modelStatus} />
+        <ServiceBadge status={aiStatus} />
       </div>
 
-      <div className="grid grid-cols-2 gap-6 items-start">
-        {/* ═══ FORMULAIRE ═══ */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="bg-gradient-to-r from-navy to-blue-900 px-6 py-4">
-            <p className="font-mono text-xs text-blue-400 tracking-widest uppercase">
-              FORM-BB-2025
-            </p>
-            <h2 className="font-brand font-bold text-white text-base">
-              Nouvelle intervention
-            </h2>
-          </div>
-
-          <div className="p-6 space-y-5">
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-600">
-                ⚠ {error}
-              </div>
-            )}
-
-            {/* Type */}
-            <div>
-              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                Type d'incident *
-              </label>
-              <select
-                value={form.type}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, type: e.target.value }))
-                }
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-navy outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all bg-surface"
-              >
-                <option value="">Sélectionner le type...</option>
-                {TYPES.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* État */}
-            <div>
-              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                État du patient *
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {ETAT.map((e) => (
-                  <button
-                    key={e.v}
-                    onClick={() => setForm((f) => ({ ...f, etat: e.v }))}
-                    className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all flex flex-col items-center gap-1 ${
-                      form.etat === e.v
-                        ? "border-primary bg-blue-50 text-primary shadow-sm"
-                        : "border-slate-200 text-slate-500 hover:border-slate-300"
-                    }`}
-                  >
-                    <span className="text-xl">{e.icon}</span>
-                    {e.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Symptômes */}
-            <div>
-              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                Symptômes détectés
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {SYMPTOMS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => toggleSymptom(s)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                      form.symptoms.includes(s)
-                        ? "bg-primary border-primary text-white shadow-sm"
-                        : "border-slate-200 text-slate-600 hover:border-primary hover:text-primary"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Adresse */}
-            <div>
-              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                Adresse de l'incident
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg">
-                  location_on
-                </span>
-                <input
-                  type="text"
-                  value={form.address}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, address: e.target.value }))
-                  }
-                  placeholder="Ex: 14 Rue Victor Hugo, Nice"
-                  className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Age + Victimes */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Âge du patient
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={form.age}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, age: e.target.value }))
-                  }
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono outline-none focus:border-primary transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Nb de victimes
-                </label>
-                <div className="flex border border-slate-200 rounded-xl overflow-hidden">
-                  <button
-                    onClick={() =>
-                      setForm((f) => ({
-                        ...f,
-                        victims: Math.max(1, f.victims - 1),
-                      }))
-                    }
-                    className="w-11 bg-surface text-slate-600 font-bold text-xl hover:bg-slate-100 transition-colors flex items-center justify-center"
-                  >
-                    −
-                  </button>
-                  <span className="flex-1 text-center font-mono font-bold text-navy py-2.5 border-x border-slate-200">
-                    {form.victims}
-                  </span>
-                  <button
-                    onClick={() =>
-                      setForm((f) => ({ ...f, victims: f.victims + 1 }))
-                    }
-                    className="w-11 bg-surface text-slate-600 font-bold text-xl hover:bg-slate-100 transition-colors flex items-center justify-center"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Mode arrivée */}
-            <div>
-              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                Mode d'arrivée
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { v: "walk", label: "Piéton", icon: "directions_walk" },
-                  { v: "ambulance", label: "Ambulance", icon: "ambulance" },
-                  { v: "transfer", label: "Transfert", icon: "local_hospital" },
-                ].map((m) => (
-                  <button
-                    key={m.v}
-                    onClick={() => setForm((f) => ({ ...f, arrivalMode: m.v }))}
-                    className={`py-2.5 rounded-xl border-2 text-xs font-semibold transition-all flex flex-col items-center gap-1 ${
-                      form.arrivalMode === m.v
-                        ? "border-primary bg-blue-50 text-primary"
-                        : "border-slate-200 text-slate-500 hover:border-slate-300"
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-lg">
-                      {m.icon}
-                    </span>
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-2">
-                Notes
-              </label>
-              <textarea
-                value={form.notes}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, notes: e.target.value }))
-                }
-                placeholder="Informations supplémentaires..."
-                rows={2}
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary resize-none transition-all"
-              />
-            </div>
-
-            {/* Bouton */}
-            <button
-              onClick={handleAnalyze}
-              disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-primary to-navy text-white rounded-xl font-brand font-bold text-sm flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Analyse en cours...
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined">bolt</span>
-                  ANALYSER AVEC L'IA BLANCBLEU
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* ═══ RÉSULTAT ═══ */}
-        <div className="sticky top-24">
-          {!result && !loading ? (
-            <div className="bg-white rounded-xl border border-slate-200 min-h-96 flex flex-col items-center justify-center gap-4 text-slate-300 p-10">
-              <span className="text-8xl">🤖</span>
-              <p className="font-brand font-semibold text-slate-400 text-lg">
-                En attente d'analyse
-              </p>
-              <p className="text-sm text-center text-slate-300">
-                Renseignez le formulaire et cliquez sur analyser pour obtenir
-                une recommandation IA
-              </p>
-              {modelStatus && (
-                <div
-                  className={`mt-2 px-4 py-2 rounded-full text-xs font-mono ${
-                    modelStatus.available
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-yellow-50 text-yellow-700"
-                  }`}
-                >
-                  {modelStatus.available
-                    ? `✓ Modèle ML actif · Précision ${modelStatus.accuracy}%`
-                    : "⚠ Modèle ML non démarré · Mode règles actif"}
-                </div>
-              )}
-            </div>
-          ) : loading ? (
-            <div className="bg-white rounded-xl border border-slate-200 min-h-96 flex flex-col items-center justify-center gap-6">
-              <div className="w-16 h-16 border-4 border-blue-100 border-t-primary rounded-full animate-spin" />
-              <div className="text-center">
-                <p className="font-brand font-bold text-navy text-lg">
-                  Analyse en cours...
-                </p>
-                <p className="text-sm text-slate-400 mt-1">
-                  Le modèle ML BlancBleu analyse l'incident
-                </p>
-              </div>
-              <div className="flex gap-2">
-                {["Vectorisation", "Prédiction ML", "Calcul confiance"].map(
-                  (s, i) => (
-                    <span
-                      key={i}
-                      className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-medium animate-pulse"
-                      style={{ animationDelay: `${i * 0.2}s` }}
-                    >
-                      {s}
-                    </span>
-                  ),
-                )}
-              </div>
-            </div>
-          ) : (
+      {/* Modules du service */}
+      {aiStatus?.modules && (
+        <div className="flex gap-3 mb-6 flex-wrap">
+          {[
+            { key: "pmt_ocr", label: "OCR Tesseract", icon: "document_scanner" },
+            { key: "pmt_nlp", label: "NLP spaCy", icon: "psychology" },
+            { key: "dispatch", label: "Smart Dispatch", icon: "local_shipping" },
+            { key: "routing", label: "OR-Tools VRP", icon: "route" },
+          ].map(({ key, label, icon }) => (
             <div
-              className={`bg-white rounded-xl border-l-4 overflow-hidden shadow-xl slide-up ${style.border}`}
+              key={key}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                aiStatus.modules[key]
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-slate-50 text-slate-400 border-slate-200"
+              }`}
             >
-              {/* Header priorité */}
-              <div
-                className={`px-5 py-4 border-b border-slate-100 ${style.bg}`}
-              >
-                <div
-                  className={`font-brand font-bold text-2xl ${style.text} flex items-center gap-2`}
-                >
-                  {style.icon} {style.label}
-                </div>
-                {/* Barre confiance */}
-                <div className="flex items-center gap-3 mt-3">
-                  <span className="text-xs text-slate-400 font-mono">
-                    Confiance ML
-                  </span>
-                  <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-primary to-emerald-500 rounded-full transition-all duration-1000"
-                      style={{ width: `${result.confiance}%` }}
-                    />
-                  </div>
-                  <span className="font-mono font-bold text-navy">
-                    {result.confiance}%
-                  </span>
-                </div>
-                {/* Probabilités */}
-                {result.probabilites &&
-                  Object.keys(result.probabilites).length > 0 && (
-                    <div className="flex gap-3 mt-3">
-                      {Object.entries(result.probabilites).map(([k, v]) => (
-                        <div
-                          key={k}
-                          className={`flex-1 text-center rounded-lg py-1.5 ${
-                            k === result.priorite
-                              ? "bg-primary text-white"
-                              : "bg-slate-100 text-slate-500"
-                          }`}
-                        >
-                          <p className="text-xs font-bold">{k}</p>
-                          <p className="font-mono text-sm font-bold">{v}%</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                {/* Source */}
-                <p className="text-xs text-slate-400 mt-2 font-mono">
-                  {result.source === "ml"
-                    ? `⚡ ${result.modele}`
-                    : "⚙ Scoring par règles (modèle ML non démarré)"}
-                </p>
-              </div>
-
-              {/* ETA */}
-              <div className="mx-5 my-4 bg-navy rounded-xl px-5 py-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-white text-xl">
-                    timer
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs text-white/40 font-mono uppercase tracking-wider">
-                    Temps de réponse estimé
-                  </p>
-                  <p className="font-mono font-bold text-white text-2xl">
-                    {result.eta}
-                  </p>
-                </div>
-              </div>
-
-              {/* Unité recommandée */}
-              <div className="px-5 pb-4">
-                <p className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
-                  Unité recommandée
-                </p>
-                <div className="bg-blue-50 rounded-xl border border-blue-100 p-4 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-primary text-2xl">
-                      ambulance
-                    </span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-mono font-bold text-navy text-lg">
-                      {result.uniteObj?.nom || result.uniteRecommandee}
-                    </p>
-                    <p className="text-sm text-slate-600">
-                      {result.uniteObj?.equipage
-                        ?.map((e) => e.nom)
-                        .join(" + ") || "Équipe disponible"}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      Type : {result.uniteRecommandee} ·{" "}
-                      {result.uniteObj?.position?.adresse || "Nice"}
-                    </p>
-                  </div>
-                  <span className="bg-primary text-white font-mono text-xs px-3 py-1.5 rounded-lg font-bold">
-                    {result.eta.split(" ").slice(0, 2).join(" ")}
-                  </span>
-                </div>
-              </div>
-
-              {/* Unités proches — géodécision */}
-              {nearbyUnits.length > 0 && (
-                <div className="px-5 pb-4">
-                  <p className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
-                    📍 Unités disponibles par proximité
-                  </p>
-                  <div className="space-y-2">
-                    {nearbyUnits.map((u, i) => (
-                      <div
-                        key={u._id}
-                        className={`flex items-center gap-3 p-3 rounded-xl border ${
-                          i === 0
-                            ? "border-primary bg-blue-50"
-                            : "border-slate-100 bg-white"
-                        }`}
-                      >
-                        <div
-                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                            i === 0
-                              ? "bg-primary text-white"
-                              : "bg-slate-100 text-slate-500"
-                          }`}
-                        >
-                          {i + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-mono font-bold text-navy text-sm">
-                            {u.nom}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {u.type} · {u.position?.adresse?.split(",")[0]}
-                          </p>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="font-mono font-bold text-sm text-primary">
-                            {u.geo?.etaFormate}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {u.geo?.distanceKm} km
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-300 mt-2 text-center">
-                    Triées par distance · ETA calculé avec profil urbain Nice
-                  </p>
-                </div>
-              )}
-
-              {/* Justification IA */}
-              {result.justification?.length > 0 && (
-                <div className="px-5 pb-4">
-                  <p className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
-                    🧠 Analyse IA
-                  </p>
-                  <div className="space-y-1.5">
-                    {result.justification.map((j, i) => (
-                      <div
-                        key={i}
-                        className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2"
-                      >
-                        <span className="material-symbols-outlined text-primary text-base mt-0.5 flex-shrink-0">
-                          info
-                        </span>
-                        <span className="text-xs text-slate-700">{j}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Facteurs de risque */}
-              <div className="px-5 pb-4">
-                <p className="text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
-                  ⚠️ Facteurs de risque
-                </p>
-                <div className="space-y-2">
-                  {result.riskFactors.map((r, i) => (
-                    <div
-                      key={i}
-                      className="flex items-start gap-2 bg-yellow-50 border border-yellow-100 rounded-lg px-3 py-2"
-                    >
-                      <span className="material-symbols-outlined text-yellow-500 text-base mt-0.5 flex-shrink-0">
-                        warning
-                      </span>
-                      <span className="text-sm text-slate-700">{r}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="px-5 pb-5 flex flex-col gap-3">
-                {error && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
-                    ⚠ {error}
-                  </div>
-                )}
-                {created ? (
-                  <div className="flex-1 py-3.5 bg-emerald-500 text-white rounded-xl font-brand font-bold text-sm flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined">
-                      check_circle
-                    </span>
-                    Intervention {created.numero} créée — redirection...
-                  </div>
-                ) : (
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleCreateIntervention}
-                      disabled={creating}
-                      className="flex-1 py-3.5 bg-danger text-white rounded-xl font-brand font-bold text-sm hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {creating ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Création...
-                        </>
-                      ) : (
-                        <>
-                          <span className="material-symbols-outlined">
-                            task_alt
-                          </span>
-                          CRÉER L'INTERVENTION
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => navigate("/carte")}
-                      className="flex-1 py-3.5 border-2 border-primary text-primary rounded-xl font-brand font-bold text-sm hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <span className="material-symbols-outlined">map</span>
-                      VOIR CARTE
-                    </button>
-                  </div>
-                )}
-                <p className="text-xs text-slate-400 text-center">
-                  Priorité <strong>{result?.priorite}</strong> · Score IA :{" "}
-                  <strong>{result?.score}</strong> · {result?.modele}
-                </p>
-              </div>
+              <span className="material-symbols-outlined text-sm">{icon}</span>
+              {label}
+              <span>{aiStatus.modules[key] ? "✓" : "—"}</span>
             </div>
-          )}
+          ))}
         </div>
+      )}
+
+      {/* Onglets */}
+      <div className="flex gap-2 mb-6 bg-slate-100 p-1.5 rounded-2xl w-fit">
+        <TabBtn
+          active={tab === "dispatch"}
+          onClick={() => setTab("dispatch")}
+          icon="local_shipping"
+          label="Dispatch IA"
+        />
+        <TabBtn
+          active={tab === "pmt"}
+          onClick={() => setTab("pmt")}
+          icon="clinical_notes"
+          label="Extraction PMT"
+        />
+        <TabBtn
+          active={tab === "routing"}
+          onClick={() => setTab("routing")}
+          icon="route"
+          label="Optimisation tournée"
+        />
       </div>
+
+      {/* Contenu */}
+      {tab === "dispatch" && <ModuleDispatch aiStatus={aiStatus} />}
+      {tab === "pmt" && <ModulePMT aiStatus={aiStatus} />}
+      {tab === "routing" && <ModuleRouting aiStatus={aiStatus} />}
     </div>
   );
 }

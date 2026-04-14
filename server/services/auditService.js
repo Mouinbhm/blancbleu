@@ -1,11 +1,17 @@
 /**
- * BlancBleu — Service d'Audit
- * Fonctions pour enregistrer les événements dans AuditLog
+ * BlancBleu — Service d'Audit v4.0
+ * Transport sanitaire NON urgent
+ *
+ * Journalise toutes les actions critiques de la plateforme.
+ * Vocabulaire : Transport, Vehicule, PMT (Prescription Médicale de Transport).
+ * Aucune notion d'urgence, d'escalade ou de priorité P1/P2/P3.
  */
 const AuditLog = require("../models/AuditLog");
 
 /**
- * Enregistre une entrée d'audit
+ * Enregistre une entrée d'audit dans la base de données.
+ * Ne fait jamais crasher l'application — silencieux en cas d'erreur.
+ *
  * @param {Object} params
  */
 async function log({
@@ -48,137 +54,229 @@ async function log({
       },
     });
   } catch (err) {
-    // Ne jamais faire crasher l'app à cause de l'audit
-    console.error("Audit log error:", err.message);
+    console.error("[Audit] Erreur d'enregistrement:", err.message);
   }
 }
 
 // ── Raccourcis sémantiques ────────────────────────────────────────────────────
-
 const audit = {
-  // Interventions
-  interventionCreee: (intervention, utilisateur, origine = "HUMAIN") =>
+
+  // ─── Transport — Cycle de vie ─────────────────────────────────────────────
+
+  transportCree: (transport, utilisateur) =>
     log({
-      action: "INTERVENTION_CREATED",
-      origine,
+      action: "TRANSPORT_CREATED",
+      origine: "HUMAIN",
       utilisateur,
       ressource: {
-        type: "Intervention",
-        id: intervention._id,
-        reference: intervention.numero,
+        type: "Transport",
+        id: transport._id,
+        reference: transport.numero,
       },
       details: {
         apres: {
-          priorite: intervention.priorite,
-          typeIncident: intervention.typeIncident,
-          adresse: intervention.adresse,
+          motif: transport.motif,
+          typeTransport: transport.typeTransport,
+          patient: `${transport.patient?.nom} ${transport.patient?.prenom}`,
+          adresseDepart: transport.adresseDepart,
+          adresseDestination: transport.adresseDestination,
         },
-        message: `Intervention ${intervention.numero} créée`,
+        message: `Transport ${transport.numero} créé`,
       },
     }),
 
-  statutChange: (intervention, ancienStatut, nouveauStatut, utilisateur) =>
+  transportConfirme: (transport, utilisateur) =>
+    log({
+      action: "TRANSPORT_CONFIRMED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Transport", id: transport._id, reference: transport.numero },
+      details: { message: `Transport ${transport.numero} confirmé` },
+    }),
+
+  transportPlanifie: (transport, utilisateur) =>
+    log({
+      action: "TRANSPORT_SCHEDULED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Transport", id: transport._id, reference: transport.numero },
+      details: {
+        apres: { dateTransport: transport.dateTransport, heureDepart: transport.heureDepart },
+        message: `Transport ${transport.numero} planifié`,
+      },
+    }),
+
+  transportAnnule: (transport, utilisateur, motifAnnulation) =>
+    log({
+      action: "TRANSPORT_CANCELLED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Transport", id: transport._id, reference: transport.numero },
+      details: {
+        apres: { motifAnnulation },
+        message: `Transport ${transport.numero} annulé — ${motifAnnulation || "motif non précisé"}`,
+      },
+    }),
+
+  transportNoShow: (transport, utilisateur) =>
+    log({
+      action: "TRANSPORT_NO_SHOW",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Transport", id: transport._id, reference: transport.numero },
+      details: { message: `Patient absent — ${transport.numero}` },
+    }),
+
+  transportReprogramme: (transport, utilisateur, nouvelleDateHeure) =>
+    log({
+      action: "TRANSPORT_RESCHEDULED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Transport", id: transport._id, reference: transport.numero },
+      details: {
+        apres: nouvelleDateHeure,
+        message: `Transport ${transport.numero} reprogrammé`,
+      },
+    }),
+
+  statutChange: (transport, ancienStatut, nouveauStatut, utilisateur) =>
     log({
       action: "STATUT_CHANGED",
       origine: "HUMAIN",
       utilisateur,
       ressource: {
-        type: "Intervention",
-        id: intervention._id,
-        reference: intervention.numero,
+        type: "Transport",
+        id: transport._id,
+        reference: transport.numero,
       },
       details: {
         avant: { statut: ancienStatut },
         apres: { statut: nouveauStatut },
-        message: `${ancienStatut} → ${nouveauStatut}`,
+        message: `${transport.numero} : ${ancienStatut} → ${nouveauStatut}`,
       },
     }),
 
-  uniteAssignee: (intervention, unite, utilisateur, origine = "HUMAIN") =>
+  // ─── Affectation véhicule ─────────────────────────────────────────────────
+
+  vehiculeAssigne: (transport, vehicule, utilisateur, origine = "HUMAIN") =>
     log({
-      action: "UNITE_ASSIGNED",
+      action: "VEHICULE_ASSIGNED",
       origine,
       utilisateur,
       ressource: {
-        type: "Intervention",
-        id: intervention._id,
-        reference: intervention.numero,
+        type: "Transport",
+        id: transport._id,
+        reference: transport.numero,
       },
       details: {
-        apres: { unite: unite.nom, type: unite.type },
-        message: `Unité ${unite.nom} assignée à ${intervention.numero}`,
+        apres: {
+          vehicule: vehicule.immatriculation,
+          type: vehicule.type,
+        },
+        message: `Véhicule ${vehicule.immatriculation} assigné à ${transport.numero}`,
       },
     }),
 
-  // IA
-  predictionIA: (intervention, prediction, confiance) =>
-    log({
-      action: "IA_PREDICTION",
-      origine: "IA",
-      utilisateur: { email: "ia@blancbleu.fr", role: "ia" },
-      ressource: {
-        type: "Intervention",
-        id: intervention._id,
-        reference: intervention.numero,
-      },
-      details: {
-        apres: { priorite: prediction, confiance },
-        message: `IA prédit ${prediction} (confiance ${confiance}%)`,
-      },
-    }),
+  // ─── Dispatch automatique ─────────────────────────────────────────────────
 
-  overrideIA: (intervention, anciennePriorite, nouvellePriorite, regle) =>
-    log({
-      action: "IA_OVERRIDE",
-      origine: "IA",
-      utilisateur: { email: "ia@blancbleu.fr", role: "ia" },
-      ressource: {
-        type: "Intervention",
-        id: intervention._id,
-        reference: intervention.numero,
-      },
-      details: {
-        avant: { priorite: anciennePriorite },
-        apres: { priorite: nouvellePriorite },
-        message: `Override IA : ${regle}`,
-      },
-    }),
-
-  // Dispatch
-  dispatchAuto: (intervention, unite, score, eta) =>
+  dispatchAuto: (transport, vehicule, score, eta) =>
     log({
       action: "DISPATCH_AUTO",
       origine: "SYSTÈME",
       utilisateur: { email: "dispatch@blancbleu.fr", role: "système" },
       ressource: {
-        type: "Intervention",
-        id: intervention._id,
-        reference: intervention.numero,
+        type: "Transport",
+        id: transport._id,
+        reference: transport.numero,
       },
       details: {
-        apres: { unite: unite.nom, score, eta },
-        message: `Auto-dispatch : ${unite.nom} (score ${score}/100, ETA ${eta})`,
+        apres: { vehicule: vehicule.immatriculation, score, eta },
+        message: `Auto-dispatch : ${vehicule.immatriculation} (score ${score}/100)`,
       },
     }),
 
-  // Escalade
-  escaladeDeclenchee: (intervention, alertes) =>
+  // ─── PMT (Prescription Médicale de Transport) ─────────────────────────────
+
+  pmtUploaded: (transport, utilisateur, fichier) =>
     log({
-      action: "ESCALADE_TRIGGERED",
-      origine: "SYSTÈME",
-      utilisateur: { email: "escalade@blancbleu.fr", role: "système" },
-      ressource: {
-        type: "Intervention",
-        id: intervention._id,
-        reference: intervention.numero,
-      },
+      action: "PMT_UPLOADED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Transport", id: transport._id, reference: transport.numero },
       details: {
-        metadata: { alertes },
-        message: `${alertes.length} alerte(s) déclenchée(s)`,
+        apres: { fichier },
+        message: `PMT téléversée pour ${transport.numero}`,
       },
     }),
 
-  // Auth
+  pmtExtraite: (transport, extraction, confiance) =>
+    log({
+      action: "PMT_EXTRACTED",
+      origine: "IA",
+      utilisateur: { email: "ia@blancbleu.fr", role: "ia" },
+      ressource: { type: "Transport", id: transport._id, reference: transport.numero },
+      details: {
+        apres: { extraction, confiance },
+        message: `PMT extraite pour ${transport.numero} (confiance ${Math.round(confiance * 100)}%)`,
+      },
+    }),
+
+  pmtValidee: (transport, utilisateur) =>
+    log({
+      action: "PMT_VALIDATED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Transport", id: transport._id, reference: transport.numero },
+      details: { message: `PMT validée pour ${transport.numero}` },
+    }),
+
+  // ─── IA ──────────────────────────────────────────────────────────────────
+
+  iaDispatchSuggestion: (transport, suggestion, confiance) =>
+    log({
+      action: "IA_DISPATCH_SUGGESTION",
+      origine: "IA",
+      utilisateur: { email: "ia@blancbleu.fr", role: "ia" },
+      ressource: { type: "Transport", id: transport._id, reference: transport.numero },
+      details: {
+        apres: { suggestion, confiance },
+        message: `IA suggère ${suggestion?.vehicule} pour ${transport.numero}`,
+      },
+    }),
+
+  iaRouteOptimization: (tourneeId, nbTransports, distanceTotale) =>
+    log({
+      action: "IA_ROUTE_OPTIMIZATION",
+      origine: "IA",
+      utilisateur: { email: "ia@blancbleu.fr", role: "ia" },
+      ressource: { type: "Tournee", id: null, reference: tourneeId },
+      details: {
+        apres: { nbTransports, distanceTotale },
+        message: `Optimisation tournée ${tourneeId} — ${nbTransports} transports, ${distanceTotale} km`,
+      },
+    }),
+
+  // ─── Véhicule ─────────────────────────────────────────────────────────────
+
+  vehiculeStatusChange: (vehicule, ancienStatut, nouveauStatut, utilisateur) =>
+    log({
+      action: "VEHICULE_STATUS_CHANGED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: {
+        type: "Vehicule",
+        id: vehicule._id,
+        reference: vehicule.immatriculation,
+      },
+      details: {
+        avant: { statut: ancienStatut },
+        apres: { statut: nouveauStatut },
+        message: `${vehicule.immatriculation} : ${ancienStatut} → ${nouveauStatut}`,
+      },
+    }),
+
+  // ─── Authentification ─────────────────────────────────────────────────────
+
   connexion: (utilisateur, ip, succes = true) =>
     log({
       action: succes ? "LOGIN" : "LOGIN_FAILED",
@@ -190,25 +288,28 @@ const audit = {
         role: utilisateur.role,
         ip,
       },
-      details: { message: succes ? `Connexion réussie` : `Tentative échouée` },
-    }),
-
-  // Unités
-  uniteStatusChange: (unite, ancienStatut, nouveauStatut, utilisateur) =>
-    log({
-      action: "UNITE_STATUS_CHANGED",
-      origine: "HUMAIN",
-      utilisateur,
-      ressource: { type: "Unit", id: unite._id, reference: unite.nom },
       details: {
-        avant: { statut: ancienStatut },
-        apres: { statut: nouveauStatut },
-        message: `${unite.nom} : ${ancienStatut} → ${nouveauStatut}`,
+        message: succes
+          ? `Connexion réussie — ${utilisateur.email}`
+          : `Tentative échouée — ${utilisateur.email}`,
       },
     }),
 
-  // Factures
-  factureCreee: (facture, intervention) =>
+  deconnexion: (utilisateur) =>
+    log({
+      action: "LOGOUT",
+      origine: "HUMAIN",
+      utilisateur: {
+        id: utilisateur._id,
+        email: utilisateur.email,
+        role: utilisateur.role,
+      },
+      details: { message: `Déconnexion — ${utilisateur.email}` },
+    }),
+
+  // ─── Facturation ──────────────────────────────────────────────────────────
+
+  factureCreee: (facture, transport) =>
     log({
       action: "FACTURE_CREATED",
       origine: "SYSTÈME",

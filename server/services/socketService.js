@@ -1,25 +1,25 @@
 /**
  * ╔══════════════════════════════════════════════════════════════╗
- * ║  BlancBleu — Service Socket.IO Temps Réel                   ║
- * ║  Architecture événementielle complète                       ║
+ * ║  BlancBleu — Service Socket.IO Temps Réel v4.0              ║
+ * ║  Transport sanitaire NON urgent                             ║
  * ╠══════════════════════════════════════════════════════════════╣
  * ║  ÉVÉNEMENTS ÉMIS :                                          ║
- * ║  intervention:created     → nouvelle intervention           ║
- * ║  intervention:updated     → modification générale           ║
- * ║  unit:assigned            → unité assignée                  ║
- * ║  status:updated           → changement de statut            ║
- * ║  escalation:triggered     → escalade déclenchée             ║
- * ║  dispatch:completed       → auto-dispatch effectué          ║
- * ║  unit:status_changed      → statut d'une unité              ║
- * ║  alerte:p1                → alerte critique P1              ║
- * ║  stats:update             → mise à jour des statistiques    ║
- * ║  system:heartbeat         → ping serveur toutes les 30s     ║
+ * ║  transport:created       → nouveau transport créé           ║
+ * ║  transport:updated       → modification générale            ║
+ * ║  transport:statut        → changement de statut             ║
+ * ║  vehicule:assigne        → véhicule assigné                 ║
+ * ║  vehicule:statut         → statut d'un véhicule             ║
+ * ║  vehicule:position       → position GPS mise à jour         ║
+ * ║  dispatch:completed      → dispatch automatique effectué    ║
+ * ║  pmt:extraite            → PMT extraite par IA              ║
+ * ║  stats:update            → mise à jour des KPIs             ║
+ * ║  system:heartbeat        → ping serveur toutes les 30s      ║
  * ╚══════════════════════════════════════════════════════════════╝
  */
 
 let _io = null;
 
-// ─── Salles Socket.IO ─────────────────────────────────────────────────────────
+// ─── Salles Socket.IO par rôle ────────────────────────────────────────────────
 const ROOMS = {
   ADMINS: "role:admin",
   SUPERVISORS: "role:superviseur",
@@ -27,40 +27,41 @@ const ROOMS = {
   ALL: "broadcast",
 };
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Initialisation ────────────────────────────────────────────────────────────
 function init(io) {
   _io = io;
 
   io.on("connection", (socket) => {
-    console.log(`🔌 Socket connecté : ${socket.id}`);
+    console.log(`[Socket] Connecté : ${socket.id}`);
 
-    // Rejoindre salle selon rôle
+    // Rejoindre la salle correspondant au rôle utilisateur
     socket.on("join:role", ({ role, userId }) => {
       socket.join(`role:${role}`);
       socket.join(ROOMS.ALL);
       socket.data.role = role;
       socket.data.userId = userId;
-      console.log(`  → ${socket.id} rejoint role:${role}`);
+      console.log(`[Socket] ${socket.id} → role:${role}`);
 
-      // Confirmer la connexion au client
       socket.emit("connected:ack", {
         socketId: socket.id,
         role,
         timestamp: new Date(),
-        message: "Connexion temps réel établie — BlancBleu",
+        message: "Connexion temps réel établie — BlancBleu Transport",
       });
     });
 
-    // Client demande les stats actuelles
+    // Le client demande les statistiques actuelles
     socket.on("request:stats", async () => {
       try {
         const stats = await _getStatsRapides();
         socket.emit("stats:update", stats);
-      } catch {}
+      } catch {
+        // Silencieux — les stats ne sont pas critiques
+      }
     });
 
     socket.on("disconnect", (reason) => {
-      console.log(`❌ Socket déconnecté : ${socket.id} (${reason})`);
+      console.log(`[Socket] Déconnecté : ${socket.id} (${reason})`);
     });
   });
 
@@ -73,284 +74,221 @@ function init(io) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// ÉVÉNEMENTS INTERVENTIONS
+// ÉVÉNEMENTS TRANSPORT
 // ═════════════════════════════════════════════════════════════════════════════
 
 /**
- * intervention:created
- * Émis quand une nouvelle intervention est créée
+ * transport:created
+ * Émis quand un nouveau transport est créé
  */
-function emitInterventionCreated(intervention) {
+function emitTransportCreated(transport) {
   if (!_io) return;
-  const payload = {
-    event: "intervention:created",
-    _id: intervention._id,
-    numero: intervention.numero,
-    typeIncident: intervention.typeIncident,
-    priorite: intervention.priorite,
-    adresse: intervention.adresse,
-    statut: intervention.statut,
-    scoreIA: intervention.scoreIA,
-    patient: intervention.patient,
-    createdAt: intervention.createdAt || new Date(),
-    timestamp: new Date(),
-  };
-
-  // Tous les connectés reçoivent les nouvelles interventions
-  _io.emit("intervention:created", payload);
-
-  // P1 → alerte spéciale en plus
-  if (intervention.priorite === "P1") {
-    _io.emit("alerte:p1", {
-      message: `🚨 P1 CRITIQUE — ${intervention.typeIncident} à ${intervention.adresse}`,
-      intervention: intervention._id,
-      numero: intervention.numero,
-      timestamp: new Date(),
-    });
-  }
-
-  console.log(
-    `📡 [SOCKET] intervention:created → ${intervention.numero} (${intervention.priorite})`,
-  );
-}
-
-/**
- * unit:assigned
- * Émis quand une unité est assignée à une intervention
- */
-function emitUnitAssigned({
-  intervention,
-  unite,
-  eta,
-  score,
-  source = "MANUEL",
-}) {
-  if (!_io) return;
-  const payload = {
-    event: "unit:assigned",
-    interventionId: intervention._id,
-    numero: intervention.numero,
-    priorite: intervention.priorite,
-    unite: {
-      _id: unite._id,
-      nom: unite.nom,
-      type: unite.type,
+  _io.emit("transport:created", {
+    _id: transport._id,
+    numero: transport.numero,
+    statut: transport.statut,
+    patient: {
+      nom: transport.patient?.nom,
+      prenom: transport.patient?.prenom,
+      mobilite: transport.patient?.mobilite,
     },
-    eta,
-    score,
-    source, // 'AUTO' | 'MANUEL'
+    motif: transport.motif,
+    typeTransport: transport.typeTransport,
+    dateTransport: transport.dateTransport,
+    adresseDepart: transport.adresseDepart,
+    adresseDestination: transport.adresseDestination,
+    createdAt: transport.createdAt || new Date(),
     timestamp: new Date(),
-  };
-
-  _io.emit("unit:assigned", payload);
-  console.log(
-    `📡 [SOCKET] unit:assigned → ${unite.nom} → ${intervention.numero}`,
-  );
+  });
+  console.log(`[Socket] transport:created → ${transport.numero}`);
 }
 
 /**
- * status:updated
- * Émis à chaque changement de statut d'une intervention (state machine)
+ * transport:statut
+ * Émis à chaque changement de statut (state machine)
  */
-function emitStatusUpdated({
-  intervention,
-  ancienStatut,
-  nouveauStatut,
-  utilisateur,
-}) {
+function emitTransportStatut({ transport, ancienStatut, nouveauStatut, utilisateur }) {
   if (!_io) return;
-  const payload = {
-    event: "status:updated",
-    interventionId: intervention._id,
-    numero: intervention.numero,
-    priorite: intervention.priorite,
+  _io.emit("transport:statut", {
+    transportId: transport._id,
+    numero: transport.numero,
     ancienStatut,
     nouveauStatut,
     utilisateur: utilisateur || "système",
     progression: _calculerProgression(nouveauStatut),
     timestamp: new Date(),
-  };
-
-  _io.emit("status:updated", payload);
+  });
   console.log(
-    `📡 [SOCKET] status:updated → ${intervention.numero} : ${ancienStatut} → ${nouveauStatut}`,
+    `[Socket] transport:statut → ${transport.numero} : ${ancienStatut} → ${nouveauStatut}`
   );
 }
 
 /**
- * escalation:triggered
- * Émis quand le moteur d'escalade détecte une situation critique
+ * vehicule:assigne
+ * Émis quand un véhicule + chauffeur sont affectés à un transport
  */
-function emitEscalationTriggered({ intervention, alertes, niveauMaximal }) {
+function emitVehiculeAssigne({ transport, vehicule, chauffeur, eta, score, source = "MANUEL" }) {
   if (!_io) return;
-  const payload = {
-    event: "escalation:triggered",
-    interventionId: intervention?._id || null,
-    numero: intervention?.numero || null,
-    priorite: intervention?.priorite || null,
-    alertes: alertes.map((a) => ({
-      code: a.code,
-      message: a.message,
-      niveau: a.niveau?.label || a.niveau,
-      couleur: a.niveau?.couleur || "red",
-      action: a.action,
-    })),
-    niveauMaximal: niveauMaximal?.label || "EMERGENCY",
+  _io.emit("vehicule:assigne", {
+    transportId: transport._id,
+    numero: transport.numero,
+    vehicule: {
+      _id: vehicule._id,
+      immatriculation: vehicule.immatriculation,
+      type: vehicule.type,
+    },
+    chauffeur: chauffeur
+      ? { _id: chauffeur._id, nom: chauffeur.nom, prenom: chauffeur.prenom }
+      : null,
+    eta,
+    score,
+    source, // 'AUTO' | 'MANUEL'
     timestamp: new Date(),
-  };
-
-  // Escalade → admins + superviseurs en priorité
-  _io.to(ROOMS.ADMINS).emit("escalation:triggered", payload);
-  _io.to(ROOMS.SUPERVISORS).emit("escalation:triggered", payload);
-  _io.to(ROOMS.DISPATCHERS).emit("escalation:triggered", payload);
-
+  });
   console.log(
-    `📡 [SOCKET] escalation:triggered → ${alertes.length} alerte(s) — niveau ${niveauMaximal?.label}`,
+    `[Socket] vehicule:assigne → ${vehicule.immatriculation} → ${transport.numero}`
   );
+}
+
+/**
+ * vehicule:statut
+ * Émis quand le statut d'un véhicule change
+ */
+function emitVehiculeStatut({ vehicule, ancienStatut, nouveauStatut }) {
+  if (!_io) return;
+  _io.emit("vehicule:statut", {
+    vehiculeId: vehicule._id,
+    immatriculation: vehicule.immatriculation,
+    type: vehicule.type,
+    ancienStatut,
+    nouveauStatut,
+    timestamp: new Date(),
+  });
+  console.log(
+    `[Socket] vehicule:statut → ${vehicule.immatriculation} : ${ancienStatut} → ${nouveauStatut}`
+  );
+}
+
+/**
+ * vehicule:position
+ * Émis lors d'une mise à jour GPS d'un véhicule en mission
+ */
+function emitVehiculePosition(data) {
+  if (!_io) return;
+  _io.emit("vehicule:position", { ...data, timestamp: new Date() });
 }
 
 /**
  * dispatch:completed
- * Émis quand l'auto-dispatch a sélectionné une unité
+ * Émis quand l'auto-dispatch a sélectionné un véhicule
  */
-function emitDispatchCompleted({
-  intervention,
-  unite,
-  score,
-  eta,
-  alternatives,
-}) {
+function emitDispatchCompleted({ transport, vehicule, score, eta, alternatives }) {
   if (!_io) return;
-  const payload = {
-    event: "dispatch:completed",
-    interventionId: intervention._id,
-    numero: intervention.numero,
-    unite: {
-      _id: unite._id,
-      nom: unite.nom,
-      type: unite.type,
+  _io.emit("dispatch:completed", {
+    transportId: transport._id,
+    numero: transport.numero,
+    vehicule: {
+      _id: vehicule._id,
+      immatriculation: vehicule.immatriculation,
+      type: vehicule.type,
     },
     score,
     eta,
     alternatives: alternatives || [],
     timestamp: new Date(),
-  };
-
-  _io.emit("dispatch:completed", payload);
+  });
   console.log(
-    `📡 [SOCKET] dispatch:completed → ${unite.nom} (score ${score}/100)`,
+    `[Socket] dispatch:completed → ${vehicule.immatriculation} (score ${score}/100)`
   );
 }
 
 /**
- * unit:status_changed
- * Émis quand le statut d'une unité change (disponible ↔ en_mission)
+ * pmt:extraite
+ * Émis quand l'IA a extrait les données d'une Prescription Médicale de Transport
  */
-function emitUnitStatusChanged({ unite, ancienStatut, nouveauStatut }) {
+function emitPmtExtraite({ transportId, extraction, confiance }) {
   if (!_io) return;
-  const payload = {
-    event: "unit:status_changed",
-    unitId: unite._id,
-    nom: unite.nom,
-    type: unite.type,
-    ancienStatut,
-    nouveauStatut,
+  _io.emit("pmt:extraite", {
+    transportId,
+    extraction,
+    confiance,
+    validationRequise: confiance < 0.75,
     timestamp: new Date(),
-  };
-
-  _io.emit("unit:status_changed", payload);
-  console.log(
-    `📡 [SOCKET] unit:status_changed → ${unite.nom} : ${ancienStatut} → ${nouveauStatut}`,
-  );
+  });
+  console.log(`[Socket] pmt:extraite → transport ${transportId} (confiance ${confiance})`);
 }
 
 /**
  * stats:update
- * Émis après chaque événement important pour actualiser les KPIs
+ * Émis après chaque événement important pour actualiser les KPIs dashboard
  */
 async function emitStatsUpdate() {
   if (!_io) return;
   try {
     const stats = await _getStatsRapides();
     _io.emit("stats:update", stats);
-  } catch {}
+  } catch {
+    // Silencieux
+  }
 }
 
-// ─── Fonctions héritées (compatibilité) ───────────────────────────────────────
-const emitNouvelleIntervention = emitInterventionCreated;
-const emitStatutIntervention = (id, statut, unitNom) =>
-  emitStatusUpdated({
-    intervention: { _id: id, numero: "", priorite: "" },
-    ancienStatut: "",
-    nouveauStatut: statut,
-    utilisateur: unitNom,
-  });
-const emitStatutUnite = (unitId, statut, nom) =>
-  emitUnitStatusChanged({
-    unite: { _id: unitId, nom, type: "" },
-    ancienStatut: "",
-    nouveauStatut: statut,
-  });
-const emitDispatch = (interventionId, unite, eta) =>
-  emitDispatchCompleted({
-    intervention: { _id: interventionId, numero: "", priorite: "" },
-    unite,
-    score: 0,
-    eta,
-  });
-const emitAlerteP1 = (intervention) =>
-  emitInterventionCreated({ ...intervention, priorite: "P1" });
-const emitEscalade = (data) =>
-  emitEscalationTriggered({
-    intervention: { _id: data.interventionId, numero: data.numero },
-    alertes: data.alertes || [],
-    niveauMaximal: { label: "EMERGENCY" },
-  });
-const emitStats = emitStatsUpdate;
-
 // ─── Helpers privés ───────────────────────────────────────────────────────────
+
+/**
+ * Calcule le pourcentage de progression selon le statut du transport
+ */
 function _calculerProgression(statut) {
   const ordre = [
-    "CREATED",
-    "VALIDATED",
+    "REQUESTED",
+    "CONFIRMED",
+    "SCHEDULED",
     "ASSIGNED",
-    "EN_ROUTE",
-    "ON_SITE",
-    "TRANSPORTING",
+    "EN_ROUTE_TO_PICKUP",
+    "ARRIVED_AT_PICKUP",
+    "PATIENT_ON_BOARD",
+    "ARRIVED_AT_DESTINATION",
     "COMPLETED",
   ];
   const idx = ordre.indexOf(statut);
   return idx === -1 ? null : Math.round((idx / (ordre.length - 1)) * 100);
 }
 
+/**
+ * Récupère les statistiques rapides pour le dashboard
+ */
 async function _getStatsRapides() {
   try {
-    const Intervention = require("../models/Intervention");
-    const Unit = require("../models/Unit");
-    const [total, p1, p2, p3, actives, dispo] = await Promise.all([
-      Intervention.countDocuments(),
-      Intervention.countDocuments({
-        priorite: "P1",
-        statut: { $nin: ["COMPLETED", "CANCELLED"] },
-      }),
-      Intervention.countDocuments({
-        priorite: "P2",
-        statut: { $nin: ["COMPLETED", "CANCELLED"] },
-      }),
-      Intervention.countDocuments({
-        priorite: "P3",
-        statut: { $nin: ["COMPLETED", "CANCELLED"] },
-      }),
-      Intervention.countDocuments({
-        statut: { $nin: ["COMPLETED", "CANCELLED"] },
-      }),
-      Unit.countDocuments({ statut: "disponible" }),
+    const Transport = require("../models/Transport");
+    const Vehicle = require("../models/Vehicle");
+
+    const [total, enCours, termines, annules, vehiculesDisponibles] =
+      await Promise.all([
+        Transport.countDocuments(),
+        Transport.countDocuments({
+          statut: {
+            $nin: ["COMPLETED", "CANCELLED", "NO_SHOW"],
+          },
+        }),
+        Transport.countDocuments({ statut: "COMPLETED" }),
+        Transport.countDocuments({ statut: { $in: ["CANCELLED", "NO_SHOW"] } }),
+        Vehicle.countDocuments({ statut: "disponible" }),
+      ]);
+
+    // Répartition par motif
+    const parMotif = await Transport.aggregate([
+      { $match: { statut: { $nin: ["CANCELLED", "NO_SHOW"] } } },
+      { $group: { _id: "$motif", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 },
     ]);
+
     return {
       total,
-      actives,
-      parPriorite: { P1: p1, P2: p2, P3: p3 },
-      unitesDisponibles: dispo,
+      enCours,
+      termines,
+      annules,
+      vehiculesDisponibles,
+      parMotif,
       timestamp: new Date(),
     };
   } catch {
@@ -361,36 +299,12 @@ async function _getStatsRapides() {
 module.exports = {
   init,
   ROOMS,
-  // Nouveaux événements
-  emitInterventionCreated,
-  emitUnitAssigned,
-  emitStatusUpdated,
-  emitEscalationTriggered,
+  emitTransportCreated,
+  emitTransportStatut,
+  emitVehiculeAssigne,
+  emitVehiculeStatut,
+  emitVehiculePosition,
   emitDispatchCompleted,
-  emitUnitStatusChanged,
+  emitPmtExtraite,
   emitStatsUpdate,
-  // Compatibilité anciens noms
-  emitNouvelleIntervention,
-  emitStatutIntervention,
-  emitStatutUnite,
-  emitDispatch,
-  emitAlerteP1,
-  emitEscalade,
-  emitStats,
 };
-
-// ─── Ajout : position GPS unité ───────────────────────────────────────────────
-function emitLocationUpdated(data) {
-  if (!_io) return;
-  _io.emit("unit:location_updated", { ...data, timestamp: new Date() });
-}
-// Exporter en plus
-module.exports.emitLocationUpdated = emitLocationUpdated;
-
-// ─── Événements mission completion ───────────────────────────────────────────
-function emitMissionEvent(event, data) {
-  if (!_io) return;
-  _io.emit(event, { ...data, timestamp: new Date() });
-  console.log(`📡 [SOCKET] ${event}`);
-}
-module.exports.emitMissionEvent = emitMissionEvent;

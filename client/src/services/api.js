@@ -153,13 +153,28 @@ export const analyticsService = {
 };
 
 // ════════════════════════════════════════════════════════════════════════════
-// MODULE IA
+// MODULE IA — Transport sanitaire non urgent
 // ════════════════════════════════════════════════════════════════════════════
 export const aiService = {
-  analyze: (data) => api.post("/ai/analyze", data),
-  analyzeAndSave: (data) => api.post("/ai/analyze-and-save", data),
-  getOptions: () => api.get("/ai/options"),
-  getModelStatus: () => api.get("/ai/status"),
+  // Statut du microservice IA Python
+  getStatus: () => api.get("/ai/status"),
+  getModelStatus: () => api.get("/ai/status"), // alias rétrocompat
+
+  // Module 1 — Extraction PMT (Prescription Médicale de Transport)
+  extrairePMT: (formData) =>
+    api.post("/ai/pmt/extract", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 30000, // OCR peut prendre jusqu'à 30s
+    }),
+  validerPMT: (transportId, extraction) =>
+    api.patch(`/ai/pmt/validate/${transportId}`, { extraction }),
+
+  // Module 2 — Dispatch (recommandation véhicule)
+  recommanderDispatch: (transportId) =>
+    api.post(`/ai/dispatch/${transportId}`),
+
+  // Module 3 — Optimisation de tournée
+  optimiserTournee: (data) => api.post("/ai/routing/optimize", data),
 };
 
 // ════════════════════════════════════════════════════════════════════════════

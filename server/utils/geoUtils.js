@@ -1,21 +1,27 @@
 /**
- * BlancBleu — GeoUtils v3.0
- * Haversine · OSRM Routing · ETA · Consommation · Itinéraire mission
+ * BlancBleu — GeoUtils v4.0
+ * Transport sanitaire NON urgent
  *
- * NOUVEAU en v3.0 :
- *   - calculerETARoutier() : ETA via OSRM (routing routier réel)
- *   - Fallback automatique vers Haversine si OSRM indisponible
- *   - Cache simple des résultats OSRM (5 min TTL)
+ * Fonctions :
+ *   - haversine()           : distance à vol d'oiseau
+ *   - calculerRouteOSRM()   : route réelle via OSRM
+ *   - calculerETA()         : ETA synchrone (Haversine, usage interne)
+ *   - calculerETARoutier()  : ETA asynchrone via OSRM
+ *   - calculerConsommation(): estimation carburant
+ *   - distanceTrajet()      : distance complète base→prise en charge→destination
+ *   - trierParProximite()   : tri véhicules par distance
+ *
+ * SUPPRIMÉ en v4.0 :
+ *   - Facteurs P1/P2/P3 (vitesse sirènes, feux bleus) — hors domaine
+ *   - Terminologie "incident", "hopital" → "prise en charge", "destination"
  */
 
 const axios = require("axios");
 const logger = require("./logger");
 
 // ─── Configuration OSRM ───────────────────────────────────────────────────────
-// Instance publique OSRM — remplacer par instance privée en production
-// Alternative auto-hébergée : https://github.com/Project-OSRM/osrm-backend
 const OSRM_BASE = process.env.OSRM_URL || "https://router.project-osrm.org";
-const OSRM_TIMEOUT = 3000; // 3s max — fallback si dépassé
+const OSRM_TIMEOUT = 3000; // 3s — fallback Haversine si dépassé
 
 // ─── Cache OSRM (mémoire, TTL 5 min) ─────────────────────────────────────────
 const _cache = new Map();
@@ -37,7 +43,6 @@ function _cacheGet(key) {
 
 function _cacheSet(key, value) {
   _cache.set(key, { value, ts: Date.now() });
-  // Limiter la taille du cache
   if (_cache.size > 500) {
     const firstKey = _cache.keys().next().value;
     _cache.delete(firstKey);
@@ -45,7 +50,7 @@ function _cacheSet(key, value) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// HAVERSINE — Distance à vol d'oiseau (fallback + calculs internes)
+// HAVERSINE — Distance à vol d'oiseau (km)
 // ══════════════════════════════════════════════════════════════════════════════
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -62,13 +67,10 @@ function haversine(lat1, lng1, lat2, lng2) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// OSRM ROUTING — Distance et durée par la route
+// OSRM ROUTING — Distance et durée réelle par la route
 // ══════════════════════════════════════════════════════════════════════════════
 /**
- * Calcule la distance et durée via OSRM (routing routier réel)
- * Fallback automatique vers Haversine si OSRM indisponible
- *
- * @returns {{ distanceKm, dureeSecondes, source: 'osrm'|'haversine' }}
+ * @returns {{ distanceKm, dureeSecondes, source: 'osrm'|'osrm_cache'|'haversine' }}
  */
 async function calculerRouteOSRM(lat1, lng1, lat2, lng2) {
   const key = _cacheKey(lat1, lng1, lat2, lng2);
@@ -92,12 +94,11 @@ async function calculerRouteOSRM(lat1, lng1, lat2, lng2) {
     _cacheSet(key, result);
     return { ...result, source: "osrm" };
   } catch (err) {
-    // OSRM indisponible — fallback Haversine avec facteur sinuosité
     logger.warn("OSRM indisponible — fallback Haversine", { err: err.message });
     const distKm = haversine(lat1, lng1, lat2, lng2);
-    const facteurRoute = 1.35; // Les routes sont ~35% plus longues que vol d'oiseau
+    // Facteur sinuosité moyen : les routes sont ~35% plus longues à vol d'oiseau
     return {
-      distanceKm: Math.round(distKm * facteurRoute * 100) / 100,
+      distanceKm: Math.round(distKm * 1.35 * 100) / 100,
       dureeSecondes: null,
       source: "haversine",
     };
@@ -105,34 +106,41 @@ async function calculerRouteOSRM(lat1, lng1, lat2, lng2) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ETA — Estimation temps d'arrivée (Haversine — synchrone, pour usage interne)
+// ETA — Estimation temps d'arrivée (transport sanitaire non urgent)
 // ══════════════════════════════════════════════════════════════════════════════
-function calculerETA(distanceKm, priorite = "P2") {
-  const cfg = {
-    P1: { vitesse: 75, facteur: 1.25, depart: 1 },
-    P2: { vitesse: 55, facteur: 1.35, depart: 2 },
-    P3: { vitesse: 35, facteur: 1.45, depart: 3 },
-  };
-  const { vitesse, facteur, depart } = cfg[priorite] || cfg.P2;
+/**
+ * Calcule un ETA pour un trajet de transport sanitaire non urgent.
+ * Vitesse de référence : 50 km/h en ville (avec feux, ronds-points, stops).
+ * Pas de vitesse d'urgence (pas de sirènes, pas de feux bleus).
+ *
+ * @param {number} distanceKm
+ * @returns {{ minutes, formate, fourchette, distanceKm, source }}
+ */
+function calculerETA(distanceKm) {
+  const vitesseMoyenne = 50; // km/h — conduite normale, zone urbaine/périurbaine
 
-  // Facteur heure de pointe Nice
+  // Facteur heure de pointe (trafic dense)
   const h = new Date().getHours();
-  const fp =
-    (h >= 8 && h < 10) || (h >= 17 && h < 19)
-      ? 1.2
-      : h >= 22 || h < 6
-        ? 0.85
-        : 1.0;
+  let facteurTrafic = 1.0;
+  if ((h >= 7 && h < 9) || (h >= 17 && h < 19)) {
+    facteurTrafic = 1.25; // +25% en heure de pointe
+  } else if (h >= 22 || h < 6) {
+    facteurTrafic = 0.85; // -15% la nuit (moins de trafic)
+  }
+
+  // Temps de préparation véhicule avant départ (départ de base)
+  const tempsPreparation = 3; // minutes
 
   const minutes = Math.ceil(
-    (distanceKm / vitesse) * 60 * facteur * fp + depart,
+    (distanceKm / vitesseMoyenne) * 60 * facteurTrafic + tempsPreparation
   );
+
   return {
     minutes,
     formate:
       minutes < 60
         ? `${minutes} min`
-        : `${Math.floor(minutes / 60)}h${minutes % 60}min`,
+        : `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, "0")}`,
     fourchette: `${Math.floor(minutes * 0.8)}-${Math.ceil(minutes * 1.2)} min`,
     distanceKm,
     source: "haversine",
@@ -140,25 +148,24 @@ function calculerETA(distanceKm, priorite = "P2") {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ETA ROUTIER — Via OSRM (asynchrone, plus précis)
+// ETA ROUTIER — Via OSRM (plus précis, asynchrone)
 // ══════════════════════════════════════════════════════════════════════════════
 /**
- * ETA via OSRM avec ajustement priorité (sirènes P1, code P2)
- * Fallback automatique vers calculerETA si OSRM indisponible
+ * ETA via OSRM pour transport sanitaire non urgent.
+ * La durée OSRM est la durée de conduite normale (pas de feux bleus).
  */
-async function calculerETARoutier(lat1, lng1, lat2, lng2, priorite = "P2") {
+async function calculerETARoutier(lat1, lng1, lat2, lng2) {
   const route = await calculerRouteOSRM(lat1, lng1, lat2, lng2);
 
   let minutes;
 
   if (route.dureeSecondes !== null) {
-    // Durée OSRM + ajustement priorité
-    const facteurPriorite = { P1: 0.75, P2: 0.9, P3: 1.0 }[priorite] || 0.9;
-    const depart = { P1: 1, P2: 2, P3: 3 }[priorite] || 2;
-    minutes = Math.ceil((route.dureeSecondes / 60) * facteurPriorite) + depart;
+    // Durée OSRM + marge réaliste (+10%) + préparation
+    const tempsPreparation = 3;
+    minutes = Math.ceil((route.dureeSecondes / 60) * 1.1) + tempsPreparation;
   } else {
     // Fallback Haversine
-    const eta = calculerETA(route.distanceKm, priorite);
+    const eta = calculerETA(route.distanceKm);
     minutes = eta.minutes;
   }
 
@@ -167,7 +174,7 @@ async function calculerETARoutier(lat1, lng1, lat2, lng2, priorite = "P2") {
     formate:
       minutes < 60
         ? `${minutes} min`
-        : `${Math.floor(minutes / 60)}h${minutes % 60}min`,
+        : `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, "0")}`,
     fourchette: `${Math.floor(minutes * 0.8)}-${Math.ceil(minutes * 1.2)} min`,
     distanceKm: route.distanceKm,
     source: route.source,
@@ -177,12 +184,16 @@ async function calculerETARoutier(lat1, lng1, lat2, lng2, priorite = "P2") {
 // ══════════════════════════════════════════════════════════════════════════════
 // UTILITAIRES
 // ══════════════════════════════════════════════════════════════════════════════
+
 function formatETA(minutes) {
   if (minutes < 1) return "< 1 min";
   if (minutes < 60) return `${minutes} min`;
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}min`;
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}min`;
 }
 
+/**
+ * Estime la consommation carburant (% du réservoir utilisé)
+ */
 function calculerConsommation(distanceKm, specs = {}) {
   const conso = specs.consommationL100 || 12;
   const reservoir = specs.capaciteReservoir || 80;
@@ -190,31 +201,48 @@ function calculerConsommation(distanceKm, specs = {}) {
   return Math.round((litres / reservoir) * 100 * 100) / 100;
 }
 
-function distanceMissionComplete(base, incident, hopital) {
-  const d1 = haversine(base.lat, base.lng, incident.lat, incident.lng);
-  const d2 = hopital
-    ? haversine(incident.lat, incident.lng, hopital.lat, hopital.lng)
+/**
+ * Distance totale d'un trajet complet de transport sanitaire :
+ *   base → prise en charge patient → destination médicale → retour base
+ *
+ * @param {{ lat, lng }} base          - Garage / point de départ du véhicule
+ * @param {{ lat, lng }} priseEnCharge - Adresse du patient
+ * @param {{ lat, lng }} destination   - Établissement de santé (peut être null si retour direct)
+ * @returns {{ baseVersPriseEnCharge, priseEnChargeVersDestination, destinationVersBase, total }}
+ */
+function distanceTrajet(base, priseEnCharge, destination) {
+  const d1 = haversine(base.lat, base.lng, priseEnCharge.lat, priseEnCharge.lng);
+  const d2 = destination
+    ? haversine(priseEnCharge.lat, priseEnCharge.lng, destination.lat, destination.lng)
     : 0;
-  const d3 = hopital
-    ? haversine(hopital.lat, hopital.lng, base.lat, base.lng)
-    : haversine(incident.lat, incident.lng, base.lat, base.lng);
+  const d3 = destination
+    ? haversine(destination.lat, destination.lng, base.lat, base.lng)
+    : haversine(priseEnCharge.lat, priseEnCharge.lng, base.lat, base.lng);
+
   return {
-    baseVersIncident: d1,
-    incidentVersHopital: d2,
-    hopitalVersBase: d3,
+    baseVersPriseEnCharge: d1,
+    priseEnChargeVersDestination: d2,
+    destinationVersBase: d3,
     total: Math.round((d1 + d2 + d3) * 100) / 100,
   };
 }
 
-function trierParProximite(units, lat, lng, priorite = "P2") {
-  return units
-    .filter((u) => u.position?.lat && u.position?.lng)
-    .map((u) => {
-      const dist = haversine(u.position.lat, u.position.lng, lat, lng);
-      const eta = calculerETA(dist, priorite);
+/**
+ * Trie une liste de véhicules par proximité d'un point géographique.
+ * @param {Array} vehicules - Liste de véhicules avec position GPS
+ * @param {number} lat
+ * @param {number} lng
+ * @returns {Array} Véhicules triés du plus proche au plus éloigné
+ */
+function trierParProximite(vehicules, lat, lng) {
+  return vehicules
+    .filter((v) => v.position?.lat && v.position?.lng)
+    .map((v) => {
+      const dist = haversine(v.position.lat, v.position.lng, lat, lng);
+      const eta = calculerETA(dist);
       return {
-        ...(u.toObject?.() || u),
-        _id: u._id,
+        ...(v.toObject?.() || v),
+        _id: v._id,
         geo: {
           distanceKm: dist,
           etaMinutes: eta.minutes,
@@ -225,8 +253,11 @@ function trierParProximite(units, lat, lng, priorite = "P2") {
     .sort((a, b) => a.geo.distanceKm - b.geo.distanceKm);
 }
 
-function estDansZoneNice(lat, lng) {
-  return lat >= 43.6 && lat <= 43.8 && lng >= 7.15 && lng <= 7.35;
+/**
+ * Vérifie si un point est dans la zone d'activité de la société (Nice/Alpes-Maritimes)
+ */
+function estDansZone(lat, lng) {
+  return lat >= 43.5 && lat <= 44.2 && lng >= 6.9 && lng <= 7.6;
 }
 
 module.exports = {
@@ -236,7 +267,10 @@ module.exports = {
   calculerRouteOSRM,
   formatETA,
   calculerConsommation,
-  distanceMissionComplete,
+  distanceTrajet,
   trierParProximite,
-  estDansZoneNice,
+  estDansZone,
+  // Alias rétrocompatibilité (anciens appels)
+  distanceMissionComplete: distanceTrajet,
+  estDansZoneNice: estDansZone,
 };
