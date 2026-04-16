@@ -3,7 +3,7 @@
 <html lang="en">
 
 <head>
-    <title>Code coverage report for middleware/validate.js</title>
+    <title>Code coverage report for middleware/httpLogger.js</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="../prettify.css" />
     <link rel="stylesheet" href="../base.css" />
@@ -19,34 +19,34 @@
 <body>
 <div class='wrapper'>
     <div class='pad1'>
-        <h1><a href="../index.html">All files</a> / <a href="index.html">middleware</a> validate.js</h1>
+        <h1><a href="../index.html">All files</a> / <a href="index.html">middleware</a> httpLogger.js</h1>
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/11</span>
+                <span class='fraction'>11/11</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/3</span>
+                <span class='fraction'>2/2</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/3</span>
+                <span class='fraction'>3/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/10</span>
+                <span class='fraction'>9/9</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -89,76 +89,58 @@
 <a name='L24'></a><a href='#L24'>24</a>
 <a name='L25'></a><a href='#L25'>25</a>
 <a name='L26'></a><a href='#L26'>26</a>
-<a name='L27'></a><a href='#L27'>27</a>
-<a name='L28'></a><a href='#L28'>28</a>
-<a name='L29'></a><a href='#L29'>29</a>
-<a name='L30'></a><a href='#L30'>30</a>
-<a name='L31'></a><a href='#L31'>31</a>
-<a name='L32'></a><a href='#L32'>32</a>
-<a name='L33'></a><a href='#L33'>33</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L27'></a><a href='#L27'>27</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">61x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">30x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">30x</span>
+<span class="cline-any cline-yes">30x</span>
+<span class="cline-any cline-yes">30x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">30x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const Joi = <span class="cstat-no" title="statement not covered" >require("joi");</span>
-&nbsp;
-/**
- * Middleware de validation générique.
- * Usage : router.post("/", protect, validate(schema), controller)
- *
- * @param {Joi.Schema} schema — schéma Joi à appliquer sur req.body
- * @param {string} source — "body" | "query" | "params" (défaut: "body")
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
+ * BlancBleu — Middleware HTTP Logger
+ * Log chaque requête avec méthode, path, statut, durée
+ * Remplace morgan — utilise notre logger Winston centralisé
  */
-const validate = <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >(s</span>chema, source = <span class="branch-0 cbranch-no" title="branch not covered" >"body")</span> =&gt; {</span>
-<span class="cstat-no" title="statement not covered" >  return <span class="fstat-no" title="function not covered" >(r</span>eq, res, next) =&gt; {</span>
-    const { error, value } = <span class="cstat-no" title="statement not covered" >schema.validate(req[source], {</span>
-      abortEarly: false, // retourner toutes les erreurs d'un coup
-      stripUnknown: true, // supprimer les champs non déclarés dans le schéma
-      convert: true, // convertir les types (ex: string → number)
-    });
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    if (error) {</span>
-      const messages = <span class="cstat-no" title="statement not covered" >error.details.map(<span class="fstat-no" title="function not covered" >(d</span>) =&gt; <span class="cstat-no" title="statement not covered" >d.message.replace(/"/g, "'"))</span>;</span>
-<span class="cstat-no" title="statement not covered" >      return res.status(400).json({</span>
-        message: "Données invalides",
-        erreurs: messages,
-      });
-    }
+const logger = require("../utils/logger");
 &nbsp;
-    // Remplacer req[source] par la valeur sanitisée
-<span class="cstat-no" title="statement not covered" >    req[source] = value;</span>
-<span class="cstat-no" title="statement not covered" >    next();</span>
-  };
-};
+// Routes à ne pas logger (trop fréquentes, peu utiles)
+const SKIP_PATHS = ["/api/health", "/api-docs"];
 &nbsp;
-<span class="cstat-no" title="statement not covered" >module.exports = validate;</span>
+function httpLogger(req, res, next) {
+  if (SKIP_PATHS.some((p) =&gt; req.path.startsWith(p))) return next();
+&nbsp;
+  const start = Date.now();
+&nbsp;
+  // Intercepter la fin de réponse
+  res.on("finish", () =&gt; {
+    const duration = Date.now() - start;
+    logger.httpRequest(req, res, duration);
+  });
+&nbsp;
+  next();
+}
+&nbsp;
+module.exports = httpLogger;
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->

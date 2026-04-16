@@ -3,7 +3,7 @@
 <html lang="en">
 
 <head>
-    <title>Code coverage report for controllers/AuthController.js</title>
+    <title>Code coverage report for services/transportLifecycle.js</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="../prettify.css" />
     <link rel="stylesheet" href="../base.css" />
@@ -19,34 +19,34 @@
 <body>
 <div class='wrapper'>
     <div class='pad1'>
-        <h1><a href="../index.html">All files</a> / <a href="index.html">controllers</a> AuthController.js</h1>
+        <h1><a href="../index.html">All files</a> / <a href="index.html">services</a> transportLifecycle.js</h1>
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">43.97% </span>
+                <span class="strong">52.21% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>62/141</span>
+                <span class='fraction'>59/113</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">38.88% </span>
+                <span class="strong">24.07% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>21/54</span>
+                <span class='fraction'>13/54</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">50% </span>
+                <span class="strong">53.84% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>7/14</span>
+                <span class='fraction'>7/13</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">43.79% </span>
+                <span class="strong">54.62% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>60/137</span>
+                <span class='fraction'>59/108</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line medium'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -448,51 +448,41 @@
 <a name='L383'></a><a href='#L383'>383</a>
 <a name='L384'></a><a href='#L384'>384</a>
 <a name='L385'></a><a href='#L385'>385</a>
-<a name='L386'></a><a href='#L386'>386</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
+<a name='L386'></a><a href='#L386'>386</a>
+<a name='L387'></a><a href='#L387'>387</a>
+<a name='L388'></a><a href='#L388'>388</a>
+<a name='L389'></a><a href='#L389'>389</a>
+<a name='L390'></a><a href='#L390'>390</a>
+<a name='L391'></a><a href='#L391'>391</a>
+<a name='L392'></a><a href='#L392'>392</a>
+<a name='L393'></a><a href='#L393'>393</a>
+<a name='L394'></a><a href='#L394'>394</a>
+<a name='L395'></a><a href='#L395'>395</a>
+<a name='L396'></a><a href='#L396'>396</a>
+<a name='L397'></a><a href='#L397'>397</a>
+<a name='L398'></a><a href='#L398'>398</a>
+<a name='L399'></a><a href='#L399'>399</a>
+<a name='L400'></a><a href='#L400'>400</a>
+<a name='L401'></a><a href='#L401'>401</a>
+<a name='L402'></a><a href='#L402'>402</a>
+<a name='L403'></a><a href='#L403'>403</a>
+<a name='L404'></a><a href='#L404'>404</a>
+<a name='L405'></a><a href='#L405'>405</a>
+<a name='L406'></a><a href='#L406'>406</a>
+<a name='L407'></a><a href='#L407'>407</a>
+<a name='L408'></a><a href='#L408'>408</a>
+<a name='L409'></a><a href='#L409'>409</a>
+<a name='L410'></a><a href='#L410'>410</a>
+<a name='L411'></a><a href='#L411'>411</a>
+<a name='L412'></a><a href='#L412'>412</a>
+<a name='L413'></a><a href='#L413'>413</a>
+<a name='L414'></a><a href='#L414'>414</a>
+<a name='L415'></a><a href='#L415'>415</a>
+<a name='L416'></a><a href='#L416'>416</a>
+<a name='L417'></a><a href='#L417'>417</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -503,195 +493,115 @@
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">10x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">9x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -701,522 +611,705 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const crypto = require("crypto");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
-const RefreshToken = require("../models/RefreshToken");
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
+ * BlancBleu — Service Lifecycle Transport Non Urgent
+ *
+ * Orchestre toutes les transitions métier d'un transport :
+ *   REQUESTED → CONFIRMED → SCHEDULED → ASSIGNED
+ *   → EN_ROUTE_TO_PICKUP → ARRIVED_AT_PICKUP
+ *   → PATIENT_ON_BOARD → ARRIVED_AT_DESTINATION → COMPLETED
+ *
+ * Remplace unitLifecycle.js (urgences)
+ */
 &nbsp;
-// ─── Config tokens ────────────────────────────────────────────────────────────
-const ACCESS_TOKEN_TTL = "15m";
-const REFRESH_COOKIE_NAME = "bb_refresh";
-const REFRESH_COOKIE_OPTS = {
-  httpOnly: true, // inaccessible depuis JS (XSS mitigation)
-  secure: process.env.NODE_ENV === "production", // HTTPS only en prod
-  sameSite: "strict", // CSRF mitigation
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours en ms
-  path: "/api/auth", // cookie envoyé seulement sur ce chemin
-};
+const Transport = require("../models/Transport");
+const Vehicle = require("../models/Vehicle");
+const { TransportStateMachine } = require("./transportStateMachine");
+const { smartDispatch } = require("./smartDispatch");
+const socketService = require("./socketService");
+const { audit, log } = require("./auditService");
+const { haversine } = require("../utils/geoUtils");
+const logger = (() =&gt; {
+  try {
+    return require("../utils/logger");
+  } catch {
+<span class="cstat-no" title="statement not covered" >    return console;</span>
+  }
+})();
 &nbsp;
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const generateAccessToken = (id) =&gt;
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
+// ── Helper : effectuer une transition et sauvegarder ──────────────────────────
+async function _transition(transportId, nouveauStatut, metadata = <span class="branch-0 cbranch-no" title="branch not covered" >{})</span> {
+  const transport = await Transport.findById(transportId)
+    .populate("vehicule", "nom type statut position kilometrage carburant")
+    .populate("chauffeur", "nom prenom email");
 &nbsp;
-const generateRawRefreshToken = () =&gt; crypto.randomBytes(40).toString("hex");
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (!transport) <span class="cstat-no" title="statement not covered" >throw new Error("Transport introuvable");</span>
+  if (TransportStateMachine.estTerminal(transport.statut)) {
+    throw new Error(`Transport déjà terminé (statut: ${transport.statut})`);
+  }
 &nbsp;
-const userPayload = (user) =&gt; ({
-  id: user._id,
-  nom: user.nom,
-  prenom: user.prenom,
-  email: user.email,
-  role: user.role,
-});
+  const { update, entreeJournal } = TransportStateMachine.effectuerTransition(
+    transport,
+    nouveauStatut,
+    metadata,
+  );
 &nbsp;
-// Crée, persiste et pose le cookie refresh token
-const issueRefreshToken = async (userId, res, req) =&gt; {
-  const raw = generateRawRefreshToken();
-  const hash = RefreshToken.hashToken(raw);
+  Object.assign(transport, update);
+  transport.journal.push(entreeJournal);
+  await transport.save();
 &nbsp;
-  await RefreshToken.create({
-    userId,
-    tokenHash: hash,
-    userAgent: req.get("user-agent") || "",
-    ip: req.ip,
+  // Émettre événement Socket.IO
+  socketService.emitStatusUpdated?.({
+    intervention: {
+      _id: transport._id,
+      numero: transport.numero,
+      priorite: "transport",
+    },
+    ancienStatut: entreeJournal.de,
+    nouveauStatut,
+    utilisateur: metadata.utilisateur || "système",
+  });
+  socketService.emitStatsUpdate?.();
+&nbsp;
+  return transport;
+}
+&nbsp;
+// ══════════════════════════════════════════════════════════════════════════════
+// 1. CONFIRMER UN TRANSPORT
+// ══════════════════════════════════════════════════════════════════════════════
+async function confirmerTransport(transportId, utilisateur) {
+  const transport = await _transition(transportId, "CONFIRMED", {
+    utilisateur: utilisateur.email,
+    notes: "Transport confirmé",
   });
 &nbsp;
-  res.cookie(REFRESH_COOKIE_NAME, raw, REFRESH_COOKIE_OPTS);
-  return raw;
-};
+  await log({
+    action: "STATUT_CHANGED",
+    origine: "HUMAIN",
+    utilisateur,
+    ressource: {
+      type: "Transport",
+      id: transport._id,
+      reference: transport.numero,
+    },
+    details: {
+      avant: { statut: "REQUESTED" },
+      apres: { statut: "CONFIRMED" },
+      message: "Transport confirmé",
+    },
+  });
 &nbsp;
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Créer un nouveau compte
-// @route   POST /api/auth/register
-// @access  Privé — admin seulement (protégé dans auth.js)
-// ─────────────────────────────────────────────────────────────────────────────
-const register = async (req, res) =&gt; {
-  try {
-    const { nom, prenom, email, password, role } = req.body;
+  logger.info("Transport confirmé", { numero: transport.numero });
+  return { transport };
+}
 &nbsp;
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (!nom || !prenom || !email || !password) {
-<span class="cstat-no" title="statement not covered" >      return res</span>
-        .status(400)
-        .json({ message: "Tous les champs sont obligatoires" });
-    }
+// ══════════════════════════════════════════════════════════════════════════════
+// 2. PLANIFIER UN TRANSPORT (avec vérification PMT si nécessaire)
+// ══════════════════════════════════════════════════════════════════════════════
+async function planifierTransport(transportId, utilisateur) {
+  const transport = await _transition(transportId, "SCHEDULED", {
+    utilisateur: utilisateur.email,
+  });
 &nbsp;
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (password.length &lt; 8) {
-<span class="cstat-no" title="statement not covered" >      return res.status(400).json({</span>
-        message: "Le mot de passe doit contenir au moins 8 caractères",
-      });
-    }
+  logger.info("Transport planifié", {
+    numero: transport.numero,
+    date: transport.dateTransport,
+  });
+  return { transport };
+}
 &nbsp;
-    const existe = await User.findOne({ email: email.toLowerCase() });
-    if (existe) {
-      return res.status(409).json({ message: "Cet email est déjà utilisé" });
-    }
+// ══════════════════════════════════════════════════════════════════════════════
+// 3. ASSIGNER VÉHICULE + CHAUFFEUR (manuel ou auto)
+// ══════════════════════════════════════════════════════════════════════════════
+async function assignerVehicule(
+  transportId,
+  { vehiculeId, chauffeurId, auto = false },
+  utilisateur,
+) {
+  const transport = await Transport.findById(transportId);
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (!transport) <span class="cstat-no" title="statement not covered" >throw new Error("Transport introuvable");</span>
 &nbsp;
-    // Valider le rôle — un dispatcher ne peut pas se créer un compte admin
-    const ROLES_VALIDES = ["dispatcher", "superviseur", "admin"];
-    const roleValide = ROLES_VALIDES.includes(role) ? role : <span class="branch-1 cbranch-no" title="branch not covered" >"dispatcher";</span>
+  let vehiculeIdFinal = vehiculeId;
+  let chauffeurIdFinal = chauffeurId;
+  let scoreDispatch = null;
+  let justification = [];
 &nbsp;
-    const salt = await bcrypt.genSalt(12);
-    const hashed = await bcrypt.hash(password, salt);
-&nbsp;
-    const user = await User.create({
-      nom: nom.trim(),
-      prenom: prenom.trim(),
-      email: email.toLowerCase().trim(),
-      password: hashed,
-      role: roleValide,
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (auto) {
+    // Auto-dispatch intelligent
+    const dispatch = <span class="cstat-no" title="statement not covered" >await smartDispatch({</span>
+      mobilite: transport.patient.mobilite,
+      dateTransport: transport.dateTransport,
+      heureRDV: transport.heureRDV,
+      coordonneesDepart: transport.adresseDepart.coordonnees,
     });
 &nbsp;
-    res.status(201).json({
-      message: "Compte créé avec succès",
-      user: userPayload(user),
-    });
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: err.message });</span>
+<span class="cstat-no" title="statement not covered" >    if (!dispatch.vehicule) {</span>
+<span class="cstat-no" title="statement not covered" >      throw new Error(</span>
+        `Aucun véhicule disponible : ${dispatch.justification[0]}`,
+      );
+    }
+&nbsp;
+<span class="cstat-no" title="statement not covered" >    vehiculeIdFinal = dispatch.vehicule._id;</span>
+<span class="cstat-no" title="statement not covered" >    chauffeurIdFinal = dispatch.chauffeur?._id || chauffeurId;</span>
+<span class="cstat-no" title="statement not covered" >    scoreDispatch = dispatch.scoreTotal;</span>
+<span class="cstat-no" title="statement not covered" >    justification = dispatch.justification;</span>
   }
-};
 &nbsp;
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Connexion utilisateur
-// @route   POST /api/auth/login
-// @access  Public
-// ─────────────────────────────────────────────────────────────────────────────
-const login = async (req, res) =&gt; {
-  try {
-    const { email, password } = req.body;
+  // Mettre à jour avant la transition
+  await Transport.findByIdAndUpdate(transportId, {
+    vehicule: vehiculeIdFinal,
+    chauffeur: chauffeurIdFinal,
+    scoreDispatch,
+  });
 &nbsp;
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email et mot de passe requis" });
-    }
+  // Mettre le véhicule en mission
+  await Vehicle.findByIdAndUpdate(vehiculeIdFinal, {
+    statut: "en_mission",
+    transportEnCours: transportId,
+  });
 &nbsp;
-    const user = await User.findOne({ email: email.toLowerCase() }).select(
-      "+password",
+  const transportUpdated = await _transition(transportId, "ASSIGNED", {
+    utilisateur: utilisateur.email,
+    notes: auto
+      ? <span class="branch-0 cbranch-no" title="branch not covered" >`Auto-dispatch : ${justification[0]}`</span>
+      : "Assignation manuelle",
+  });
+&nbsp;
+  socketService.emitUnitAssigned?.({
+    intervention: { _id: transport._id, numero: transport.numero },
+    unite: { _id: vehiculeIdFinal },
+    score: scoreDispatch,
+    source: auto ? "AUTO" : "MANUEL",
+  });
+&nbsp;
+  logger.info("Véhicule assigné", {
+    numero: transport.numero,
+    vehicule: vehiculeIdFinal,
+    auto,
+    score: scoreDispatch,
+  });
+&nbsp;
+  return { transport: transportUpdated, justification };
+}
+&nbsp;
+// ══════════════════════════════════════════════════════════════════════════════
+// 4. EN ROUTE VERS LE PATIENT
+// ══════════════════════════════════════════════════════════════════════════════
+async function <span class="fstat-no" title="function not covered" >marquerEnRoute(</span>transportId, utilisateur) {
+  const transport = <span class="cstat-no" title="statement not covered" >await _transition(transportId, "EN_ROUTE_TO_PICKUP", {</span>
+    utilisateur: utilisateur.email,
+  });
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  logger.info("En route vers patient", { numero: transport.numero });</span>
+<span class="cstat-no" title="statement not covered" >  return { transport };</span>
+}
+&nbsp;
+// ══════════════════════════════════════════════════════════════════════════════
+// 5. ARRIVÉ CHEZ LE PATIENT
+// ══════════════════════════════════════════════════════════════════════════════
+async function <span class="fstat-no" title="function not covered" >marquerArriveePatient(</span>
+  transportId,
+  positionActuelle,
+  utilisateur,
+) {
+  const transport = <span class="cstat-no" title="statement not covered" >await _transition(transportId, "ARRIVED_AT_PICKUP", {</span>
+    utilisateur: utilisateur.email,
+  });
+&nbsp;
+  // Mettre à jour position du véhicule si fournie
+<span class="cstat-no" title="statement not covered" >  if (positionActuelle?.lat &amp;&amp; transport.vehicule) {</span>
+<span class="cstat-no" title="statement not covered" >    await Vehicle.findByIdAndUpdate(transport.vehicule, {</span>
+      position: { ...positionActuelle, updatedAt: new Date() },
+    });
+  }
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  logger.info("Arrivé chez le patient", { numero: transport.numero });</span>
+<span class="cstat-no" title="statement not covered" >  return { transport };</span>
+}
+&nbsp;
+// ══════════════════════════════════════════════════════════════════════════════
+// 6. PATIENT À BORD
+// ══════════════════════════════════════════════════════════════════════════════
+async function <span class="fstat-no" title="function not covered" >marquerPatientABord(</span>transportId, utilisateur) {
+  const transport = <span class="cstat-no" title="statement not covered" >await _transition(transportId, "PATIENT_ON_BOARD", {</span>
+    utilisateur: utilisateur.email,
+  });
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  logger.info("Patient à bord", { numero: transport.numero });</span>
+<span class="cstat-no" title="statement not covered" >  return { transport };</span>
+}
+&nbsp;
+// ══════════════════════════════════════════════════════════════════════════════
+// 7. ARRIVÉ À DESTINATION
+// ══════════════════════════════════════════════════════════════════════════════
+async function <span class="fstat-no" title="function not covered" >marquerArriveeDestination(</span>
+  transportId,
+  positionActuelle,
+  utilisateur,
+) {
+  const transport = <span class="cstat-no" title="statement not covered" >await _transition(transportId, "ARRIVED_AT_DESTINATION", {</span>
+    utilisateur: utilisateur.email,
+  });
+&nbsp;
+  // Calculer distance parcourue si GPS disponible
+<span class="cstat-no" title="statement not covered" >  if (positionActuelle?.lat &amp;&amp; transport.adresseDepart?.coordonnees?.lat) {</span>
+    const dist = <span class="cstat-no" title="statement not covered" >haversine(</span>
+      transport.adresseDepart.coordonnees.lat,
+      transport.adresseDepart.coordonnees.lng,
+      positionActuelle.lat,
+      positionActuelle.lng,
     );
-    if (!user) {
-      // Délai constant pour éviter le timing attack
-      await bcrypt.compare(
-        password,
-        "$2b$12$invalidhashfortimingnormalization",
-      );
-      return res
-        .status(401)
-        .json({ message: "Email ou mot de passe incorrect" });
+<span class="cstat-no" title="statement not covered" >    if (transport.vehicule) {</span>
+      const vehicle = <span class="cstat-no" title="statement not covered" >await Vehicle.findById(transport.vehicule);</span>
+<span class="cstat-no" title="statement not covered" >      if (vehicle) {</span>
+<span class="cstat-no" title="statement not covered" >        vehicle.kilometrage =</span>
+          Math.round((vehicle.kilometrage + dist) * 10) / 10;
+<span class="cstat-no" title="statement not covered" >        await vehicle.save();</span>
+      }
     }
+  }
 &nbsp;
-    if (!user.actif) {
-      return res.status(403).json({ message: "Ce compte a été désactivé" });
-    }
+<span class="cstat-no" title="statement not covered" >  logger.info("Arrivé à destination", { numero: transport.numero });</span>
+<span class="cstat-no" title="statement not covered" >  return { transport };</span>
+}
 &nbsp;
-    const valid = await user.comparePassword(password);
-    if (!valid) {
-      return res
-        .status(401)
-        .json({ message: "Email ou mot de passe incorrect" });
-    }
+// ══════════════════════════════════════════════════════════════════════════════
+// 8. COMPLÉTER LE TRANSPORT
+// ══════════════════════════════════════════════════════════════════════════════
+async function <span class="fstat-no" title="function not covered" >completerTransport(</span>transportId, utilisateur) {
+  const transport = <span class="cstat-no" title="statement not covered" >await _transition(transportId, "COMPLETED", {</span>
+    utilisateur: utilisateur.email,
+  });
 &nbsp;
-    const accessToken = generateAccessToken(user._id);
-    await issueRefreshToken(user._id, res, req);
-&nbsp;
-    res.json({
-      message: "Connexion réussie",
-      token: accessToken,
-      user: userPayload(user),
+  // Libérer le véhicule
+<span class="cstat-no" title="statement not covered" >  if (transport.vehicule) {</span>
+<span class="cstat-no" title="statement not covered" >    await Vehicle.findByIdAndUpdate(transport.vehicule, {</span>
+      statut: "disponible",
+      transportEnCours: null,
     });
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: err.message });</span>
-  }
-};
-&nbsp;
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Renouveler l'access token via le refresh token (cookie httpOnly)
-// @route   POST /api/auth/refresh
-// @access  Public (nécessite le cookie)
-// ─────────────────────────────────────────────────────────────────────────────
-const refresh = <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
-<span class="cstat-no" title="statement not covered" >  try {</span>
-    const raw = <span class="cstat-no" title="statement not covered" >req.cookies?.[REFRESH_COOKIE_NAME];</span>
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    if (!raw) {</span>
-<span class="cstat-no" title="statement not covered" >      return res</span>
-        .status(401)
-        .json({ message: "Session expirée — reconnectez-vous" });
-    }
-&nbsp;
-    const record = <span class="cstat-no" title="statement not covered" >await RefreshToken.findValid(raw);</span>
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    if (!record || !record.userId) {</span>
-      // Invalider le cookie côté client même si le token est inconnu
-<span class="cstat-no" title="statement not covered" >      res.clearCookie(REFRESH_COOKIE_NAME, { path: "/api/auth" });</span>
-<span class="cstat-no" title="statement not covered" >      return res</span>
-        .status(401)
-        .json({ message: "Session invalide — reconnectez-vous" });
-    }
-&nbsp;
-    const user = <span class="cstat-no" title="statement not covered" >record.userId;</span> // populate("userId") dans findValid
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    if (!user.actif) {</span>
-<span class="cstat-no" title="statement not covered" >      return res.status(403).json({ message: "Ce compte a été désactivé" });</span>
-    }
-&nbsp;
-    // Rotation du refresh token — invalider l'ancien, émettre un nouveau
-<span class="cstat-no" title="statement not covered" >    await RefreshToken.findByIdAndUpdate(record._id, {</span>
-      revoked: true,
-      revokedAt: new Date(),
-      revokedReason: "rotation",
+<span class="cstat-no" title="statement not covered" >    socketService.emitUnitStatusChanged?.({</span>
+      unite: { _id: transport.vehicule, nom: "" },
+      ancienStatut: "en_mission",
+      nouveauStatut: "disponible",
     });
-<span class="cstat-no" title="statement not covered" >    await issueRefreshToken(user._id, res, req);</span>
+  }
 &nbsp;
-    const accessToken = <span class="cstat-no" title="statement not covered" >generateAccessToken(user._id);</span>
+<span class="cstat-no" title="statement not covered" >  await log({</span>
+    action: "STATUT_CHANGED",
+    origine: "HUMAIN",
+    utilisateur,
+    ressource: {
+      type: "Transport",
+      id: transport._id,
+      reference: transport.numero,
+    },
+    details: {
+      avant: { statut: "ARRIVED_AT_DESTINATION" },
+      apres: { statut: "COMPLETED" },
+      message: `Transport ${transport.numero} complété en ${transport.dureeReelleMinutes} min`,
+    },
+  });
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    res.json({</span>
-      token: accessToken,
-      user: userPayload(user),
+<span class="cstat-no" title="statement not covered" >  logger.info("Transport complété", {</span>
+    numero: transport.numero,
+    duree: transport.dureeReelleMinutes,
+  });
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  return { transport };</span>
+}
+&nbsp;
+// ══════════════════════════════════════════════════════════════════════════════
+// 9. NO-SHOW (patient absent)
+// ══════════════════════════════════════════════════════════════════════════════
+async function marquerNoShow(transportId, raison, utilisateur) {
+  const transport = await Transport.findById(transportId);
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (!transport) <span class="cstat-no" title="statement not covered" >throw new Error("Transport introuvable");</span>
+&nbsp;
+  transport.raisonNoShow = raison || <span class="branch-1 cbranch-no" title="branch not covered" >"Patient absent à l'heure prévue";</span>
+  await transport.save();
+&nbsp;
+  const updated = await _transition(transportId, "NO_SHOW", {
+    utilisateur: utilisateur.email,
+    notes: transport.raisonNoShow,
+  });
+&nbsp;
+  // Libérer le véhicule
+  <span class="missing-if-branch" title="else path not taken" >E</span>if (updated.vehicule) {
+    await Vehicle.findByIdAndUpdate(updated.vehicule, {
+      statut: "disponible",
+      transportEnCours: null,
     });
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: err.message });</span>
   }
-};
 &nbsp;
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Déconnexion — révoke le refresh token et efface le cookie
-// @route   POST /api/auth/logout
-// @access  Public (le cookie suffit)
-// ─────────────────────────────────────────────────────────────────────────────
-const logout = <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
-<span class="cstat-no" title="statement not covered" >  try {</span>
-    const raw = <span class="cstat-no" title="statement not covered" >req.cookies?.[REFRESH_COOKIE_NAME];</span>
+  logger.info("No-show enregistré", { numero: transport.numero, raison });
+  return { transport: updated };
+}
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    if (raw) {</span>
-      const hash = <span class="cstat-no" title="statement not covered" >RefreshToken.hashToken(raw);</span>
-<span class="cstat-no" title="statement not covered" >      await RefreshToken.findOneAndUpdate(</span>
-        { tokenHash: hash },
-        { revoked: true, revokedAt: new Date(), revokedReason: "logout" },
-      );
-    }
+// ══════════════════════════════════════════════════════════════════════════════
+// 10. ANNULER
+// ══════════════════════════════════════════════════════════════════════════════
+async function annulerTransport(transportId, raison, utilisateur) {
+  const transport = await Transport.findById(transportId);
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (!transport) <span class="cstat-no" title="statement not covered" >throw new Error("Transport introuvable");</span>
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    res.clearCookie(REFRESH_COOKIE_NAME, { path: "/api/auth" });</span>
-<span class="cstat-no" title="statement not covered" >    res.json({ message: "Déconnexion réussie" });</span>
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: err.message });</span>
-  }
-};
+  transport.raisonAnnulation = raison || <span class="branch-1 cbranch-no" title="branch not covered" >"Annulé par l'opérateur";</span>
+  await transport.save();
 &nbsp;
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Déconnexion de tous les appareils
-// @route   POST /api/auth/logout-all
-// @access  Privé
-// ─────────────────────────────────────────────────────────────────────────────
-const logoutAll = <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
-<span class="cstat-no" title="statement not covered" >  try {</span>
-<span class="cstat-no" title="statement not covered" >    await RefreshToken.revokeAllForUser(req.user._id, "logout-all");</span>
-<span class="cstat-no" title="statement not covered" >    res.clearCookie(REFRESH_COOKIE_NAME, { path: "/api/auth" });</span>
-<span class="cstat-no" title="statement not covered" >    res.json({ message: "Déconnexion de tous les appareils effectuée" });</span>
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: err.message });</span>
-  }
-};
+  const updated = await _transition(transportId, "CANCELLED", {
+    utilisateur: utilisateur.email,
+    raisonAnnulation: transport.raisonAnnulation,
+  });
 &nbsp;
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Profil utilisateur connecté
-// @route   GET /api/auth/me
-// @access  Privé
-// ─────────────────────────────────────────────────────────────────────────────
-const getMe = async (req, res) =&gt; {
-  try {
-    res.json({ user: userPayload(req.user) });
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: err.message });</span>
-  }
-};
-&nbsp;
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Modifier le mot de passe — révoque tous les refresh tokens
-// @route   PATCH /api/auth/password
-// @access  Privé
-// ─────────────────────────────────────────────────────────────────────────────
-const updatePassword = <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
-<span class="cstat-no" title="statement not covered" >  try {</span>
-    const { ancienPassword, nouveauPassword } = <span class="cstat-no" title="statement not covered" >req.body;</span>
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    if (!ancienPassword || !nouveauPassword) {</span>
-<span class="cstat-no" title="statement not covered" >      return res</span>
-        .status(400)
-        .json({ message: "Les deux mots de passe sont requis" });
-    }
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    if (nouveauPassword.length &lt; 8) {</span>
-<span class="cstat-no" title="statement not covered" >      return res.status(400).json({</span>
-        message: "Le nouveau mot de passe doit contenir au moins 8 caractères",
-      });
-    }
-&nbsp;
-    const user = <span class="cstat-no" title="statement not covered" >await User.findById(req.user._id).select("+password");</span>
-    const valid = <span class="cstat-no" title="statement not covered" >await user.comparePassword(ancienPassword);</span>
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    if (!valid) {</span>
-<span class="cstat-no" title="statement not covered" >      return res.status(401).json({ message: "Ancien mot de passe incorrect" });</span>
-    }
-&nbsp;
-    const salt = <span class="cstat-no" title="statement not covered" >await bcrypt.genSalt(12);</span>
-<span class="cstat-no" title="statement not covered" >    user.password = await bcrypt.hash(nouveauPassword, salt);</span>
-<span class="cstat-no" title="statement not covered" >    await user.save({ validateBeforeSave: false });</span>
-&nbsp;
-    // Révoquer tous les sessions actives — forcer la reconnexion sur tous les appareils
-<span class="cstat-no" title="statement not covered" >    await RefreshToken.revokeAllForUser(req.user._id, "password-change");</span>
-<span class="cstat-no" title="statement not covered" >    res.clearCookie(REFRESH_COOKIE_NAME, { path: "/api/auth" });</span>
-&nbsp;
-    // Émettre un nouvel access token pour la session courante
-    const accessToken = <span class="cstat-no" title="statement not covered" >generateAccessToken(user._id);</span>
-<span class="cstat-no" title="statement not covered" >    await issueRefreshToken(user._id, res, req);</span>
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    res.json({</span>
-      message:
-        "Mot de passe mis à jour — toutes les autres sessions ont été révoquées",
-      token: accessToken,
+  // Libérer le véhicule si assigné
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (updated.vehicule) {
+<span class="cstat-no" title="statement not covered" >    await Vehicle.findByIdAndUpdate(updated.vehicule, {</span>
+      statut: "disponible",
+      transportEnCours: null,
     });
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: err.message });</span>
   }
-};
 &nbsp;
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Modifier le profil (nom, prénom)
-// @route   PATCH /api/auth/profile
-// @access  Privé
-// ─────────────────────────────────────────────────────────────────────────────
-const updateProfile = <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
-<span class="cstat-no" title="statement not covered" >  try {</span>
-    const { nom, prenom } = <span class="cstat-no" title="statement not covered" >req.body;</span>
-    const champs = <span class="cstat-no" title="statement not covered" >{};</span>
-<span class="cstat-no" title="statement not covered" >    if (nom?.trim()) <span class="cstat-no" title="statement not covered" >champs.nom = nom.trim();</span></span>
-<span class="cstat-no" title="statement not covered" >    if (prenom?.trim()) <span class="cstat-no" title="statement not covered" >champs.prenom = prenom.trim();</span></span>
+  logger.info("Transport annulé", { numero: transport.numero, raison });
+  return { transport: updated };
+}
 &nbsp;
-    const user = <span class="cstat-no" title="statement not covered" >await User.findByIdAndUpdate(req.user._id, champs, {</span>
-      new: true,
-      runValidators: true,
+// ══════════════════════════════════════════════════════════════════════════════
+// 11. REPROGRAMMER
+// ══════════════════════════════════════════════════════════════════════════════
+async function <span class="fstat-no" title="function not covered" >reprogrammerTransport(</span>
+  transportId,
+  { nouvelleDate, raison },
+  utilisateur,
+) {
+<span class="cstat-no" title="statement not covered" >  if (!nouvelleDate)</span>
+<span class="cstat-no" title="statement not covered" >    throw new Error("Nouvelle date obligatoire pour reprogrammer");</span>
+&nbsp;
+  const transport = <span class="cstat-no" title="statement not covered" >await Transport.findById(transportId);</span>
+<span class="cstat-no" title="statement not covered" >  if (!transport) <span class="cstat-no" title="statement not covered" >throw new Error("Transport introuvable");</span></span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  transport.raisonReprogrammation = raison || "Reprogrammé à la demande";</span>
+<span class="cstat-no" title="statement not covered" >  await transport.save();</span>
+&nbsp;
+  const updated = <span class="cstat-no" title="statement not covered" >await _transition(transportId, "RESCHEDULED", {</span>
+    utilisateur: utilisateur.email,
+    raisonReprogrammation: transport.raisonReprogrammation,
+    nouvelleDate,
+  });
+&nbsp;
+  // Libérer le véhicule si assigné
+<span class="cstat-no" title="statement not covered" >  if (updated.vehicule) {</span>
+<span class="cstat-no" title="statement not covered" >    await Vehicle.findByIdAndUpdate(updated.vehicule, {</span>
+      statut: "disponible",
+      transportEnCours: null,
     });
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    res.json({ message: "Profil mis à jour", user: userPayload(user) });</span>
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: err.message });</span>
-  }
-};
-&nbsp;
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Lister tous les utilisateurs
-// @route   GET /api/auth/users
-// @access  Privé / admin
-// ─────────────────────────────────────────────────────────────────────────────
-const getAllUsers = <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
-<span class="cstat-no" title="statement not covered" >  try {</span>
-    const users = <span class="cstat-no" title="statement not covered" >await User.find().sort({ createdAt: -1 });</span>
-<span class="cstat-no" title="statement not covered" >    res.json(users);</span>
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: err.message });</span>
-  }
-};
-&nbsp;
-// ─────────────────────────────────────────────────────────────────────────────
-// @desc    Activer / désactiver un compte
-// @route   PATCH /api/auth/users/:id/toggle
-// @access  Privé / admin
-// ─────────────────────────────────────────────────────────────────────────────
-const toggleUser = <span class="fstat-no" title="function not covered" >as</span>ync (req, res) =&gt; {
-<span class="cstat-no" title="statement not covered" >  try {</span>
-    const user = <span class="cstat-no" title="statement not covered" >await User.findById(req.params.id);</span>
-<span class="cstat-no" title="statement not covered" >    if (!user) {</span>
-<span class="cstat-no" title="statement not covered" >      return res.status(404).json({ message: "Utilisateur introuvable" });</span>
-    }
-&nbsp;
-    // Un admin ne peut pas se désactiver lui-même
-<span class="cstat-no" title="statement not covered" >    if (user._id.toString() === req.user._id.toString()) {</span>
-<span class="cstat-no" title="statement not covered" >      return res</span>
-        .status(400)
-        .json({ message: "Vous ne pouvez pas désactiver votre propre compte" });
-    }
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    user.actif = !user.actif;</span>
-<span class="cstat-no" title="statement not covered" >    await user.save();</span>
-&nbsp;
-    // Si désactivation : révoquer toutes les sessions
-<span class="cstat-no" title="statement not covered" >    if (!user.actif) {</span>
-<span class="cstat-no" title="statement not covered" >      await RefreshToken.revokeAllForUser(user._id, "account-disabled");</span>
-    }
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    res.json({</span>
-      message: `Compte ${user.actif ? "activé" : "désactivé"}`,
-      user: userPayload(user),
+<span class="cstat-no" title="statement not covered" >    await Transport.findByIdAndUpdate(transportId, {</span>
+      vehicule: null,
+      chauffeur: null,
     });
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    res.status(500).json({ message: err.message });</span>
   }
-};
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  logger.info("Transport reprogrammé", {</span>
+    numero: transport.numero,
+    nouvelleDate,
+  });
+<span class="cstat-no" title="statement not covered" >  return { transport: updated };</span>
+}
 &nbsp;
 module.exports = {
-  register,
-  login,
-  refresh,
-  logout,
-  logoutAll,
-  getMe,
-  updatePassword,
-  updateProfile,
-  getAllUsers,
-  toggleUser,
+  confirmerTransport,
+  planifierTransport,
+  assignerVehicule,
+  marquerEnRoute,
+  marquerArriveePatient,
+  marquerPatientABord,
+  marquerArriveeDestination,
+  completerTransport,
+  marquerNoShow,
+  annulerTransport,
+  reprogrammerTransport,
 };
 &nbsp;</pre></td></tr></table></pre>
 
