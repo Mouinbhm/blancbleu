@@ -172,6 +172,8 @@ export const aiService = {
   // Module 2 — Dispatch (recommandation véhicule)
   recommanderDispatch: (transportId) =>
     api.post(`/ai/dispatch/${transportId}`),
+  recommanderDispatchManuel: (form) =>
+    api.post("/ai/dispatch/manual", form),
 
   // Module 3 — Optimisation de tournée
   optimiserTournee: (data) => api.post("/ai/routing/optimize", data),

@@ -85,7 +85,7 @@ def recommander(request: DispatchRequest) -> DispatchResponse:
 
         candidats.append(
             VehiculeRecommande(
-                vehiculeId=vehicule._id,
+                vehiculeId=vehicule.id or "",
                 immatriculation=vehicule.immatriculation,
                 type=vehicule.type,
                 score=score_detail.total,

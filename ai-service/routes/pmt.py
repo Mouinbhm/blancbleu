@@ -7,7 +7,9 @@ POST /pmt/extract
 """
 
 import logging
+import pytesseract
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
+from fastapi.responses import JSONResponse
 from typing import Optional
 
 from services.pmt_extractor import extraire_pmt
@@ -89,11 +91,15 @@ async def extract_pmt(
         result = extraire_pmt(contenu, pmt.content_type, nlp=nlp)
         return result
     except RuntimeError as e:
-        # Tesseract indisponible
-        raise HTTPException(
+        # Tesseract indisponible — réponse structurée pour le frontend
+        logger.warning(f"Tesseract indisponible : {e}")
+        return JSONResponse(
             status_code=503,
-            detail=f"Service OCR indisponible : {str(e)}. "
-                   "Assurez-vous que Tesseract est installé.",
+            content={
+                "ocr_available": False,
+                "message": "Tesseract non installé",
+                "detail": str(e),
+            },
         )
     except ValueError as e:
         # Fichier corrompu ou non lisible
@@ -101,3 +107,30 @@ async def extract_pmt(
     except Exception as e:
         logger.error(f"Erreur extraction PMT : {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erreur interne : {str(e)}")
+
+
+@router.get(
+    "/status",
+    summary="Vérifier la disponibilité de Tesseract OCR",
+)
+async def pmt_status():
+    """
+    Retourne l'état de Tesseract OCR sur le serveur.
+
+    Exemple de réponse :
+      { "tesseract": true, "version": "5.3.0" }
+      { "tesseract": false, "version": null, "message": "Tesseract non trouvé dans le PATH" }
+    """
+    try:
+        version = pytesseract.get_tesseract_version()
+        return {"tesseract": True, "version": str(version)}
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "tesseract": False,
+                "version": None,
+                "message": "Tesseract non trouvé dans le PATH",
+                "detail": str(e),
+            },
+        )

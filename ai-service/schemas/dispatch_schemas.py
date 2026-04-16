@@ -2,7 +2,7 @@
 Schémas Pydantic — Module Dispatch (recommandation véhicule/chauffeur)
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from enum import Enum
 
@@ -27,7 +27,9 @@ class Position(BaseModel):
 
 class TransportDispatch(BaseModel):
     """Informations du transport pour le dispatch."""
-    _id: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(default=None, alias="_id")
     motif: Optional[str] = None
     mobilite: MobilitePatient = MobilitePatient.ASSIS
     adresseDepart: Optional[str] = None
@@ -46,18 +48,22 @@ class CapacitesVehicule(BaseModel):
 
 class VehiculeDispatch(BaseModel):
     """Véhicule candidat pour le dispatch."""
-    _id: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(default=None, alias="_id")
     immatriculation: str
     type: TypeVehicule
     statut: str
     position: Optional[Position] = None
-    capacites: CapacitesVehicule = CapacitesVehicule()
+    capacites: CapacitesVehicule = Field(default_factory=CapacitesVehicule)
     ponctualite: Optional[float] = None  # % de ponctualité historique
 
 
 class ChauffeurDispatch(BaseModel):
     """Chauffeur candidat pour le dispatch."""
-    _id: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(default=None, alias="_id")
     nom: str
     prenom: str
     statut: str
@@ -82,6 +88,8 @@ class ScoreDetail(BaseModel):
 
 
 class VehiculeRecommande(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     vehiculeId: str
     immatriculation: str
     type: TypeVehicule

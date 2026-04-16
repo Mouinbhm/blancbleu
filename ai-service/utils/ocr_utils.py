@@ -9,6 +9,10 @@ from pathlib import Path
 
 logger = logging.getLogger("blancbleu.ai.ocr")
 
+# ─── Chemin Tesseract (Windows) ───────────────────────────────────────────────
+import pytesseract
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
 
 def pdf_vers_images(pdf_bytes: bytes) -> list:
     """
@@ -45,7 +49,7 @@ def image_bytes_vers_pil(image_bytes: bytes, mimetype: str):
 
 def preparer_image_ocr(image):
     """
-    Préprocessing image pour améliorer la qualité OCR sur documents médicaux.
+    Preprocessing image pour améliorer la qualité OCR sur documents médicaux.
     - Conversion niveaux de gris
     - Augmentation contraste
     - Seuillage adaptatif
@@ -78,8 +82,6 @@ def ocr_image(image, lang: str = "fra") -> str:
     Returns:
         str : texte extrait
     """
-    import pytesseract
-
     # Configuration Tesseract optimisée pour documents médicaux
     # --psm 6 : bloc de texte uniforme (formulaire)
     # --oem 3 : moteur LSTM + legacy combinés
@@ -98,7 +100,7 @@ def extraire_texte_complet(fichier_bytes: bytes, mimetype: str) -> str:
     Pipeline complet d'extraction de texte depuis un fichier PMT.
 
     1. Conversion PDF → images si nécessaire
-    2. Préprocessing image
+    2. Preprocessing image
     3. OCR Tesseract (français)
     4. Concaténation des pages
 

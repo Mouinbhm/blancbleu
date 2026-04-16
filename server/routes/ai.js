@@ -53,6 +53,15 @@ router.patch(
 );
 
 // ── Dispatch ──────────────────────────────────────────────────────────────────
+
+// Route manuelle AVANT /:transportId pour éviter que "manual" soit capturé comme ID
+router.post(
+  "/dispatch/manual",
+  protect,
+  authorize("dispatcher", "superviseur", "admin"),
+  require("../controllers/aiController").recommanderDispatchManuel
+);
+
 router.post(
   "/dispatch/:transportId",
   protect,

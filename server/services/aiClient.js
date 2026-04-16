@@ -107,7 +107,8 @@ async function recommanderDispatch(transport, vehicules, chauffeurs) {
   try {
     const { data } = await client.post("/dispatch/recommend", {
       transport: {
-        _id: transport._id,
+        // Ne pas envoyer null — Pydantic str ne l'accepte pas, on omet pour garder le défaut ""
+        ...(transport._id != null && { _id: String(transport._id) }),
         motif: transport.motif,
         mobilite: transport.patient?.mobilite,
         adresseDepart: transport.adresseDepart,
@@ -118,25 +119,27 @@ async function recommanderDispatch(transport, vehicules, chauffeurs) {
         brancardage: transport.patient?.brancardage || false,
       },
       vehicules: vehicules.map((v) => ({
-        _id: v._id,
+        _id: String(v._id),
         immatriculation: v.immatriculation,
         type: v.type,
         statut: v.statut,
-        position: v.position,
+        position: v.position?.lat ? { lat: v.position.lat, lng: v.position.lng } : null,
         capacites: {
-          fauteuil: v.fauteuil,
-          oxygene: v.oxygene,
-          brancard: v.brancard,
+          fauteuil: v.equipeFauteuil ?? false,
+          oxygene: v.equipeOxygene ?? false,
+          brancard: v.equipeBrancard ?? false,
         },
-        ponctualite: v.ponctualite,
+        ponctualite: v.tauxPonctualite ?? null,
       })),
       chauffeurs: chauffeurs.map((c) => ({
-        _id: c._id,
+        _id: String(c._id),
         nom: c.nom,
         prenom: c.prenom,
         statut: c.statut,
-        certifications: c.certifications,
-        ponctualite: c.ponctualite,
+        certifications: (c.certifications || []).map((cert) =>
+          typeof cert === "string" ? cert : cert.nom
+        ),
+        ponctualite: c.tauxPonctualite ?? null,
       })),
     });
 

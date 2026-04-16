@@ -219,6 +219,55 @@ function _scoringLocalDispatch(transport, vehicules) {
   };
 }
 
+/**
+ * POST /api/ai/dispatch/manual
+ * Recommande un véhicule à partir d'un formulaire libre (sans transport existant en base).
+ *
+ * Body : { motif, mobilite, oxygene, brancardage, adresseDepart, adresseDestination }
+ */
+const recommanderDispatchManuel = async (req, res) => {
+  try {
+    const Vehicle = require("../models/Vehicle");
+    const Personnel = require("../models/Personnel");
+
+    const { motif, mobilite, oxygene, brancardage, adresseDepart, adresseDestination } = req.body;
+
+    if (!mobilite) {
+      return res.status(400).json({ message: "mobilite requise (ASSIS | FAUTEUIL_ROULANT | ALLONGE | CIVIERE)" });
+    }
+
+    const [vehicules, chauffeurs] = await Promise.all([
+      Vehicle.find({ statut: "disponible" }),
+      Personnel.find({ statut: "en-service", role: { $in: ["Ambulancier", "Chauffeur"] } }),
+    ]);
+
+    if (vehicules.length === 0) {
+      return res.status(409).json({ message: "Aucun véhicule disponible" });
+    }
+
+    // Objet transport synthétique pour l'appel IA / fallback local
+    const transportSynthetique = {
+      _id: null,
+      numero: "MANUEL",
+      motif: motif || "Non précisé",
+      patient: { mobilite, oxygene: !!oxygene, brancardage: !!brancardage },
+      adresseDepart: adresseDepart || "",
+      adresseDestination: adresseDestination || "",
+    };
+
+    let result;
+    try {
+      result = await aiClient.recommanderDispatch(transportSynthetique, vehicules, chauffeurs);
+    } catch {
+      result = _scoringLocalDispatch(transportSynthetique, vehicules);
+    }
+
+    return res.json({ ...result, mode: "manuel" });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 // ════════════════════════════════════════════════════════════════════════════
 // MODULE 3 — Optimisation de tournée
 // ════════════════════════════════════════════════════════════════════════════
@@ -320,6 +369,7 @@ module.exports = {
   extrairePMT,
   validerPMT,
   recommanderDispatch,
+  recommanderDispatchManuel,
   optimiserTournee,
   getAIStatus,
 };

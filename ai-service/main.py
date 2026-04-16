@@ -35,7 +35,19 @@ logger = logging.getLogger("blancbleu.ai")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("BlancBleu AI Service démarrage...")
-    # Pré-charger spaCy pour éviter le délai au premier appel
+
+    # ── Configurer Tesseract (chemin Windows) ─────────────────────────────────
+    try:
+        import pytesseract
+        pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        version = pytesseract.get_tesseract_version()
+        logger.info(f"Tesseract OCR chargé — version {version}")
+        app.state.pmt_ocr = True
+    except Exception as e:
+        logger.warning(f"Tesseract OCR non disponible : {e}")
+        app.state.pmt_ocr = False
+
+    # ── Pré-charger spaCy pour éviter le délai au premier appel ──────────────
     try:
         import spacy
         app.state.nlp = spacy.load("fr_core_news_sm")
@@ -46,6 +58,7 @@ async def lifespan(app: FastAPI):
             "Installez-le avec : python -m spacy download fr_core_news_sm"
         )
         app.state.nlp = None
+
     yield
     logger.info("BlancBleu AI Service arrêt.")
 
@@ -76,17 +89,12 @@ app.include_router(routing_router, prefix="/routing", tags=["Routing"])
 @app.get("/health", tags=["Système"])
 async def health():
     """Vérifie la disponibilité du service et de ses modules."""
-    import pytesseract
     import importlib
 
     modules = {}
 
-    # Tesseract
-    try:
-        pytesseract.get_tesseract_version()
-        modules["pmt_ocr"] = True
-    except Exception:
-        modules["pmt_ocr"] = False
+    # Tesseract — utiliser l'état détecté au démarrage
+    modules["pmt_ocr"] = getattr(app.state, "pmt_ocr", False)
 
     # spaCy
     modules["pmt_nlp"] = app.state.nlp is not None

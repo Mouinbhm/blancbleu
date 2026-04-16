@@ -109,8 +109,8 @@ function ModuleDispatch() {
   }, []);
 
   const handleAnalyze = async () => {
-    if (!selectedId && !useManual) {
-      setError("Sélectionnez un transport ou utilisez la saisie manuelle");
+    if (!useManual && !selectedId) {
+      setError("Sélectionnez un transport dans la liste");
       return;
     }
     if (useManual && !form.mobilite) {
@@ -121,11 +121,9 @@ function ModuleDispatch() {
     setLoading(true);
     setResult(null);
     try {
-      // Si transport sélectionné : appel direct sur l'ID
-      // Si manuel : on crée d'abord un transport temporaire (non implémenté ici)
-      // Pour le MVP : on passe l'ID sélectionné
-      const id = selectedId;
-      const { data } = await aiService.recommanderDispatch(id);
+      const { data } = useManual && !selectedId
+        ? await aiService.recommanderDispatchManuel(form)
+        : await aiService.recommanderDispatch(selectedId);
       setResult(data);
     } catch (err) {
       setError(
