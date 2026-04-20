@@ -8,6 +8,84 @@ const Vehicle = require("../models/Vehicle");
 const lifecycle = require("../services/transportLifecycle");
 const { audit } = require("../services/auditService");
 const { TransportStateMachine } = require("../services/transportStateMachine");
+const recurrenceService = require("../services/recurrenceService");
+const tarifService = require("../services/tarifService");
+const { geocodeTransport } = require("../utils/geocodeUtils");
+
+const logger = (() => {
+  try { return require("../utils/logger"); } catch { return console; }
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/transports/estimation — Estimation tarifaire CPAM (formulaire)
+// Paramètres : typeTransport, lat1, lng1, lat2, lng2, allerRetour, heureRDV, dateTransport
+// ─────────────────────────────────────────────────────────────────────────────
+const estimerTarif = async (req, res) => {
+  try {
+    const {
+      typeTransport,
+      lat1,
+      lng1,
+      lat2,
+      lng2,
+      allerRetour,
+      heureRDV,
+      dateTransport,
+      tauxPriseEnCharge,
+    } = req.query;
+
+    // Validation des paramètres obligatoires
+    const typesValides = ["VSL", "TPMR", "AMBULANCE"];
+    if (!typeTransport || !typesValides.includes(typeTransport)) {
+      return res.status(400).json({
+        message: `Paramètre typeTransport invalide. Valeurs : ${typesValides.join(", ")}`,
+      });
+    }
+    if (!lat1 || !lng1 || !lat2 || !lng2) {
+      return res.status(400).json({
+        message:
+          "Coordonnées GPS manquantes : lat1, lng1, lat2, lng2 sont obligatoires",
+      });
+    }
+
+    const lat1f = parseFloat(lat1);
+    const lng1f = parseFloat(lng1);
+    const lat2f = parseFloat(lat2);
+    const lng2f = parseFloat(lng2);
+
+    if ([lat1f, lng1f, lat2f, lng2f].some(isNaN)) {
+      return res
+        .status(400)
+        .json({ message: "Les coordonnées GPS doivent être des nombres valides" });
+    }
+
+    // Construction d'un objet transport fictif pour le service de tarification
+    const transportFictif = {
+      typeTransport,
+      adresseDepart: { coordonnees: { lat: lat1f, lng: lng1f } },
+      adresseDestination: { coordonnees: { lat: lat2f, lng: lng2f } },
+      allerRetour: allerRetour === "true",
+      heureRDV: heureRDV || null,
+      dateTransport: dateTransport ? new Date(dateTransport) : new Date(),
+      tauxPriseEnCharge: tauxPriseEnCharge
+        ? parseInt(tauxPriseEnCharge, 10)
+        : 65,
+    };
+
+    const estimation = await tarifService.calculerTarif(transportFictif);
+
+    res.json({
+      estimation,
+      estEstimation: true, // Indique que c'est une valeur approximative
+      avertissement:
+        estimation.sourceDistance === "haversine"
+          ? "Distance calculée à vol d'oiseau (OSRM indisponible) — estimation approximative"
+          : null,
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/transports — Liste avec filtres
@@ -145,11 +223,64 @@ const getTransport = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/transports — Créer un transport
+// Géocode automatiquement les adresses si les coordonnées GPS sont absentes.
 // ─────────────────────────────────────────────────────────────────────────────
 const createTransport = async (req, res) => {
   try {
+    const body = { ...req.body };
+
+    // ── Géocodage automatique (best-effort) ──────────────────────────────────
+    // Si le formulaire a déjà envoyé des coordonnées (via autocomplétion BAN),
+    // on ne refait pas d'appel réseau. Sinon, on tente de les obtenir côté serveur.
+    const departSansGPS = !body.adresseDepart?.coordonnees?.lat;
+    const destSansGPS   = !body.adresseDestination?.coordonnees?.lat;
+
+    if (departSansGPS || destSansGPS) {
+      try {
+        const [geoDepart, geoDest] = await geocodeTransport(
+          departSansGPS ? body.adresseDepart : null,
+          destSansGPS   ? body.adresseDestination : null,
+        );
+
+        if (departSansGPS && geoDepart) {
+          body.adresseDepart = {
+            ...body.adresseDepart,
+            coordonnees: { lat: geoDepart.lat, lng: geoDepart.lng },
+          };
+          logger.info("[Géocodage] Départ résolu", {
+            label: geoDepart.label,
+            score: geoDepart.score,
+          });
+        } else if (departSansGPS) {
+          logger.warn("[Géocodage] Coordonnées départ indisponibles", {
+            adresse: body.adresseDepart?.rue,
+          });
+        }
+
+        if (destSansGPS && geoDest) {
+          body.adresseDestination = {
+            ...body.adresseDestination,
+            coordonnees: { lat: geoDest.lat, lng: geoDest.lng },
+          };
+          logger.info("[Géocodage] Destination résolue", {
+            label: geoDest.label,
+            score: geoDest.score,
+          });
+        } else if (destSansGPS) {
+          logger.warn("[Géocodage] Coordonnées destination indisponibles", {
+            adresse: body.adresseDestination?.rue,
+          });
+        }
+      } catch (geoErr) {
+        // Géocodage non bloquant — le transport est créé même sans coordonnées
+        logger.warn("[Géocodage] Erreur inattendue, coordonnées omises", {
+          err: geoErr.message,
+        });
+      }
+    }
+
     const transport = await Transport.create({
-      ...req.body,
+      ...body,
       createdBy: req.user._id,
     });
 
@@ -158,6 +289,60 @@ const createTransport = async (req, res) => {
     res.status(201).json({ message: "Transport créé", transport });
   } catch (err) {
     if (err.name === "ValidationError") {
+      return res.status(400).json({ message: err.message });
+    }
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/transports/recurrents — Créer une série de transports récurrents
+// ─────────────────────────────────────────────────────────────────────────────
+const creerTransportsRecurrents = async (req, res) => {
+  try {
+    const { recurrence, ...baseData } = req.body;
+
+    // Validation minimale avant de déléguer au service
+    if (
+      !recurrence ||
+      !recurrence.joursSemaine ||
+      !recurrence.dateFin
+    ) {
+      return res.status(400).json({
+        message:
+          "Les paramètres de récurrence sont obligatoires : joursSemaine et dateFin",
+      });
+    }
+
+    const resultat = await recurrenceService.creerSerieRecurrente(
+      baseData,
+      recurrence,
+      req.user,
+    );
+
+    res.status(201).json({
+      message: `Série créée avec succès : ${resultat.nbOccurrences} transport(s) généré(s)${
+        resultat.nbExclus > 0
+          ? `, ${resultat.nbExclus} jour(s) férié(s) exclu(s)`
+          : ""
+      }`,
+      nbOccurrences: resultat.nbOccurrences,
+      nbExclus: resultat.nbExclus,
+      transportParentId: resultat.transportParentId,
+      transports: resultat.transports,
+    });
+  } catch (err) {
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: err.message });
+    }
+    // Erreurs métier levées explicitement par le service
+    if (
+      err.message.includes("Veuillez") ||
+      err.message.includes("obligatoire") ||
+      err.message.includes("Aucune occurrence") ||
+      err.message.includes("postérieure") ||
+      err.message.includes("invalide")
+    ) {
       return res.status(400).json({ message: err.message });
     }
     res.status(500).json({ message: err.message });
@@ -331,7 +516,9 @@ module.exports = {
   getTransports,
   getStats,
   getTransport,
+  estimerTarif,
   createTransport,
+  creerTransportsRecurrents,
   updateTransport,
   deleteTransport,
   confirmer,

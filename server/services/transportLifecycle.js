@@ -11,11 +11,13 @@
 
 const Transport = require("../models/Transport");
 const Vehicle = require("../models/Vehicle");
+const Facture = require("../models/Facture");
 const { TransportStateMachine } = require("./transportStateMachine");
 const { smartDispatch } = require("./smartDispatch");
 const socketService = require("./socketService");
 const { audit, log } = require("./auditService");
 const { haversine } = require("../utils/geoUtils");
+const tarifService = require("./tarifService");
 const logger = (() => {
   try {
     return require("../utils/logger");
@@ -296,6 +298,47 @@ async function completerTransport(transportId, utilisateur) {
       message: `Transport ${transport.numero} complété en ${transport.dureeReelleMinutes} min`,
     },
   });
+
+  // ── Création automatique de la facture pré-remplie (best-effort) ──────────
+  // Non bloquant : un échec ici ne remet pas en cause la complétion du transport.
+  // La facture peut toujours être créée manuellement depuis le module facturation.
+  try {
+    const factureExistante = await Facture.findOne({ transport: transport._id });
+    if (!factureExistante) {
+      const tarif = await tarifService.calculerTarif(transport);
+      const patientLabel = [transport.patient?.nom, transport.patient?.prenom]
+        .filter(Boolean)
+        .join(" ");
+      const lieuLabel =
+        transport.adresseDestination?.nom ||
+        transport.adresseDestination?.ville ||
+        "Non précisé";
+
+      await Facture.create({
+        transport: transport._id,
+        patient: patientLabel,
+        motif: transport.motif,
+        lieu: lieuLabel,
+        montant: tarif.montantTotal,
+        montantCPAM: tarif.montantCPAM,
+        montantPatient: tarif.montantPatient,
+        distanceKm: tarif.distanceKm,
+        typeVehicule: transport.typeTransport,
+        statut: "en-attente",
+        notes: tarif.details.join("\n"),
+      });
+      logger.info("Facture auto-créée", {
+        numero: transport.numero,
+        montant: tarif.montantTotal,
+      });
+    }
+  } catch (err) {
+    // Journaliser sans bloquer le workflow
+    logger.warn("Création facture automatique échouée", {
+      transport: transport.numero,
+      err: err.message,
+    });
+  }
 
   logger.info("Transport complété", {
     numero: transport.numero,

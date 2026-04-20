@@ -1,9 +1,37 @@
 // Fichier : client/src/pages/NouveauTransport.jsx
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { transportService } from "../services/api";
+import AdresseAutocomplete from "../components/forms/AdresseAutocomplete";
 
-// Mobilité → type véhicule automatique
+// Jours fériés français 2025–2026 (miroir de recurrenceService.js côté backend)
+const JOURS_FERIES_FR = new Set([
+  "2025-01-01","2025-04-21","2025-05-01","2025-05-08","2025-05-29",
+  "2025-06-09","2025-07-14","2025-08-15","2025-11-01","2025-11-11","2025-12-25",
+  "2026-01-01","2026-04-06","2026-05-01","2026-05-08","2026-05-14",
+  "2026-05-25","2026-07-14","2026-08-15","2026-11-01","2026-11-11","2026-12-25",
+]);
+
+/** Calcule les occurrences côté client (preview uniquement). */
+function calculerOccurrences(dateDebut, dateFin, joursSemaine) {
+  if (!dateDebut || !dateFin || joursSemaine.length === 0) return { nb: 0, nbExclus: 0 };
+  const debut = new Date(dateDebut);
+  const fin = new Date(dateFin);
+  if (fin <= debut) return { nb: 0, nbExclus: 0 };
+  let nb = 0, nbExclus = 0;
+  const courant = new Date(debut);
+  courant.setHours(0, 0, 0, 0);
+  while (courant <= fin && nb + nbExclus < 365) {
+    const jourISO = courant.getDay() === 0 ? 7 : courant.getDay();
+    if (joursSemaine.includes(jourISO)) {
+      if (JOURS_FERIES_FR.has(courant.toISOString().slice(0, 10))) nbExclus++;
+      else nb++;
+    }
+    courant.setDate(courant.getDate() + 1);
+  }
+  return { nb, nbExclus };
+}
+
 const MOBILITE_TYPE = {
   ASSIS: "VSL",
   FAUTEUIL_ROULANT: "TPMR",
@@ -12,17 +40,13 @@ const MOBILITE_TYPE = {
 };
 
 const MOTIFS = [
-  "Dialyse", "Chimiothérapie", "Radiothérapie", "Consultation",
-  "Hospitalisation", "Sortie hospitalisation", "Rééducation", "Analyse", "Autre",
+  "Dialyse","Chimiothérapie","Radiothérapie","Consultation",
+  "Hospitalisation","Sortie hospitalisation","Rééducation","Analyse","Autre",
 ];
 
 const JOURS = [
-  { num: 1, label: "Lun" },
-  { num: 2, label: "Mar" },
-  { num: 3, label: "Mer" },
-  { num: 4, label: "Jeu" },
-  { num: 5, label: "Ven" },
-  { num: 6, label: "Sam" },
+  { num: 1, label: "Lun" },{ num: 2, label: "Mar" },{ num: 3, label: "Mer" },
+  { num: 4, label: "Jeu" },{ num: 5, label: "Ven" },{ num: 6, label: "Sam" },
   { num: 7, label: "Dim" },
 ];
 
@@ -35,9 +59,7 @@ function Section({ title, icon, children }) {
   return (
     <div className={sectionCls}>
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
-        <span className="material-symbols-outlined text-primary text-xl">
-          {icon}
-        </span>
+        <span className="material-symbols-outlined text-primary text-xl">{icon}</span>
         <h3 className="font-brand font-bold text-navy text-sm uppercase tracking-wide">
           {title}
         </h3>
@@ -58,6 +80,15 @@ function Field({ label, required, children, error }) {
     </div>
   );
 }
+
+// ── État initial des blocs adresse (inclut lat/lng pour le GPS) ───────────────
+const ADRESSE_DEPART_INIT = {
+  rue: "", ville: "Nice", codePostal: "06000", lat: null, lng: null,
+};
+const ADRESSE_DEST_INIT = {
+  nom: "", rue: "", ville: "Nice", codePostal: "06000", service: "",
+  lat: null, lng: null,
+};
 
 export default function NouveauTransport() {
   const navigate = useNavigate();
@@ -81,29 +112,69 @@ export default function NouveauTransport() {
     dateTransport: "",
     heureRDV: "",
     allerRetour: false,
-    // Adresse départ
-    departRue: "",
-    departVille: "Nice",
-    departCodePostal: "06000",
-    // Adresse destination
-    destNom: "",
-    destRue: "",
-    destVille: "Nice",
-    destCodePostal: "06000",
-    destService: "",
     // Récurrence
     recurrenceActive: false,
-    recurrenceFrequence: "hebdomadaire",
     recurrenceJours: [],
     recurrenceDateFin: "",
     // Notes
     notes: "",
   });
 
+  // Adresses séparées du reste du form pour clarifier la gestion GPS
+  const [adresseDepart, setAdresseDepart] = useState(ADRESSE_DEPART_INIT);
+  const [adresseDest, setAdresseDest] = useState(ADRESSE_DEST_INIT);
+
+  // ── Estimation tarifaire CPAM ─────────────────────────────────────────────────
+  const [estimation, setEstimation] = useState(null);
+  const [estimationLoading, setEstimationLoading] = useState(false);
+  const estDebounceRef = useRef(null);
+
+  // Recalcule l'estimation dès que les adresses ou le type changent.
+  // Utilise les coordonnées GPS déjà connues (évite un second géocodage).
+  useEffect(() => {
+    clearTimeout(estDebounceRef.current);
+
+    const lat1 = adresseDepart.lat;
+    const lng1 = adresseDepart.lng;
+    const lat2 = adresseDest.lat;
+    const lng2 = adresseDest.lng;
+
+    // Si l'une des deux adresses n'a pas encore de GPS, on ne peut pas estimer
+    if (!lat1 || !lat2) {
+      setEstimation(null);
+      return;
+    }
+
+    estDebounceRef.current = setTimeout(async () => {
+      setEstimationLoading(true);
+      try {
+        const { data } = await transportService.estimerTarif({
+          typeTransport: form.typeTransport,
+          lat1, lng1, lat2, lng2,
+          allerRetour: form.allerRetour,
+          heureRDV: form.heureRDV || undefined,
+          dateTransport: form.dateTransport || undefined,
+        });
+        setEstimation(data);
+      } catch {
+        setEstimation(null);
+      } finally {
+        setEstimationLoading(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(estDebounceRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    adresseDepart.lat, adresseDepart.lng,
+    adresseDest.lat, adresseDest.lng,
+    form.typeTransport, form.allerRetour, form.heureRDV, form.dateTransport,
+  ]);
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
   const set = (key, value) => {
     setForm((f) => {
       const next = { ...f, [key]: value };
-      // Auto-sélection type véhicule selon mobilité
       if (key === "patientMobilite") {
         next.typeTransport = MOBILITE_TYPE[value] || "VSL";
       }
@@ -121,30 +192,54 @@ export default function NouveauTransport() {
     }));
   };
 
+  // Callback AdresseAutocomplete → départ
+  const handleAdresseDepartChange = (adresse) => {
+    setAdresseDepart((prev) => ({ ...prev, ...adresse }));
+    if (errors.departRue) setErrors((e) => ({ ...e, departRue: "" }));
+  };
+
+  // Callback AdresseAutocomplete → destination
+  const handleAdresseDestChange = (adresse) => {
+    setAdresseDest((prev) => ({ ...prev, ...adresse }));
+    if (errors.destRue) setErrors((e) => ({ ...e, destRue: "" }));
+  };
+
+  const apercu = useMemo(
+    () => calculerOccurrences(form.dateTransport, form.recurrenceDateFin, form.recurrenceJours),
+    [form.dateTransport, form.recurrenceDateFin, form.recurrenceJours],
+  );
+
+  // ── Validation ────────────────────────────────────────────────────────────────
   const validate = () => {
     const e = {};
     if (!form.patientNom.trim()) e.patientNom = "Nom obligatoire";
     if (!form.motif) e.motif = "Motif obligatoire";
     if (!form.dateTransport) e.dateTransport = "Date obligatoire";
     if (!form.heureRDV) e.heureRDV = "Heure obligatoire";
-    if (!form.departRue.trim()) e.departRue = "Adresse de départ obligatoire";
-    if (!form.destRue.trim() && !form.destNom.trim())
+    if (!adresseDepart.rue.trim()) e.departRue = "Adresse de départ obligatoire";
+    if (!adresseDest.rue.trim() && !adresseDest.nom.trim())
       e.destRue = "Adresse destination obligatoire";
+    if (form.recurrenceActive) {
+      if (form.recurrenceJours.length === 0)
+        e.recurrenceJours = "Sélectionnez au moins un jour de la semaine";
+      if (!form.recurrenceDateFin)
+        e.recurrenceDateFin = "Date de fin obligatoire";
+      else if (new Date(form.recurrenceDateFin) <= new Date(form.dateTransport))
+        e.recurrenceDateFin = "La date de fin doit être postérieure à la date du transport";
+    }
     return e;
   };
 
+  // ── Soumission ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
-    if (Object.keys(errs).length > 0) {
-      setErrors(errs);
-      return;
-    }
+    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
 
     setLoading(true);
     setErreur(null);
     try {
-      const payload = {
+      const basePayload = {
         patient: {
           nom: form.patientNom.trim(),
           prenom: form.patientPrenom.trim(),
@@ -160,35 +255,47 @@ export default function NouveauTransport() {
         dateTransport: form.dateTransport,
         heureRDV: form.heureRDV,
         allerRetour: form.allerRetour,
+        // Adresses avec coordonnées GPS si disponibles
         adresseDepart: {
-          rue: form.departRue.trim(),
-          ville: form.departVille.trim(),
-          codePostal: form.departCodePostal.trim(),
+          rue: adresseDepart.rue.trim(),
+          ville: adresseDepart.ville.trim(),
+          codePostal: adresseDepart.codePostal.trim(),
+          ...(adresseDepart.lat && {
+            coordonnees: { lat: adresseDepart.lat, lng: adresseDepart.lng },
+          }),
         },
         adresseDestination: {
-          nom: form.destNom.trim(),
-          rue: form.destRue.trim(),
-          ville: form.destVille.trim(),
-          codePostal: form.destCodePostal.trim(),
-          service: form.destService.trim(),
-        },
-        recurrence: {
-          active: form.recurrenceActive,
-          frequence: form.recurrenceActive ? form.recurrenceFrequence : "",
-          joursSemaine: form.recurrenceActive ? form.recurrenceJours : [],
-          dateFin: form.recurrenceActive && form.recurrenceDateFin
-            ? form.recurrenceDateFin
-            : undefined,
+          nom: adresseDest.nom.trim(),
+          rue: adresseDest.rue.trim(),
+          ville: adresseDest.ville.trim(),
+          codePostal: adresseDest.codePostal.trim(),
+          service: adresseDest.service.trim(),
+          ...(adresseDest.lat && {
+            coordonnees: { lat: adresseDest.lat, lng: adresseDest.lng },
+          }),
         },
         notes: form.notes,
       };
 
-      const { data } = await transportService.create(payload);
-      navigate(`/transports/${data.transport?._id || data._id}`);
+      if (form.recurrenceActive) {
+        await transportService.creerRecurrents({
+          ...basePayload,
+          recurrence: {
+            joursSemaine: form.recurrenceJours,
+            dateFin: form.recurrenceDateFin,
+          },
+        });
+        navigate("/transports");
+      } else {
+        const { data } = await transportService.create({
+          ...basePayload,
+          recurrence: { active: false, frequence: "", joursSemaine: [] },
+        });
+        navigate(`/transports/${data.transport?._id || data._id}`);
+      }
     } catch (err) {
       setErreur(
-        err.response?.data?.message ||
-          "Erreur lors de la création du transport.",
+        err.response?.data?.message || "Erreur lors de la création du transport.",
       );
     } finally {
       setLoading(false);
@@ -209,17 +316,11 @@ export default function NouveauTransport() {
           onClick={() => navigate(-1)}
           className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-surface transition-colors"
         >
-          <span className="material-symbols-outlined text-slate-500">
-            arrow_back
-          </span>
+          <span className="material-symbols-outlined text-slate-500">arrow_back</span>
         </button>
         <div>
-          <h1 className="font-brand font-bold text-navy text-xl">
-            Nouveau transport
-          </h1>
-          <p className="text-slate-400 text-sm">
-            Transport sanitaire non urgent
-          </p>
+          <h1 className="font-brand font-bold text-navy text-xl">Nouveau transport</h1>
+          <p className="text-slate-400 text-sm">Transport sanitaire non urgent</p>
         </div>
       </div>
 
@@ -231,6 +332,7 @@ export default function NouveauTransport() {
       )}
 
       <form onSubmit={handleSubmit} noValidate>
+
         {/* ── Patient ── */}
         <Section title="Patient" icon="personal_injury">
           <div className="grid grid-cols-2 gap-4">
@@ -274,23 +376,17 @@ export default function NouveauTransport() {
               </select>
             </Field>
           </div>
-          {/* Type transport auto */}
           <div className="mt-3 flex items-center gap-2 text-sm text-primary bg-blue-50 rounded-lg px-3 py-2">
             <span className="material-symbols-outlined text-base">info</span>
-            Type de transport :{" "}
-            <span className="font-bold ml-1">{typeLabel}</span>
+            Type de transport : <span className="font-bold ml-1">{typeLabel}</span>
           </div>
-          {/* Besoins spéciaux */}
           <div className="flex flex-wrap gap-4 mt-4">
             {[
               { key: "patientOxygene", label: "Oxygène" },
               { key: "patientBrancardage", label: "Brancardage" },
               { key: "patientAccompagnateur", label: "Accompagnateur" },
             ].map(({ key, label }) => (
-              <label
-                key={key}
-                className="flex items-center gap-2 cursor-pointer"
-              >
+              <label key={key} className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={form[key]}
@@ -317,7 +413,7 @@ export default function NouveauTransport() {
                 ))}
               </select>
             </Field>
-            <div /> {/* spacer */}
+            <div />
             <Field label="Date du transport" required error={errors.dateTransport}>
               <input
                 type="date"
@@ -349,38 +445,47 @@ export default function NouveauTransport() {
           </label>
         </Section>
 
-        {/* ── Adresses ── */}
+        {/* ── Adresses avec autocomplétion BAN ── */}
         <Section title="Adresses" icon="location_on">
-          <div className="mb-4">
+
+          {/* Départ */}
+          <div className="mb-5">
             <p className="text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-3">
               Adresse de départ
             </p>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2">
-                <Field label="Rue" required error={errors.departRue}>
-                  <input
-                    type="text"
-                    value={form.departRue}
-                    onChange={(e) => set("departRue", e.target.value)}
-                    className={inputCls}
-                    placeholder="Numéro et nom de la rue"
-                  />
-                </Field>
-              </div>
+            {/* Autocomplétion — remplit rue + GPS */}
+            <div className="mb-3">
+              <AdresseAutocomplete
+                label="Recherche d'adresse"
+                required
+                error={errors.departRue}
+                value={adresseDepart}
+                onChange={handleAdresseDepartChange}
+                placeholder="Saisir le numéro et nom de la rue…"
+                id="depart-autocomplete"
+              />
+            </div>
+            {/* Champs complémentaires toujours visibles (saisie manuelle possible) */}
+            <div className="grid grid-cols-3 gap-3 mt-2">
               <Field label="Code postal">
                 <input
                   type="text"
-                  value={form.departCodePostal}
-                  onChange={(e) => set("departCodePostal", e.target.value)}
+                  value={adresseDepart.codePostal}
+                  onChange={(e) =>
+                    setAdresseDepart((a) => ({ ...a, codePostal: e.target.value }))
+                  }
                   className={inputCls}
+                  maxLength={5}
                 />
               </Field>
-              <div className="col-span-3">
+              <div className="col-span-2">
                 <Field label="Ville">
                   <input
                     type="text"
-                    value={form.departVille}
-                    onChange={(e) => set("departVille", e.target.value)}
+                    value={adresseDepart.ville}
+                    onChange={(e) =>
+                      setAdresseDepart((a) => ({ ...a, ville: e.target.value }))
+                    }
                     className={inputCls}
                   />
                 </Field>
@@ -388,58 +493,66 @@ export default function NouveauTransport() {
             </div>
           </div>
 
-          <div className="border-t border-slate-100 pt-4">
+          {/* Destination */}
+          <div className="border-t border-slate-100 pt-5">
             <p className="text-xs font-mono font-bold text-slate-400 uppercase tracking-widest mb-3">
               Adresse de destination
             </p>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-3">
-                <Field label="Nom de l'établissement">
-                  <input
-                    type="text"
-                    value={form.destNom}
-                    onChange={(e) => set("destNom", e.target.value)}
-                    className={inputCls}
-                    placeholder="Ex : CHU de Nice, Hôpital Pasteur…"
-                  />
-                </Field>
-              </div>
-              <div className="col-span-3">
-                <Field label="Service / Unité">
-                  <input
-                    type="text"
-                    value={form.destService}
-                    onChange={(e) => set("destService", e.target.value)}
-                    className={inputCls}
-                    placeholder="Ex : Dialyse, Oncologie, Cardiologie…"
-                  />
-                </Field>
-              </div>
-              <div className="col-span-2">
-                <Field label="Rue" error={errors.destRue}>
-                  <input
-                    type="text"
-                    value={form.destRue}
-                    onChange={(e) => set("destRue", e.target.value)}
-                    className={inputCls}
-                    placeholder="Numéro et nom de la rue"
-                  />
-                </Field>
-              </div>
+            <div className="grid grid-cols-1 gap-3 mb-3">
+              <Field label="Nom de l'établissement">
+                <input
+                  type="text"
+                  value={adresseDest.nom}
+                  onChange={(e) =>
+                    setAdresseDest((a) => ({ ...a, nom: e.target.value }))
+                  }
+                  className={inputCls}
+                  placeholder="Ex : CHU de Nice, Hôpital Pasteur…"
+                />
+              </Field>
+              <Field label="Service / Unité">
+                <input
+                  type="text"
+                  value={adresseDest.service}
+                  onChange={(e) =>
+                    setAdresseDest((a) => ({ ...a, service: e.target.value }))
+                  }
+                  className={inputCls}
+                  placeholder="Ex : Dialyse, Oncologie, Cardiologie…"
+                />
+              </Field>
+            </div>
+            {/* Autocomplétion destination */}
+            <div className="mb-3">
+              <AdresseAutocomplete
+                label="Recherche d'adresse"
+                error={errors.destRue}
+                value={adresseDest}
+                onChange={handleAdresseDestChange}
+                placeholder="Saisir le numéro et nom de la rue…"
+                id="dest-autocomplete"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-3 mt-2">
               <Field label="Code postal">
                 <input
                   type="text"
-                  value={form.destCodePostal}
-                  onChange={(e) => set("destCodePostal", e.target.value)}
+                  value={adresseDest.codePostal}
+                  onChange={(e) =>
+                    setAdresseDest((a) => ({ ...a, codePostal: e.target.value }))
+                  }
                   className={inputCls}
+                  maxLength={5}
                 />
               </Field>
-              <div className="col-span-3">
+              <div className="col-span-2">
                 <Field label="Ville">
                   <input
                     type="text"
-                    value={form.destVille}
-                    onChange={(e) => set("destVille", e.target.value)}
+                    value={adresseDest.ville}
+                    onChange={(e) =>
+                      setAdresseDest((a) => ({ ...a, ville: e.target.value }))
+                    }
                     className={inputCls}
                   />
                 </Field>
@@ -447,6 +560,69 @@ export default function NouveauTransport() {
             </div>
           </div>
         </Section>
+
+        {/* ── Estimation tarifaire CPAM ── */}
+        {(estimationLoading || estimation) && (
+          <div className="bg-white rounded-xl border border-amber-200 p-5 mb-4">
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-100">
+              <span className="material-symbols-outlined text-amber-500 text-xl">payments</span>
+              <h3 className="font-brand font-bold text-navy text-sm uppercase tracking-wide flex-1">
+                Estimation tarifaire
+              </h3>
+              <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full">
+                <span className="material-symbols-outlined" style={{ fontSize: 11 }}>info</span>
+                Estimation
+              </span>
+            </div>
+
+            {estimationLoading ? (
+              <div className="flex items-center gap-2 text-sm text-slate-400">
+                <div style={{ width: 14, height: 14, border: "2px solid #e2e8f0", borderTop: "2px solid #f59e0b", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
+                Calcul du tarif CPAM en cours…
+              </div>
+            ) : estimation ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-1.5 text-slate-500">
+                    <span className="material-symbols-outlined text-base text-slate-400">route</span>
+                    Distance estimée
+                    {form.allerRetour && <span className="text-xs text-slate-400">(aller-retour)</span>}
+                  </span>
+                  <span className="font-mono font-semibold text-slate-700">
+                    {estimation.estimation?.distanceFacturee?.toFixed(1)} km
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mt-2">
+                  <div className="bg-slate-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-slate-400 mb-1">Montant total</p>
+                    <p className="text-base font-bold text-navy">{estimation.estimation?.montantTotal?.toFixed(2)} €</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-blue-500 mb-1">Part CPAM</p>
+                    <p className="text-base font-bold text-blue-700">{estimation.estimation?.montantCPAM?.toFixed(2)} €</p>
+                    <p className="text-[10px] text-blue-400">{estimation.estimation?.tauxPriseEnCharge}%</p>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-green-500 mb-1">Part patient</p>
+                    <p className="text-base font-bold text-green-700">{estimation.estimation?.montantPatient?.toFixed(2)} €</p>
+                  </div>
+                </div>
+                {estimation.avertissement && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+                    <span className="material-symbols-outlined text-sm">warning</span>
+                    {estimation.avertissement}
+                  </p>
+                )}
+                {estimation.estimation?.supplements > 0 && (
+                  <p className="text-xs text-slate-500 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">nightlight</span>
+                    Supplément nuit/dimanche inclus : {estimation.estimation.supplements.toFixed(2)} €
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
 
         {/* ── Récurrence ── */}
         <Section title="Récurrence" icon="repeat">
@@ -457,24 +633,11 @@ export default function NouveauTransport() {
               onChange={(e) => set("recurrenceActive", e.target.checked)}
               className="w-4 h-4 accent-primary"
             />
-            <span className="text-sm font-medium text-slate-700">
-              Transport récurrent
-            </span>
+            <span className="text-sm font-medium text-slate-700">Transport récurrent</span>
           </label>
 
           {form.recurrenceActive && (
             <div className="space-y-4 pl-6">
-              <Field label="Fréquence">
-                <select
-                  value={form.recurrenceFrequence}
-                  onChange={(e) => set("recurrenceFrequence", e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="hebdomadaire">Hebdomadaire</option>
-                  <option value="bihebdomadaire">Bi-hebdomadaire</option>
-                  <option value="mensuel">Mensuel</option>
-                </select>
-              </Field>
               <div>
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">
                   Jours de la semaine
@@ -495,15 +658,48 @@ export default function NouveauTransport() {
                     </button>
                   ))}
                 </div>
+                {errors.recurrenceJours && (
+                  <p className="text-xs text-red-500 mt-1">{errors.recurrenceJours}</p>
+                )}
               </div>
-              <Field label="Date de fin">
+
+              <Field label="Date de fin de récurrence" error={errors.recurrenceDateFin}>
                 <input
                   type="date"
                   value={form.recurrenceDateFin}
                   onChange={(e) => set("recurrenceDateFin", e.target.value)}
                   className={inputCls}
+                  min={form.dateTransport || new Date().toISOString().split("T")[0]}
                 />
               </Field>
+
+              {apercu.nb > 0 && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+                  <div className="flex items-center gap-2 font-semibold text-blue-700 mb-1">
+                    <span className="material-symbols-outlined text-base">event_repeat</span>
+                    {apercu.nb} transport(s) seront générés
+                  </div>
+                  {apercu.nbExclus > 0 && (
+                    <p className="text-xs text-amber-700 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm">warning</span>
+                      {apercu.nbExclus} jour(s) férié(s) automatiquement exclu(s)
+                    </p>
+                  )}
+                  {apercu.nb >= 365 && (
+                    <p className="text-xs text-orange-700 flex items-center gap-1 mt-1">
+                      <span className="material-symbols-outlined text-sm">info</span>
+                      Limité à 365 occurrences maximum par sécurité
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {form.recurrenceJours.length > 0 && form.recurrenceDateFin && apercu.nb === 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base">warning</span>
+                  Aucune occurrence : tous les jours sélectionnés sont fériés ou hors de la plage.
+                </div>
+              )}
             </div>
           )}
         </Section>
@@ -535,24 +731,17 @@ export default function NouveauTransport() {
           >
             {loading ? (
               <>
-                <div
-                  style={{
-                    width: 16,
-                    height: 16,
-                    border: "2px solid rgba(255,255,255,0.3)",
-                    borderTop: "2px solid #fff",
-                    borderRadius: "50%",
-                    animation: "spin .7s linear infinite",
-                  }}
-                />
+                <div style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,0.3)", borderTop: "2px solid #fff", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
                 Création…
               </>
             ) : (
               <>
                 <span className="material-symbols-outlined text-base">
-                  check
+                  {form.recurrenceActive ? "event_repeat" : "check"}
                 </span>
-                Créer le transport
+                {form.recurrenceActive
+                  ? `Créer la série${apercu.nb > 0 ? ` (${apercu.nb} transport${apercu.nb > 1 ? "s" : ""})` : ""}`
+                  : "Créer le transport"}
               </>
             )}
           </button>

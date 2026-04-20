@@ -7,12 +7,16 @@ const router = express.Router();
 const { protect } = require("../middleware/auth");
 const ctrl = require("../controllers/transportController");
 
-// ── Stats (avant /:id) ────────────────────────────────────────────────────────
+// ── Stats et estimation (avant /:id) ─────────────────────────────────────────
 router.get("/stats", protect, ctrl.getStats);
+// Estimation tarifaire CPAM — accessible à tout utilisateur connecté (formulaire de création)
+router.get("/estimation", protect, ctrl.estimerTarif);
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 router.get("/", protect, ctrl.getTransports);
 router.post("/", protect, ctrl.createTransport);
+// Route récurrence avant /:id pour éviter la capture par le paramètre générique
+router.post("/recurrents", protect, ctrl.creerTransportsRecurrents);
 router.get("/:id", protect, ctrl.getTransport);
 router.patch("/:id", protect, ctrl.updateTransport);
 router.delete("/:id", protect, ctrl.deleteTransport);

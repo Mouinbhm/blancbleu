@@ -86,9 +86,18 @@ export default function TransportCard({ transport, onRefresh }) {
             </span>
           </div>
           <div className="min-w-0">
-            <p className="font-mono text-xs text-slate-400 truncate">
-              {transport.numero}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className="font-mono text-xs text-slate-400 truncate">
+                {transport.numero}
+              </p>
+              {/* Badge série récurrente */}
+              {transport.recurrence?.active && transport.recurrence?.joursSemaine?.length > 0 && (
+                <span className="inline-flex items-center gap-0.5 bg-violet-100 text-violet-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none flex-shrink-0">
+                  <span className="material-symbols-outlined" style={{ fontSize: 10 }}>repeat</span>
+                  Récurrent
+                </span>
+              )}
+            </div>
             <p className="font-bold text-navy text-sm truncate">
               {transport.patient?.nom} {transport.patient?.prenom}
             </p>

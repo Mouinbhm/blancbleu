@@ -165,6 +165,14 @@ const transportSchema = new mongoose.Schema(
       default: null,
     },
 
+    // ── Série récurrente ──────────────────────────────────────────────────────
+    transportParent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Transport",
+      default: null,
+    },
+    indexSerie: { type: Number, default: null },
+
     // ── Facturation ───────────────────────────────────────────────────────────
     tauxPriseEnCharge: { type: Number, default: 65 },
     facture: {

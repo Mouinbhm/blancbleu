@@ -97,9 +97,11 @@ export const authService = {
 // ════════════════════════════════════════════════════════════════════════════
 export const transportService = {
   getAll: (params) => api.get("/transports", { params }),
+  estimerTarif: (params) => api.get("/transports/estimation", { params }),
   getOne: (id) => api.get(`/transports/${id}`),
   getStats: () => api.get("/transports/stats"),
   create: (data) => api.post("/transports", data),
+  creerRecurrents: (data) => api.post("/transports/recurrents", data),
   update: (id, data) => api.patch(`/transports/${id}`, data),
   delete: (id) => api.delete(`/transports/${id}`),
   // Actions lifecycle

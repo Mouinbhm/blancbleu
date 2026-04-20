@@ -18,6 +18,15 @@ const factureSchema = new mongoose.Schema(
       ref: "Transport",
       default: null,
     },
+    // ── Données CPAM (pré-remplies automatiquement à la complétion du transport)
+    distanceKm: { type: Number, default: null },
+    montantCPAM: { type: Number, default: null },
+    montantPatient: { type: Number, default: null },
+    typeVehicule: {
+      type: String,
+      enum: ["VSL", "TPMR", "AMBULANCE"],
+      default: null,
+    },
     notes: { type: String, default: "" },
   },
   { timestamps: true },
