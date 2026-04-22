@@ -55,8 +55,11 @@ if (process.env.NODE_ENV !== "production") setupSwagger(app);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/auth", require("./routes/auth"));
-app.use("/api/transports", require("./routes/transports")); // ← NOUVEAU (remplace /interventions)
-app.use("/api/vehicles", require("./routes/vehicles")); // ← NOUVEAU (remplace /units)
+app.use("/api/patients", require("./routes/patients"));           // ← NOUVEAU
+app.use("/api/prescriptions", require("./routes/prescriptions")); // ← NOUVEAU
+app.use("/api/missions", require("./routes/missions"));           // ← NOUVEAU
+app.use("/api/transports", require("./routes/transports"));
+app.use("/api/vehicles", require("./routes/vehicles"));
 app.use("/api/ai", require("./routes/ai"));
 app.use("/api/geo", require("./routes/geo"));
 app.use("/api/audit", require("./routes/audit"));
@@ -65,7 +68,7 @@ app.use("/api/equipements", require("./routes/equipements"));
 app.use("/api/maintenances", require("./routes/maintenances"));
 app.use("/api/factures", require("./routes/factures"));
 app.use("/api/analytics", require("./routes/analytics"));
-app.use("/api/planning", require("./routes/planning")); // ← NOUVEAU
+app.use("/api/planning", require("./routes/planning"));
 
 // SUPPRIMÉS :
 // /api/interventions  → remplacé par /api/transports
