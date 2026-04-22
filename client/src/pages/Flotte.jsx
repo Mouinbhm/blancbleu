@@ -339,7 +339,7 @@ export default function Flotte() {
               vehicle={v}
               onClick={() =>
                 v.transportEnCours
-                  ? navigate(`/transports/${v.transportEnCours}`)
+                  ? navigate(`/transports/${String(v.transportEnCours?._id || v.transportEnCours)}`)
                   : null
               }
             />
