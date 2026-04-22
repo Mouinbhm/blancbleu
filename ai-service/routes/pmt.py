@@ -91,14 +91,33 @@ async def extract_pmt(
         result = extraire_pmt(contenu, pmt.content_type, nlp=nlp)
         return result
     except RuntimeError as e:
-        # Tesseract indisponible — réponse structurée pour le frontend
-        logger.warning(f"Tesseract indisponible : {e}")
+        message_erreur = str(e)
+        logger.warning(f"Tesseract — erreur OCR : {message_erreur}")
+
+        # Détection spécifique : fichier de langue française manquant
+        if "fra" in message_erreur or "Failed loading language" in message_erreur or "traineddata" in message_erreur:
+            import os
+            tessdata = os.environ.get(
+                "TESSDATA_PREFIX",
+                r"C:\Program Files\Tesseract-OCR\tessdata",
+            )
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "message": "Fichier de langue française manquant (fra.traineddata)",
+                    "solution": "Lancez : python scripts/download_tessdata.py",
+                    "fichier_manquant": "fra.traineddata",
+                    "chemin": tessdata,
+                },
+            )
+
+        # Tesseract absent ou autre erreur OCR
         return JSONResponse(
             status_code=503,
             content={
                 "ocr_available": False,
-                "message": "Tesseract non installé",
-                "detail": str(e),
+                "message": "Tesseract OCR non disponible",
+                "detail": message_erreur,
             },
         )
     except ValueError as e:

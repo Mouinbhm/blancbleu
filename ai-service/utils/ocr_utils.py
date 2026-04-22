@@ -3,15 +3,33 @@ BlancBleu — Utilitaires OCR
 Conversion PDF/image → texte via Tesseract
 """
 
+import os
 import logging
 from typing import Optional
 from pathlib import Path
 
 logger = logging.getLogger("blancbleu.ai.ocr")
 
-# ─── Chemin Tesseract (Windows) ───────────────────────────────────────────────
+# ─── Configuration Tesseract (Windows) ───────────────────────────────────────
+# Doit être fait AVANT tout appel à pytesseract
+if os.name == "nt":
+    _tesseract_exe = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+    _tessdata_dir  = Path(r"C:\Program Files\Tesseract-OCR\tessdata")
+
+    # Chemin exécutable — fallback sur x86 si le chemin principal est absent
+    if not _tesseract_exe.exists():
+        _tesseract_exe = Path(r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe")
+        _tessdata_dir  = Path(r"C:\Program Files (x86)\Tesseract-OCR\tessdata")
+
+    # TESSDATA_PREFIX : permet à Tesseract de trouver fra.traineddata
+    if not os.environ.get("TESSDATA_PREFIX") and _tessdata_dir.exists():
+        os.environ["TESSDATA_PREFIX"] = str(_tessdata_dir)
+        logger.debug(f"TESSDATA_PREFIX défini automatiquement : {_tessdata_dir}")
+
 import pytesseract
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+if os.name == "nt" and _tesseract_exe.exists():
+    pytesseract.pytesseract.tesseract_cmd = str(_tesseract_exe)
 
 
 def pdf_vers_images(pdf_bytes: bytes) -> list:

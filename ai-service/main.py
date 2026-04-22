@@ -36,15 +36,43 @@ logger = logging.getLogger("blancbleu.ai")
 async def lifespan(app: FastAPI):
     logger.info("BlancBleu AI Service démarrage...")
 
-    # ── Configurer Tesseract (chemin Windows) ─────────────────────────────────
+    # ── Configurer Tesseract (chemin Windows + TESSDATA_PREFIX) ──────────────
+    # ocr_utils applique déjà la config — on importe pour déclencher le module
     try:
+        from utils import ocr_utils as _ocr  # noqa: F401 — effet de bord voulu
         import pytesseract
-        pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        import os
+        from pathlib import Path
+
         version = pytesseract.get_tesseract_version()
-        logger.info(f"Tesseract OCR chargé — version {version}")
-        app.state.pmt_ocr = True
+        logger.info(f"✅ Tesseract OCR chargé — version {version}")
+
+        # Vérifier les fichiers de langue un par un
+        tessdata_prefix = os.environ.get("TESSDATA_PREFIX", "")
+        tessdata_dir = Path(tessdata_prefix) if tessdata_prefix else None
+
+        fra_ok = tessdata_dir and (tessdata_dir / "fra.traineddata").exists()
+        eng_ok = tessdata_dir and (tessdata_dir / "eng.traineddata").exists()
+
+        if fra_ok:
+            logger.info("✅ Langue française (fra) disponible")
+        else:
+            logger.warning(
+                "⚠️  fra.traineddata absent — l'OCR PMT ne fonctionnera pas.\n"
+                "    Téléchargez le fichier de langue avec :\n"
+                "    python scripts/download_tessdata.py"
+            )
+
+        if eng_ok:
+            logger.info("✅ Langue anglaise (eng) disponible")
+        else:
+            logger.info("ℹ️  eng.traineddata absent (optionnel)")
+
+        # Le module OCR est opérationnel seulement si fra.traineddata est présent
+        app.state.pmt_ocr = bool(fra_ok)
+
     except Exception as e:
-        logger.warning(f"Tesseract OCR non disponible : {e}")
+        logger.warning(f"⚠️  Tesseract OCR non disponible : {e}")
         app.state.pmt_ocr = False
 
     # ── Pré-charger spaCy pour éviter le délai au premier appel ──────────────
