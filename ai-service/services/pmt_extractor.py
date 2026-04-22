@@ -3,11 +3,12 @@ BlancBleu — Service d'extraction PMT
 Prescription Médicale de Transport
 
 Pipeline :
-  1. OCR Tesseract (PDF ou image)
-  2. Extraction par regex (champs structurés)
-  3. NER spaCy (noms de personnes et lieux)
-  4. Calcul score de confiance
-  5. Validation : champs critiques manquants ?
+  1. OCR Tesseract (PDF ou image) avec prétraitement CERFA
+  2. Nettoyage texte OCR (artefacts scan, cases à cocher)
+  3. Extraction par regex CERFA + fallback patterns libres
+  4. NER spaCy (noms de personnes et lieux) si champs manquants
+  5. Score de confiance pondéré par importance des champs
+  6. Validation : champs critiques manquants ?
 
 Aucune API externe — 100% local.
 """
@@ -15,16 +16,21 @@ Aucune API externe — 100% local.
 import logging
 import re
 from typing import Optional
-from fastapi import Request
 
 from utils.ocr_utils import extraire_texte_complet
 from utils.regex_patterns import (
-    PATIENT_NOM, PATIENT_PRENOM, PATIENT_DATE_NAISSANCE, PATIENT_NUMERO_SECU,
-    MEDECIN_NOM, MEDECIN_RPPS,
+    PATIENT_PRENOM,
     DATE_PRESCRIPTION, DATE_GENERIQUE,
-    DESTINATION, ALLER_RETOUR, ALLER_SIMPLE,
+    ALLER_RETOUR, ALLER_SIMPLE,
     OXYGENE, BRANCARDAGE, FREQUENCE,
     extraire_premier_match,
+    extraire_nom_patient,
+    extraire_nom_medecin,
+    extraire_rpps,
+    extraire_date_naissance,
+    extraire_secu,
+    extraire_adresse_depart,
+    extraire_adresse_destination,
     extraire_mobilite,
     extraire_type_transport,
     extraire_motif,
@@ -40,6 +46,82 @@ logger = logging.getLogger("blancbleu.ai.pmt")
 CHAMPS_CRITIQUES = ["patient.nom", "typeTransportAutorise", "mobilite", "destination"]
 
 
+# ─── Nettoyage texte OCR ──────────────────────────────────────────────────────
+
+def nettoyer_texte_cerfa(texte: str) -> str:
+    """
+    Nettoie le texte OCR d'une PMT CERFA :
+    - Supprime les artefacts de scan (cases à cocher, puces)
+    - Normalise les numéros en cases CERFA (chiffres séparés par espaces)
+    - Normalise les sauts de ligne multiples
+    """
+    # Supprimer symboles de cases à cocher et artefacts scan
+    texte = re.sub(r"[□■☐☑✓✗▪▫◻◼●•]", " ", texte)
+
+    # Normaliser les numéros à cases CERFA (chiffres isolés par espaces)
+    # Séquences de 8 chiffres espacés → DDMMYYYY (date naissance)
+    texte = re.sub(
+        r"\b(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\b",
+        r"\1\2\3\4\5\6\7\8",
+        texte,
+    )
+    # Séquences de 11 chiffres espacés → RPPS
+    texte = re.sub(
+        r"\b(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\b",
+        r"\1\2\3\4\5\6\7\8\9\10\11",
+        texte,
+    )
+    # Séquences de 15 chiffres espacés → numéro sécu
+    texte = re.sub(
+        r"\b(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\s(\d)\b",
+        r"\1\2\3\4\5\6\7\8\9\10\11\12\13\14\15",
+        texte,
+    )
+
+    # Normaliser les sauts de ligne multiples
+    texte = re.sub(r"\n{3,}", "\n\n", texte)
+
+    return texte
+
+
+# ─── Score de confiance ───────────────────────────────────────────────────────
+
+def calculer_confiance(extraction: dict) -> float:
+    """
+    Score de confiance pondéré selon l'importance des champs PMT.
+    Champs critiques (70%) > importants (20%) > optionnels (10%).
+    """
+    poids = {
+        # Critiques — 70%
+        "patient_nom":         0.20,
+        "type_transport":      0.15,
+        "mobilite":            0.15,
+        "motif":               0.10,
+        "adresse_destination": 0.10,
+        # Importants — 20%
+        "medecin_nom":         0.08,
+        "aller_retour":        0.07,
+        "adresse_depart":      0.05,
+        # Optionnels — 10%
+        "patient_prenom":      0.04,
+        "date_naissance":      0.03,
+        "rpps":                0.02,
+        "frequence":           0.01,
+    }
+
+    VALEURS_VIDES = {"", "Non détecté", "null", "None", "none"}
+
+    score = 0.0
+    for champ, poids_champ in poids.items():
+        valeur = extraction.get(champ)
+        if valeur is not None and str(valeur).strip() not in VALEURS_VIDES:
+            score += poids_champ
+
+    return round(score, 2)
+
+
+# ─── Pipeline principal ───────────────────────────────────────────────────────
+
 def extraire_pmt(fichier_bytes: bytes, mimetype: str, nlp=None) -> PMTExtractionResponse:
     """
     Extrait les données d'une PMT depuis un fichier PDF ou image.
@@ -52,68 +134,57 @@ def extraire_pmt(fichier_bytes: bytes, mimetype: str, nlp=None) -> PMTExtraction
     Returns:
         PMTExtractionResponse avec extraction, confiance, champs manquants
     """
-    logger.info(f"Extraction PMT — type: {mimetype}, taille: {len(fichier_bytes)} bytes")
+    logger.info(f"Extraction PMT — type: {mimetype}, taille: {len(fichier_bytes)} octets")
 
     # ── Étape 1 : OCR ─────────────────────────────────────────────────────────
-    texte_ocr = extraire_texte_complet(fichier_bytes, mimetype)
-    logger.debug(f"OCR : {len(texte_ocr)} caractères extraits")
+    texte_brut = extraire_texte_complet(fichier_bytes, mimetype)
+    logger.debug(f"OCR brut : {len(texte_brut)} caractères extraits")
 
-    if not texte_ocr or len(texte_ocr) < 20:
-        logger.warning("OCR : texte insuffisant")
+    if not texte_brut or len(texte_brut) < 20:
+        logger.warning("OCR : texte insuffisant pour extraction")
         return PMTExtractionResponse(
             extraction=PMTExtraction(patient=PatientExtrait(), medecin=MedecinExtrait()),
             confiance=0.0,
             validationRequise=True,
             champsManquants=CHAMPS_CRITIQUES,
             champsIncertains=[],
-            texteOCR=texte_ocr,
+            texteOCR=texte_brut,
         )
 
-    # ── Étape 2 : Extraction par regex ────────────────────────────────────────
-    scores_champs = {}  # nom_champ → float (0 ou 1)
+    # ── Étape 2 : Nettoyage texte CERFA ───────────────────────────────────────
+    texte_ocr = nettoyer_texte_cerfa(texte_brut)
+    logger.debug(f"Texte nettoyé : {len(texte_ocr)} caractères")
+
+    # ── Étape 3 : Extraction par regex (CERFA + fallback libre) ───────────────
     champs_incertains = []
 
     # Patient
-    patient_nom = extraire_premier_match(PATIENT_NOM, texte_ocr)
+    patient_nom    = extraire_nom_patient(texte_ocr)
     patient_prenom = extraire_premier_match(PATIENT_PRENOM, texte_ocr)
-    patient_naissance = extraire_premier_match(PATIENT_DATE_NAISSANCE, texte_ocr)
-    patient_secu = extraire_premier_match(PATIENT_NUMERO_SECU, texte_ocr)
-
-    scores_champs["patient.nom"] = 1.0 if patient_nom else 0.0
-    scores_champs["patient.prenom"] = 0.8 if patient_prenom else 0.0
+    patient_naissance = extraire_date_naissance(texte_ocr)
+    patient_secu   = extraire_secu(texte_ocr)
 
     # Médecin
-    medecin_nom = extraire_premier_match(MEDECIN_NOM, texte_ocr)
-    medecin_rpps = extraire_premier_match(MEDECIN_RPPS, texte_ocr)
-    scores_champs["medecin.nom"] = 1.0 if medecin_nom else 0.0
+    medecin_nom  = extraire_nom_medecin(texte_ocr)
+    medecin_rpps = extraire_rpps(texte_ocr)
 
-    # Date prescription
+    # Date de prescription
     date_prescription = extraire_premier_match(DATE_PRESCRIPTION, texte_ocr)
     if not date_prescription:
-        # Fallback : première date générique trouvée
         date_prescription = extraire_premier_match(DATE_GENERIQUE, texte_ocr)
         if date_prescription:
             champs_incertains.append("datePrescription")
-            scores_champs["datePrescription"] = 0.6
-        else:
-            scores_champs["datePrescription"] = 0.0
-    else:
-        scores_champs["datePrescription"] = 1.0
 
-    # Type de transport
+    # Transport
     type_transport = extraire_type_transport(texte_ocr)
-    scores_champs["typeTransportAutorise"] = 1.0 if type_transport else 0.0
-
-    # Mobilité
     mobilite, conf_mobilite = extraire_mobilite(texte_ocr)
-    scores_champs["mobilite"] = conf_mobilite
     if 0 < conf_mobilite < 1.0:
         champs_incertains.append("mobilite")
 
-    # Destination
-    destination = extraire_premier_match(DESTINATION, texte_ocr)
-    scores_champs["destination"] = 0.9 if destination else 0.0
-    if not destination:
+    # Adresses
+    adresse_depart      = extraire_adresse_depart(texte_ocr)
+    adresse_destination = extraire_adresse_destination(texte_ocr)
+    if not adresse_destination:
         champs_incertains.append("destination")
 
     # Aller-retour
@@ -123,51 +194,49 @@ def extraire_pmt(fichier_bytes: bytes, mimetype: str, nlp=None) -> PMTExtraction
     elif ALLER_SIMPLE.search(texte_ocr):
         aller_retour = False
 
-    # Besoins spéciaux
-    oxygene = bool(OXYGENE.search(texte_ocr))
+    # Besoins spéciaux et motif
+    oxygene     = bool(OXYGENE.search(texte_ocr))
     brancardage = bool(BRANCARDAGE.search(texte_ocr))
+    motif       = extraire_motif(texte_ocr)
+    frequence   = extraire_premier_match(FREQUENCE, texte_ocr)
 
-    # Motif
-    motif = extraire_motif(texte_ocr)
-
-    # Fréquence
-    frequence = extraire_premier_match(FREQUENCE, texte_ocr)
-
-    # ── Étape 3 : NER spaCy (amélioration noms/lieux) ─────────────────────────
-    if nlp and (not patient_nom or not medecin_nom or not destination):
-        texte_ocr, patient_nom, medecin_nom, destination = _enrichir_avec_ner(
-            nlp, texte_ocr, patient_nom, medecin_nom, destination
+    # ── Étape 4 : NER spaCy (enrichissement si champs critiques manquants) ────
+    if nlp and (not patient_nom or not medecin_nom or not adresse_destination):
+        texte_ocr, patient_nom, medecin_nom, adresse_destination = _enrichir_avec_ner(
+            nlp, texte_ocr, patient_nom, medecin_nom, adresse_destination
         )
-        # Mise à jour scores si NER a trouvé quelque chose
-        if patient_nom:
-            scores_champs["patient.nom"] = max(scores_champs["patient.nom"], 0.75)
-        if medecin_nom:
-            scores_champs["medecin.nom"] = max(scores_champs["medecin.nom"], 0.75)
 
-    # ── Étape 4 : Score de confiance global ───────────────────────────────────
-    # Pondération : champs critiques comptent plus
-    poids = {
-        "patient.nom": 2.0,
-        "typeTransportAutorise": 2.0,
-        "mobilite": 2.0,
-        "destination": 1.5,
-        "patient.prenom": 1.0,
-        "medecin.nom": 1.0,
-        "datePrescription": 1.0,
+    # ── Étape 5 : Score de confiance pondéré ──────────────────────────────────
+    extraction_dict = {
+        "patient_nom":         patient_nom,
+        "patient_prenom":      patient_prenom,
+        "type_transport":      type_transport,
+        "mobilite":            mobilite,
+        "motif":               motif,
+        "adresse_destination": adresse_destination,
+        "adresse_depart":      adresse_depart,
+        "medecin_nom":         medecin_nom,
+        "aller_retour":        aller_retour,
+        "date_naissance":      patient_naissance,
+        "rpps":                medecin_rpps,
+        "frequence":           frequence,
     }
 
-    total_poids = sum(poids.values())
-    score_pondere = sum(
-        scores_champs.get(champ, 0.0) * p for champ, p in poids.items()
-    )
-    confiance = round(score_pondere / total_poids, 3)
+    confiance = calculer_confiance(extraction_dict)
 
-    # ── Étape 5 : Champs critiques manquants ──────────────────────────────────
-    champs_manquants = [
-        champ for champ in CHAMPS_CRITIQUES
-        if scores_champs.get(champ, 0.0) == 0.0
-    ]
+    # Pénalité si mobilité ambiguë
+    if 0 < conf_mobilite < 1.0:
+        confiance = round(confiance * 0.92, 2)
 
+    # ── Étape 6 : Champs critiques manquants ──────────────────────────────────
+    # Mapping clés extraction_dict → noms CHAMPS_CRITIQUES
+    critique_map = {
+        "patient.nom":           patient_nom,
+        "typeTransportAutorise": type_transport,
+        "mobilite":              mobilite,
+        "destination":           adresse_destination,
+    }
+    champs_manquants = [c for c, v in critique_map.items() if not v]
     validation_requise = confiance < 0.75 or len(champs_manquants) > 0
 
     logger.info(
@@ -191,7 +260,7 @@ def extraire_pmt(fichier_bytes: bytes, mimetype: str, nlp=None) -> PMTExtraction
             datePrescription=date_prescription,
             typeTransportAutorise=type_transport,
             mobilite=mobilite,
-            destination=destination,
+            destination=adresse_destination,
             allerRetour=aller_retour,
             oxygene=oxygene,
             brancardage=brancardage,
@@ -202,16 +271,18 @@ def extraire_pmt(fichier_bytes: bytes, mimetype: str, nlp=None) -> PMTExtraction
         validationRequise=validation_requise,
         champsManquants=champs_manquants,
         champsIncertains=list(set(champs_incertains)),
-        texteOCR=texte_ocr[:2000] if texte_ocr else None,  # Limiter pour la réponse
+        texteOCR=texte_ocr[:2000] if texte_ocr else None,
     )
 
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _enrichir_avec_ner(nlp, texte, patient_nom, medecin_nom, destination):
     """
     Enrichit l'extraction avec la reconnaissance d'entités nommées spaCy.
-    Utilise uniquement si des champs critiques sont manquants.
+    Utilisé uniquement si des champs critiques sont manquants.
     """
-    doc = nlp(texte[:3000])  # Limiter pour les performances
+    doc = nlp(texte[:3000])
 
     personnes = [ent.text for ent in doc.ents if ent.label_ == "PER"]
     lieux = [ent.text for ent in doc.ents if ent.label_ in ("LOC", "ORG")]
@@ -234,11 +305,10 @@ def _enrichir_avec_ner(nlp, texte, patient_nom, medecin_nom, destination):
 def _masquer_secu(numero_secu: Optional[str]) -> Optional[str]:
     """
     Masque partiellement le numéro de sécurité sociale (RGPD).
-    Ex: "1 85 05 75 116 042 77" → "1 ** ** ** *** *** **"
+    Ex: "185057511604277" → "1**************"
     """
     if not numero_secu:
         return None
-    # Conserver uniquement le sexe (1er chiffre) pour usage interne
     chiffres = re.sub(r"\D", "", numero_secu)
     if len(chiffres) >= 1:
         return chiffres[0] + "*" * (len(chiffres) - 1)

@@ -130,8 +130,8 @@ function SectionCard({ title, icon, children, className = "" }) {
 
 function Modal({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[500] p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl z-[501]">
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-brand font-bold text-navy text-base">{title}</h3>
           <button
@@ -418,6 +418,20 @@ export default function TransportDetail() {
   const age = calcAge(transport.patient?.dateNaissance);
   const vehiclePos = vehiclePosition || (transport.vehicule?.position?.lat ? transport.vehicule.position : null);
   const vehicleId = String(transport.vehicule?._id || transport.vehicule?.id || "");
+
+  // Filtrage des véhicules compatibles avec la mobilité réelle du patient
+  const COMPAT_VEHICULE = {
+    ASSIS:            ["VSL", "TPMR", "AMBULANCE"],
+    FAUTEUIL_ROULANT: ["TPMR"],
+    ALLONGE:          ["AMBULANCE"],
+    CIVIERE:          ["AMBULANCE"],
+  };
+  const mobilitePatient = transport.patient?.mobilite || "ASSIS";
+  const typesCompatibles = COMPAT_VEHICULE[mobilitePatient] || ["VSL"];
+  const vehiculesFiltres = vehicles
+    .filter((v) => v.statut === "disponible")
+    .filter((v) => typesCompatibles.includes(v.type))
+    .sort((a, b) => typesCompatibles.indexOf(a.type) - typesCompatibles.indexOf(b.type));
 
   return (
     <div className="pb-24 fade-in">
@@ -759,31 +773,40 @@ export default function TransportDetail() {
 
       {activeModal === "assigner" && (
         <Modal title="Assigner un véhicule" onClose={closeModal}>
+          <p className="text-xs text-slate-500 mb-3">
+            Mobilité patient : <strong className="text-navy">{mobilitePatient}</strong>
+            {" — "}types compatibles : <strong className="text-primary">{typesCompatibles.join(", ")}</strong>
+          </p>
           <select
             value={modalVehicle}
             onChange={(e) => setModalVehicle(e.target.value)}
             className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm mb-4 outline-none focus:border-primary bg-white"
           >
-            <option value="">Choisir un véhicule disponible…</option>
-            {vehicles.map((v) => (
+            <option value="">Choisir un véhicule compatible…</option>
+            {vehiculesFiltres.map((v) => (
               <option key={v._id} value={v._id}>
                 {v.nom} — {v.immatriculation} ({v.type})
               </option>
             ))}
           </select>
-          {vehicles.length === 0 && (
-            <p className="text-sm text-amber-600 mb-4">Aucun véhicule disponible actuellement.</p>
+          {vehiculesFiltres.length === 0 && (
+            <p className="text-sm text-amber-600 mb-4">
+              Aucun véhicule compatible ({typesCompatibles.join(", ")}) disponible actuellement.
+            </p>
           )}
-          <div className="flex gap-3">
-            <button onClick={closeModal} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50">
+          <div className="flex gap-3 mt-4">
+            <button
+              onClick={closeModal}
+              className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50"
+            >
               Fermer
             </button>
             <button
               onClick={handleAssigner}
               disabled={!modalVehicle || actionLoading}
-              className="flex-1 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-bold hover:bg-purple-700 disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {actionLoading ? "…" : "Assigner"}
+              {actionLoading ? "..." : "✅ Confirmer l'assignation"}
             </button>
           </div>
         </Modal>

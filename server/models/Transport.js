@@ -65,6 +65,11 @@ const prescriptionSchema = new mongoose.Schema(
     validee: { type: Boolean, default: false },
     fichierUrl: { type: String, default: "" },
     extractionIA: { type: mongoose.Schema.Types.Mixed },
+    // Champs ajoutés pour la validation IA+HUMAIN
+    contenu: { type: mongoose.Schema.Types.Mixed },
+    extraitPar: { type: String, default: "" },
+    validePar: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    valideAt: { type: Date, default: null },
   },
   { _id: false },
 );

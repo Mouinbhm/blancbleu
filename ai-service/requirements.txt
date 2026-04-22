@@ -9,7 +9,8 @@ python-multipart==0.0.9       # Upload fichiers (PMT)
 # ── OCR ───────────────────────────────────────────────────────────────────────
 pytesseract==0.3.10            # Wrapper Python pour Tesseract OCR
 Pillow==10.3.0                 # Manipulation d'images
-pdf2image==1.17.0              # Conversion PDF → images pour OCR
+pymupdf==1.24.5                # Conversion PDF → images (sans Poppler)
+pdf2image==1.17.0              # Conversion PDF → images (fallback, nécessite Poppler)
 
 # ── NLP / Extraction ──────────────────────────────────────────────────────────
 spacy==3.7.4                   # NER pour noms, lieux

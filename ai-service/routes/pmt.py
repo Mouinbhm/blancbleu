@@ -92,9 +92,9 @@ async def extract_pmt(
         return result
     except RuntimeError as e:
         message_erreur = str(e)
-        logger.warning(f"Tesseract — erreur OCR : {message_erreur}")
+        logger.warning(f"Erreur OCR/PDF : {message_erreur}")
 
-        # Détection spécifique : fichier de langue française manquant
+        # Détection : fichier de langue française manquant
         if "fra" in message_erreur or "Failed loading language" in message_erreur or "traineddata" in message_erreur:
             import os
             tessdata = os.environ.get(
@@ -108,6 +108,28 @@ async def extract_pmt(
                     "solution": "Lancez : python scripts/download_tessdata.py",
                     "fichier_manquant": "fra.traineddata",
                     "chemin": tessdata,
+                },
+            )
+
+        # Détection : Poppler manquant (pdf2image sans Poppler installé)
+        if "poppler" in message_erreur.lower() or "pdftoppm" in message_erreur.lower() or "pdfinfo" in message_erreur.lower():
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "message": "Convertisseur PDF indisponible (Poppler non installé)",
+                    "solution": "Installez pymupdf : pip install pymupdf==1.24.5",
+                    "commande": "pip install pymupdf==1.24.5",
+                },
+            )
+
+        # Détection : aucun convertisseur PDF disponible
+        if "aucun convertisseur pdf" in message_erreur.lower() or "pymupdf" in message_erreur.lower():
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "message": "Aucun convertisseur PDF disponible sur ce serveur",
+                    "solution": "Installez pymupdf : pip install pymupdf==1.24.5",
+                    "commande": "pip install pymupdf==1.24.5",
                 },
             )
 

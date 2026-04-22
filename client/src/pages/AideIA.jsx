@@ -103,12 +103,20 @@ function ModuleDispatch() {
 
   useEffect(() => {
     transportService
-      .getAll({ statut: "REQUESTED,CONFIRMED,SCHEDULED,ASSIGNED", limit: 50 })
-      .then(({ data }) => {
-        const liste = data?.transports || data?.data || data || [];
-        setTransports(Array.isArray(liste) ? liste : []);
+      .getAll({ limit: 100 })
+      .then((res) => {
+        const data = res?.data;
+        const liste =
+          data?.transports ||
+          data?.data ||
+          (Array.isArray(data) ? data : []);
+        setTransports(liste);
+        console.log("✅ Transports chargés :", liste.length);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("❌ Erreur transports :", err.response?.status, err.message);
+        setTransports([]);
+      });
   }, []);
 
   const handleAnalyze = async () => {
@@ -182,7 +190,9 @@ function ModuleDispatch() {
                 <option value="">Sélectionner un transport...</option>
                 {transports.map((t) => (
                   <option key={String(t._id || t.id)} value={String(t._id || t.id)}>
-                    {t.numero} — {t.patient?.nom} {t.patient?.prenom} — {t.motif} ({t.statut})
+                    {t.numero} — {t.patient?.nom} {t.patient?.prenom}
+                    {" | "}{t.motif}
+                    {" | "}{t.dateTransport ? new Date(t.dateTransport).toLocaleDateString("fr-FR") : ""}
                   </option>
                 ))}
               </select>
@@ -483,12 +493,20 @@ function ModulePMT({ aiStatus }) {
 
   useEffect(() => {
     transportService
-      .getAll({ statut: "REQUESTED,CONFIRMED,SCHEDULED,ASSIGNED", limit: 50 })
-      .then(({ data }) => {
-        const liste = data?.transports || data?.data || data || [];
-        setTransports(Array.isArray(liste) ? liste : []);
+      .getAll({ limit: 100 })
+      .then((res) => {
+        const data = res?.data;
+        const liste =
+          data?.transports ||
+          data?.data ||
+          (Array.isArray(data) ? data : []);
+        setTransports(liste);
+        console.log("✅ Transports chargés :", liste.length);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("❌ Erreur transports :", err.response?.status, err.message);
+        setTransports([]);
+      });
   }, []);
 
   const handleDrop = (e) => {
@@ -569,7 +587,9 @@ function ModulePMT({ aiStatus }) {
               <option value="">Lier à un transport...</option>
               {transports.map((t) => (
                 <option key={String(t._id || t.id)} value={String(t._id || t.id)}>
-                  {t.numero} — {t.patient?.nom} {t.patient?.prenom} | {t.motif} | {t.dateTransport ? new Date(t.dateTransport).toLocaleDateString("fr-FR") : "—"}
+                  {t.numero} — {t.patient?.nom} {t.patient?.prenom}
+                  {" | "}{t.motif}
+                  {" | "}{t.dateTransport ? new Date(t.dateTransport).toLocaleDateString("fr-FR") : ""}
                 </option>
               ))}
             </select>

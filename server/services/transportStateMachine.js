@@ -145,17 +145,18 @@ const VALIDATEURS = {
     return errors;
   },
 
-  // Planification : prescription validée si dialyse/chimio
+  // Planification : PMT requise pour dialyse/chimio/radio
+  // Acceptée si : validée formellement OU contenu OCR présent OU extraitPar renseigné
   CONFIRMED_SCHEDULED: (transport) => {
     const errors = [];
-    const motifsAvecPMT = ["Dialyse", "Chimiothérapie", "Radiothérapie"];
-    if (
-      motifsAvecPMT.includes(transport.motif) &&
-      !transport.prescription?.validee
-    ) {
-      errors.push(
-        "Prescription médicale de transport (PMT) requise pour ce motif",
-      );
+    const pmtRequise = ["Dialyse", "Chimiothérapie", "Radiothérapie"].includes(transport.motif);
+    const pmtValide =
+      transport.prescription?.validee === true ||
+      transport.prescription?.contenu != null ||
+      transport.prescription?.extraitPar != null;
+
+    if (pmtRequise && !pmtValide) {
+      errors.push("PMT requise pour ce motif");
     }
     return errors;
   },
