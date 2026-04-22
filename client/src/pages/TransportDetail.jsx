@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import StatutBadge from "../components/transport/StatutBadge";
 import TransportMap from "../components/map/TransportMap";
-import { transportService, vehicleService } from "../services/api";
+import { transportService, vehicleService, missionService, factureService } from "../services/api";
 import useSocket from "../hooks/useSocket";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -292,6 +292,10 @@ export default function TransportDetail() {
   const [vehicles, setVehicles] = useState([]);
   const [isLive, setIsLive] = useState(false);
 
+  // Linked entities
+  const [linkedMission, setLinkedMission] = useState(null);
+  const [linkedFacture, setLinkedFacture] = useState(null);
+
   // Modal: null | 'assigner' | 'attente' | 'retour' | 'facturer'
   const [activeModal, setActiveModal] = useState(null);
   const [modalVehicle, setModalVehicle] = useState("");
@@ -316,6 +320,20 @@ export default function TransportDetail() {
   useEffect(() => {
     if (!transport) return;
     setIsLive(!["BILLED", "CANCELLED", "NO_SHOW", "COMPLETED"].includes(transport.statut));
+
+    // Load linked mission and facture
+    missionService.getAll({ transportId: transport._id, limit: 1 })
+      .then(({ data }) => setLinkedMission(data?.missions?.[0] || null))
+      .catch(() => {});
+
+    factureService.getAll({ limit: 5 })
+      .then(({ data }) => {
+        const f = (data?.factures || []).find(
+          (fac) => fac.transportId?._id === transport._id || fac.transportId === transport._id
+        );
+        setLinkedFacture(f || null);
+      })
+      .catch(() => {});
   }, [transport]);
 
   useEffect(() => {
@@ -639,8 +657,32 @@ export default function TransportDetail() {
           )}
 
           {/* ── SECTION 6: Prescription PMT ──────────────────────────────────────── */}
-          {(transport.prescriptions?.length > 0 || transport.ordonnance) && (
+          {(transport.prescriptions?.length > 0 || transport.ordonnance || transport.prescriptionId) && (
             <SectionCard title="Prescription médicale (PMT)" icon="description">
+              {/* Linked Prescription entity */}
+              {transport.prescriptionId && (
+                <div className="border border-blue-100 bg-blue-50 rounded-lg p-3 mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-mono font-bold text-primary">{transport.prescriptionId.numero}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                      transport.prescriptionId.statut === "active" ? "bg-emerald-100 text-emerald-700" :
+                      transport.prescriptionId.statut === "expiree" ? "bg-red-100 text-red-700" :
+                      "bg-yellow-100 text-yellow-700"
+                    }`}>{transport.prescriptionId.statut}</span>
+                  </div>
+                  <p className="text-sm font-semibold text-navy">{transport.prescriptionId.motif}</p>
+                  {transport.prescriptionId.medecin?.nom && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Dr {transport.prescriptionId.medecin.nom} {transport.prescriptionId.medecin.prenom}
+                    </p>
+                  )}
+                  {transport.prescriptionId.validee && (
+                    <span className="inline-flex items-center gap-1 mt-2 text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+                      <span className="material-symbols-outlined text-xs">verified</span>Validée
+                    </span>
+                  )}
+                </div>
+              )}
               {transport.prescriptions?.map((p, i) => (
                 <div key={i} className="border border-slate-100 rounded-lg p-3 mb-2 last:mb-0">
                   <p className="text-sm font-semibold text-navy">
@@ -657,6 +699,127 @@ export default function TransportDetail() {
                   {transport.ordonnance}
                 </div>
               )}
+            </SectionCard>
+          )}
+
+          {/* ── SECTION 7: Patient entité liée ───────────────────────────────────── */}
+          {transport.patientId && (
+            <SectionCard title="Dossier patient lié" icon="person_search">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-primary">person</span>
+                </div>
+                <div>
+                  <p className="font-bold text-navy text-sm">
+                    {transport.patientId.nom} {transport.patientId.prenom}
+                  </p>
+                  <p className="text-xs text-slate-400 font-mono">{transport.patientId.numeroPatient}</p>
+                </div>
+                <div className="ml-auto">
+                  {transport.patientId.mobilite && (
+                    <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                      transport.patientId.mobilite === "FAUTEUIL_ROULANT" ? "bg-amber-100 text-amber-700" :
+                      ["ALLONGE","CIVIERE"].includes(transport.patientId.mobilite) ? "bg-red-100 text-red-700" :
+                      "bg-emerald-100 text-emerald-700"
+                    }`}>
+                      {transport.patientId.mobilite}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-0 divide-y divide-slate-50">
+                {transport.patientId.telephone && (
+                  <InfoRow icon="call" label="Téléphone">
+                    <a href={`tel:${transport.patientId.telephone}`} className="text-sm font-semibold text-primary hover:underline">
+                      {transport.patientId.telephone}
+                    </a>
+                  </InfoRow>
+                )}
+                {transport.patientId.oxygene && (
+                  <InfoRow icon="air" label="Oxygène">
+                    <span className="text-xs bg-sky-100 text-sky-700 font-semibold px-2 py-0.5 rounded-full">Requis</span>
+                  </InfoRow>
+                )}
+                {transport.patientId.contactUrgence?.nom && (
+                  <InfoRow icon="emergency" label="Contact urgence">
+                    <p className="text-sm font-semibold text-navy">{transport.patientId.contactUrgence.nom}</p>
+                    <p className="text-xs text-slate-500">{transport.patientId.contactUrgence.telephone} · {transport.patientId.contactUrgence.lien}</p>
+                  </InfoRow>
+                )}
+              </div>
+            </SectionCard>
+          )}
+
+          {/* ── SECTION 8: Mission liée ───────────────────────────────────────────── */}
+          {linkedMission && (
+            <SectionCard title="Mission opérationnelle" icon="local_shipping">
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                  linkedMission.statut === "terminee" ? "bg-green-100 text-green-700" :
+                  linkedMission.statut === "en_cours" ? "bg-amber-100 text-amber-700" :
+                  linkedMission.statut === "annulee" ? "bg-red-100 text-red-700" :
+                  "bg-blue-100 text-blue-700"
+                }`}>
+                  {linkedMission.statut}
+                </span>
+                <span className="text-xs text-slate-400 font-mono">{linkedMission.dispatchMode?.toUpperCase()}</span>
+                {linkedMission.iaRecommendation?.confidence != null && (
+                  <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-semibold">
+                    IA {Math.round(linkedMission.iaRecommendation.confidence * 100)}%
+                  </span>
+                )}
+              </div>
+              <div className="divide-y divide-slate-50">
+                {linkedMission.vehicleId && (
+                  <InfoRow icon="airport_shuttle" label="Véhicule" value={`${linkedMission.vehicleId.nom || ""} — ${linkedMission.vehicleId.immatriculation || ""}`} />
+                )}
+                {linkedMission.chauffeurId && (
+                  <InfoRow icon="person" label="Chauffeur" value={`${linkedMission.chauffeurId.nom} ${linkedMission.chauffeurId.prenom}`} />
+                )}
+                {linkedMission.dureeReelleMinutes && (
+                  <InfoRow icon="timer" label="Durée réelle" value={`${linkedMission.dureeReelleMinutes} min`} />
+                )}
+                {linkedMission.distanceReelleKm && (
+                  <InfoRow icon="straighten" label="Distance réelle" value={`${linkedMission.distanceReelleKm} km`} />
+                )}
+              </div>
+            </SectionCard>
+          )}
+
+          {/* ── SECTION 9: Facture liée ───────────────────────────────────────────── */}
+          {linkedFacture && (
+            <SectionCard title="Facture" icon="receipt_long">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-mono font-bold text-primary text-sm">{linkedFacture.numero}</span>
+                <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                  linkedFacture.statut === "payee" ? "bg-emerald-100 text-emerald-700" :
+                  linkedFacture.statut === "annulee" ? "bg-red-100 text-red-700" :
+                  linkedFacture.statut === "brouillon" ? "bg-slate-100 text-slate-600" :
+                  "bg-yellow-100 text-yellow-700"
+                }`}>
+                  {linkedFacture.statut}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="bg-slate-50 rounded-lg p-2">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest">Total</p>
+                  <p className="text-sm font-mono font-bold text-navy">
+                    {linkedFacture.montantTotal != null ? `${linkedFacture.montantTotal.toFixed(2)} €` : "—"}
+                  </p>
+                </div>
+                <div className="bg-emerald-50 rounded-lg p-2">
+                  <p className="text-[10px] text-emerald-600 uppercase tracking-widest">CPAM</p>
+                  <p className="text-sm font-mono font-bold text-emerald-700">
+                    {linkedFacture.montantCPAM != null ? `${linkedFacture.montantCPAM.toFixed(2)} €` : "—"}
+                  </p>
+                </div>
+                <div className="bg-red-50 rounded-lg p-2">
+                  <p className="text-[10px] text-red-400 uppercase tracking-widest">Patient</p>
+                  <p className="text-sm font-mono font-bold text-red-600">
+                    {linkedFacture.montantPatient != null ? `${linkedFacture.montantPatient.toFixed(2)} €` : "—"}
+                  </p>
+                </div>
+              </div>
             </SectionCard>
           )}
         </div>
