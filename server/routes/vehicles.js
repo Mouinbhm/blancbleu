@@ -5,6 +5,8 @@
 const express = require("express");
 const router = express.Router();
 const { protect, authorize } = require("../middleware/auth");
+const validate = require("../middleware/validate");
+const { createVehicleSchema, updateVehicleSchema } = require("../validators/schemas");
 const Vehicle = require("../models/Vehicle");
 const Transport = require("../models/Transport");
 const socketService = require("../services/socketService");
@@ -14,27 +16,34 @@ const { audit } = require("../services/auditService");
 const STATUTS_TERMINES = ["COMPLETED", "CANCELLED", "NO_SHOW", "BILLED"];
 
 // ── GET /api/vehicles ─────────────────────────────────────────────────────────
-router.get("/", protect, async (req, res) => {
+router.get("/", protect, async (req, res, next) => {
   try {
     const { statut, type, disponible } = req.query;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
     const filtre = { deletedAt: null };
     if (statut) filtre.statut = statut;
     if (type) filtre.type = type;
     if (disponible === "true") filtre.statut = "disponible";
 
-    const vehicles = await Vehicle.find(filtre)
-      .populate("chauffeurAssigne", "nom prenom email")
-      .populate("transportEnCours", "numero motif statut patient")
-      .sort({ statut: 1, nom: 1 });
+    const [data, total] = await Promise.all([
+      Vehicle.find(filtre)
+        .populate("chauffeurAssigne", "nom prenom email")
+        .populate("transportEnCours", "numero motif statut patient")
+        .sort({ statut: 1, nom: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Vehicle.countDocuments(filtre),
+    ]);
 
-    res.json(vehicles);
+    res.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 });
 
 // ── GET /api/vehicles/stats ───────────────────────────────────────────────────
-router.get("/stats", protect, async (req, res) => {
+router.get("/stats", protect, async (req, res, next) => {
   try {
     const [total, disponibles, enMission, maintenance] = await Promise.all([
       Vehicle.countDocuments({ deletedAt: null }),
@@ -58,7 +67,7 @@ router.get("/stats", protect, async (req, res) => {
 
     res.json({ total, disponibles, enMission, maintenance, parType });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 });
 
@@ -69,7 +78,7 @@ router.get(
   "/diagnostic",
   protect,
   authorize("admin", "superviseur"),
-  async (req, res) => {
+  async (req, res, next) => {
     try {
       const vehiculesEnMission = await Vehicle.find({
         statut: "en_mission",
@@ -115,13 +124,13 @@ router.get(
         totalSains: vehiculesEnMission.length - vehiculesBloqués.length,
       });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      return next(err);
     }
   },
 );
 
 // ── GET /api/vehicles/:id ─────────────────────────────────────────────────────
-router.get("/:id", protect, async (req, res) => {
+router.get("/:id", protect, async (req, res, next) => {
   try {
     const vehicle = await Vehicle.findById(req.params.id)
       .populate("chauffeurAssigne", "nom prenom email")
@@ -133,7 +142,7 @@ router.get("/:id", protect, async (req, res) => {
       return res.status(404).json({ message: "Véhicule introuvable" });
     res.json(vehicle);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 });
 
@@ -142,7 +151,8 @@ router.post(
   "/",
   protect,
   authorize("admin", "superviseur"),
-  async (req, res) => {
+  validate(createVehicleSchema),
+  async (req, res, next) => {
     try {
       const vehicle = await Vehicle.create(req.body);
       res.status(201).json(vehicle);
@@ -157,7 +167,8 @@ router.put(
   "/:id",
   protect,
   authorize("admin", "superviseur"),
-  async (req, res) => {
+  validate(updateVehicleSchema),
+  async (req, res, next) => {
     try {
       const ancien = await Vehicle.findById(req.params.id);
       if (!ancien) return res.status(404).json({ message: "Introuvable" });
@@ -183,17 +194,17 @@ router.put(
 );
 
 // ── DELETE /api/vehicles/:id — Soft delete ────────────────────────────────────
-router.delete("/:id", protect, authorize("admin"), async (req, res) => {
+router.delete("/:id", protect, authorize("admin"), async (req, res, next) => {
   try {
     await Vehicle.findByIdAndUpdate(req.params.id, { deletedAt: new Date() });
     res.json({ message: "Véhicule supprimé" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 });
 
 // ── PATCH /api/vehicles/:id/statut ────────────────────────────────────────────
-router.patch("/:id/statut", protect, async (req, res) => {
+router.patch("/:id/statut", protect, async (req, res, next) => {
   try {
     const { statut } = req.body;
     const valides = ["disponible", "en_mission", "maintenance", "hors_service"];
@@ -218,12 +229,12 @@ router.patch("/:id/statut", protect, async (req, res) => {
 
     res.json(vehicle);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 });
 
 // ── PATCH /api/vehicles/:id/location — Mise à jour GPS ───────────────────────
-router.patch("/:id/location", protect, async (req, res) => {
+router.patch("/:id/location", protect, async (req, res, next) => {
   try {
     const { lat, lng, adresse } = req.body;
     if (!lat || !lng)
@@ -261,7 +272,7 @@ router.patch("/:id/location", protect, async (req, res) => {
 
     res.json({ message: "Position mise à jour", position: vehicle.position });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 });
 
