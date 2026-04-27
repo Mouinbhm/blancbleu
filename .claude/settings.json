@@ -8,7 +8,8 @@
       "Bash(curl -s http://localhost:5002/pmt/status)",
       "Bash(grep -v \"//.*Patient\")",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(npm run *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\MSI\\.claude\\projects\\c--Users-MSI-OneDrive-Bureau-PFE-blancbleu\\memory"

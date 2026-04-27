@@ -196,10 +196,12 @@ describe("validerTransition — conditions métier", () => {
     expect(erreurs).toContain("Véhicule non assigné");
   });
 
-  test("SCHEDULED→ASSIGNED : requiert chauffeur", () => {
+  test("SCHEDULED→ASSIGNED : chauffeur optionnel au niveau state-machine (validé par lifecycle)", () => {
     const t = makeTransport({ statut: "SCHEDULED", vehicule: { _id: "v1" }, chauffeur: null });
     const erreurs = TransportStateMachine.validerTransition(t, "ASSIGNED");
-    expect(erreurs).toContain("Chauffeur non assigné");
+    // Le validateur SCHEDULED_ASSIGNED ne vérifie que le véhicule.
+    // La validation du chauffeur (Personnel avec role+statut) est faite dans transportLifecycle.js.
+    expect(erreurs).toHaveLength(0);
   });
 
   test("SCHEDULED→ASSIGNED : passe si véhicule et chauffeur présents", () => {
@@ -245,12 +247,11 @@ describe("validerTransition — conditions métier", () => {
     expect(erreurs).toHaveLength(0);
   });
 
-  // COMPLETED → BILLED : facture requise
-  test("COMPLETED→BILLED : bloqué sans facture associée", () => {
+  // COMPLETED → BILLED : guard assoupli (facture auto-créée par contrôleur)
+  test("COMPLETED→BILLED : passe même sans facture (auto-création par contrôleur)", () => {
     const t = makeTransport({ statut: "COMPLETED", facture: null });
     const erreurs = TransportStateMachine.validerTransition(t, "BILLED");
-    expect(erreurs.length).toBeGreaterThan(0);
-    expect(erreurs[0]).toMatch(/[Ff]acture/);
+    expect(erreurs).toHaveLength(0);
   });
 
   test("COMPLETED→BILLED : passe si facture présente", () => {

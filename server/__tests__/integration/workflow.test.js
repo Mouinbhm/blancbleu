@@ -184,21 +184,15 @@ describe("Transitions lifecycle — cas valides", () => {
     expect(res.body.transport.statut).toBe("CANCELLED");
   });
 
-  test("SCHEDULED → ASSIGNED via PATCH /:id/assign (avec véhicule + chauffeur)", async () => {
+  test("SCHEDULED → ASSIGNED via PATCH /:id/assign (avec véhicule)", async () => {
     const app = getApp();
     const vehicle = await creerVehicle();
-    // Récupérer l'ID du dispatcher créé dans beforeAll
-    const User = require("../../models/User");
-    const dispatcher = await User.findOne({ email: "disp@test.fr" });
     const t = await creerTransport({ statut: "SCHEDULED" });
 
     const res = await request(app)
       .patch(`/api/transports/${t._id}/assign`)
       .set("Authorization", `Bearer ${global.__token__}`)
-      .send({
-        vehiculeId: vehicle._id.toString(),
-        chauffeurId: dispatcher._id.toString(),
-      });
+      .send({ vehiculeId: vehicle._id.toString() });
 
     expect(res.status).toBe(200);
     expect(res.body.transport.statut).toBe("ASSIGNED");
