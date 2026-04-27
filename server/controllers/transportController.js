@@ -22,7 +22,7 @@ const logger = (() => {
 // GET /api/transports/estimation — Estimation tarifaire CPAM (formulaire)
 // Paramètres : typeTransport, lat1, lng1, lat2, lng2, allerRetour, heureRDV, dateTransport
 // ─────────────────────────────────────────────────────────────────────────────
-const estimerTarif = async (req, res) => {
+const estimerTarif = async (req, res, next) => {
   try {
     const {
       typeTransport,
@@ -92,7 +92,7 @@ const estimerTarif = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/transports — Liste avec filtres
 // ─────────────────────────────────────────────────────────────────────────────
-const getTransports = async (req, res) => {
+const getTransports = async (req, res, next) => {
   try {
     const {
       statut,
@@ -139,14 +139,14 @@ const getTransports = async (req, res) => {
       pages: Math.ceil(total / parseInt(limit)),
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/transports/stats
 // ─────────────────────────────────────────────────────────────────────────────
-const getStats = async (req, res) => {
+const getStats = async (req, res, next) => {
   try {
     const [
       total,
@@ -197,14 +197,14 @@ const getStats = async (req, res) => {
       parMotif,
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/transports/:id
 // ─────────────────────────────────────────────────────────────────────────────
-const getTransport = async (req, res) => {
+const getTransport = async (req, res, next) => {
   try {
     const transport = await Transport.findById(req.params.id)
       .populate("vehicule", "nom type statut immatriculation position carburant kilometrage")
@@ -223,7 +223,7 @@ const getTransport = async (req, res) => {
 
     res.json({ ...transport.toJSON(), transitions, progression });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 };
 
@@ -231,7 +231,7 @@ const getTransport = async (req, res) => {
 // POST /api/transports — Créer un transport
 // Géocode automatiquement les adresses si les coordonnées GPS sont absentes.
 // ─────────────────────────────────────────────────────────────────────────────
-const createTransport = async (req, res) => {
+const createTransport = async (req, res, next) => {
   try {
     const body = { ...req.body };
 
@@ -349,14 +349,14 @@ const createTransport = async (req, res) => {
     if (err.name === "ValidationError") {
       return res.status(400).json({ message: err.message });
     }
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/transports/recurrents — Créer une série de transports récurrents
 // ─────────────────────────────────────────────────────────────────────────────
-const creerTransportsRecurrents = async (req, res) => {
+const creerTransportsRecurrents = async (req, res, next) => {
   try {
     const { recurrence, ...baseData } = req.body;
 
@@ -403,14 +403,14 @@ const creerTransportsRecurrents = async (req, res) => {
     ) {
       return res.status(400).json({ message: err.message });
     }
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/transports/:id — Modifier un transport
 // ─────────────────────────────────────────────────────────────────────────────
-const updateTransport = async (req, res) => {
+const updateTransport = async (req, res, next) => {
   try {
     const transport = await Transport.findByIdAndUpdate(
       req.params.id,
@@ -431,35 +431,35 @@ const updateTransport = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // DELETE /api/transports/:id — Soft delete
 // ─────────────────────────────────────────────────────────────────────────────
-const deleteTransport = async (req, res) => {
+const deleteTransport = async (req, res, next) => {
   try {
     await Transport.findByIdAndUpdate(req.params.id, { deletedAt: new Date() });
     res.json({ message: "Transport supprimé" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return next(err);
   }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Actions lifecycle
 // ─────────────────────────────────────────────────────────────────────────────
-const confirmer = async (req, res) => {
+const confirmer = async (req, res, next) => {
   try {
     const r = await lifecycle.confirmerTransport(req.params.id, req.user);
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
-const planifier = async (req, res) => {
+const planifier = async (req, res, next) => {
   try {
     const r = await lifecycle.planifierTransport(req.params.id, req.user);
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
-const assigner = async (req, res) => {
+const assigner = async (req, res, next) => {
   try {
     const { vehiculeId, chauffeurId, auto } = req.body;
     const r = await lifecycle.assignerVehicule(
@@ -469,18 +469,18 @@ const assigner = async (req, res) => {
     );
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
-const enRoute = async (req, res) => {
+const enRoute = async (req, res, next) => {
   try {
     const r = await lifecycle.marquerEnRoute(req.params.id, req.user);
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
-const arriveePatient = async (req, res) => {
+const arriveePatient = async (req, res, next) => {
   try {
     const r = await lifecycle.marquerArriveePatient(
       req.params.id,
@@ -489,18 +489,18 @@ const arriveePatient = async (req, res) => {
     );
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
-const patientABord = async (req, res) => {
+const patientABord = async (req, res, next) => {
   try {
     const r = await lifecycle.marquerPatientABord(req.params.id, req.user);
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
-const arriveeDestination = async (req, res) => {
+const arriveeDestination = async (req, res, next) => {
   try {
     const r = await lifecycle.marquerArriveeDestination(
       req.params.id,
@@ -509,18 +509,18 @@ const arriveeDestination = async (req, res) => {
     );
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
-const completer = async (req, res) => {
+const completer = async (req, res, next) => {
   try {
     const r = await lifecycle.completerTransport(req.params.id, req.user);
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
-const noShow = async (req, res) => {
+const noShow = async (req, res, next) => {
   try {
     const r = await lifecycle.marquerNoShow(
       req.params.id,
@@ -529,10 +529,10 @@ const noShow = async (req, res) => {
     );
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
-const annuler = async (req, res) => {
+const annuler = async (req, res, next) => {
   try {
     const r = await lifecycle.annulerTransport(
       req.params.id,
@@ -541,10 +541,10 @@ const annuler = async (req, res) => {
     );
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
-const reprogrammer = async (req, res) => {
+const reprogrammer = async (req, res, next) => {
   try {
     const r = await lifecycle.reprogrammerTransport(
       req.params.id,
@@ -553,11 +553,11 @@ const reprogrammer = async (req, res) => {
     );
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
 
-const demarrerAttente = async (req, res) => {
+const demarrerAttente = async (req, res, next) => {
   try {
     const r = await lifecycle.demarrerAttenteDestination(
       req.params.id,
@@ -566,11 +566,11 @@ const demarrerAttente = async (req, res) => {
     );
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
 
-const demarrerRetour = async (req, res) => {
+const demarrerRetour = async (req, res, next) => {
   try {
     const r = await lifecycle.demarrerRetourBase(
       req.params.id,
@@ -579,11 +579,11 @@ const demarrerRetour = async (req, res) => {
     );
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
 
-const facturer = async (req, res) => {
+const facturer = async (req, res, next) => {
   if (!["superviseur", "admin"].includes(req.user?.role)) {
     return res.status(403).json({ message: "Clôture CPAM réservée aux superviseurs et administrateurs" });
   }
@@ -692,11 +692,11 @@ const facturer = async (req, res) => {
 
     res.json(r);
   } catch (e) {
-    _handleErr(res, e);
+    _handleErr(res, next, e);
   }
 };
 
-function _handleErr(res, e) {
+function _handleErr(res, next, e) {
   if (e.message?.includes("introuvable"))
     return res.status(404).json({ message: e.message });
   if (
@@ -706,7 +706,7 @@ function _handleErr(res, e) {
     return res.status(422).json({ message: e.message });
   if (e.message?.includes("Aucun véhicule"))
     return res.status(409).json({ message: e.message });
-  return res.status(500).json({ message: e.message });
+  return next(e);
 }
 
 module.exports = {
