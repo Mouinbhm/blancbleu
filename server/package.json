@@ -27,6 +27,12 @@
       "!utils/logger.js"
     ],
     "coverageThreshold": {
+      "global": {
+        "statements": 40,
+        "branches": 30,
+        "functions": 33,
+        "lines": 40
+      },
       "./services/stateMachine.js": {
         "branches": 80,
         "functions": 95,
