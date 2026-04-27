@@ -3,7 +3,7 @@
 <html lang="en">
 
 <head>
-    <title>Code coverage report for middleware/sanitize.js</title>
+    <title>Code coverage report for middleware/errorHandler.js</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="../prettify.css" />
     <link rel="stylesheet" href="../base.css" />
@@ -19,34 +19,34 @@
 <body>
 <div class='wrapper'>
     <div class='pad1'>
-        <h1><a href="../index.html">All files</a> / <a href="index.html">middleware</a> sanitize.js</h1>
+        <h1><a href="../index.html">All files</a> / <a href="index.html">middleware</a> errorHandler.js</h1>
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">89.47% </span>
+                <span class="strong">37.5% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>17/19</span>
+                <span class='fraction'>3/8</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">83.33% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>10/12</span>
+                <span class='fraction'>0/10</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">66.66% </span>
+                <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/3</span>
+                <span class='fraction'>0/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">94.11% </span>
+                <span class="strong">37.5% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>16/17</span>
+                <span class='fraction'>3/8</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line low'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -95,17 +95,18 @@
 <a name='L30'></a><a href='#L30'>30</a>
 <a name='L31'></a><a href='#L31'>31</a>
 <a name='L32'></a><a href='#L32'>32</a>
-<a name='L33'></a><a href='#L33'>33</a>
-<a name='L34'></a><a href='#L34'>34</a>
-<a name='L35'></a><a href='#L35'>35</a>
-<a name='L36'></a><a href='#L36'>36</a>
-<a name='L37'></a><a href='#L37'>37</a>
-<a name='L38'></a><a href='#L38'>38</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-yes">4x</span>
+<a name='L33'></a><a href='#L33'>33</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -114,66 +115,50 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-yes">52x</span>
-<span class="cline-any cline-yes">52x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">52x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">169x</span>
-<span class="cline-any cline-yes">70x</span>
-<span class="cline-any cline-yes">70x</span>
-<span class="cline-any cline-yes">62x</span>
-<span class="cline-any cline-yes">62x</span>
-<span class="cline-any cline-yes">117x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">62x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">8x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">const mongoSanitize = require("express-mongo-sanitize");
-const xss = require("xss");
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">/**
+ * BlancBleu — Middleware d'erreur centralisé
+ *
+ * Distingue erreur opérationnelle (isOperational: true) et erreur programmeur.
+ * En production, masque les messages des erreurs 500 non opérationnelles.
+ */
 &nbsp;
-// ─── Protection injection NoSQL ───────────────────────────────────────────────
-const noSqlSanitize = mongoSanitize({
-  replaceWith: "_",
-  onSanitize: <span class="fstat-no" title="function not covered" >({</span> req, key }) =&gt; {
-<span class="cstat-no" title="statement not covered" >    console.warn(</span>
-      `[SANITIZE] Injection NoSQL détectée — clé: ${key} — IP: ${req.ip}`,
-    );
-  },
-});
+const logger = require("../utils/logger");
 &nbsp;
-// ─── Protection XSS — middleware manuel compatible Node v24 ──────────────────
-// xss-clean est abandonné et cassé sur Node 22+. On utilise le package xss
-// directement sur les champs texte du body.
-const xssSanitize = (req, _res, next) =&gt; {
-  <span class="missing-if-branch" title="else path not taken" >E</span>if (req.body &amp;&amp; typeof req.body === "object") {
-    req.body = sanitizeObject(req.body);
-  }
-  next();
+// eslint-disable-next-line no-unused-vars
+const errorHandler = <span class="fstat-no" title="function not covered" >(e</span>rr, req, res, next) =&gt; {
+  const status = <span class="cstat-no" title="statement not covered" >err.status || err.statusCode || 500;</span>
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  logger.error(`${req.method} ${req.path}`, {</span>
+    status,
+    message: err.message,
+    stack: err.stack,
+    isOperational: err.isOperational || false,
+  });
+&nbsp;
+  const isProd = <span class="cstat-no" title="statement not covered" >process.env.NODE_ENV === "production";</span>
+&nbsp;
+  // Masquer les détails en production pour les erreurs 500 non opérationnelles
+  const message =
+<span class="cstat-no" title="statement not covered" >    status &gt;= 500 &amp;&amp; isProd &amp;&amp; !err.isOperational</span>
+      ? "Erreur interne du serveur"
+      : err.message;
+&nbsp;
+<span class="cstat-no" title="statement not covered" >  res.status(status).json({ message });</span>
 };
 &nbsp;
-function sanitizeObject(obj) {
-  if (typeof obj === "string") return xss(obj);
-  <span class="missing-if-branch" title="if path not taken" >I</span>if (Array.isArray(obj)) <span class="cstat-no" title="statement not covered" >return obj.map(sanitizeObject);</span>
-  if (obj !== null &amp;&amp; typeof obj === "object") {
-    const clean = {};
-    for (const key of Object.keys(obj)) {
-      clean[key] = sanitizeObject(obj[key]);
-    }
-    return clean;
-  }
-  return obj;
-}
-&nbsp;
-module.exports = { noSqlSanitize, xssSanitize };
+module.exports = errorHandler;
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
