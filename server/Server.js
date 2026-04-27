@@ -13,6 +13,7 @@ const { healthHandler } = require("./utils/healthCheck");
 const { noSqlSanitize, xssSanitize } = require("./middleware/sanitize");
 const { globalLimiter } = require("./middleware/rateLimiter");
 const { setupSwagger } = require("./middleware/swagger");
+const errorHandler = require("./middleware/errorHandler");
 
 const app = express();
 const server = http.createServer(app);
@@ -23,7 +24,22 @@ const ALLOWED_ORIGINS =
     ? (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean)
     : ["http://localhost:3000"];
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline requis pour Tailwind
+        imgSrc: ["'self'", "data:", "https://*.tile.openstreetmap.org"],
+        connectSrc: ["'self'", process.env.CLIENT_URL, "wss:"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameSrc: ["'none'"],
+      },
+    },
+  }),
+);
 app.use(
   cors({
     origin: (origin, cb) =>
@@ -78,16 +94,7 @@ app.use("/api/planning", require("./routes/planning"));
 // ─── Health ────────────────────────────────────────────────────────────────────
 app.get("/api/health", healthHandler);
 app.use((req, res) => res.status(404).json({ message: "Route non trouvée" }));
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  logger.error(`${req.method} ${req.path}`, { err: err.message });
-  res
-    .status(err.status || 500)
-    .json({
-      message:
-        process.env.NODE_ENV === "production" ? "Erreur interne" : err.message,
-    });
-});
+app.use(errorHandler);
 
 // ─── Export pour tests ────────────────────────────────────────────────────────
 module.exports = app;
