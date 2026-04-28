@@ -129,6 +129,54 @@ router.get(
   },
 );
 
+// ── GET /api/vehicles/:id/stats ──────────────────────────────────────────────
+router.get("/:id/stats", protect, async (req, res, next) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id).lean();
+    if (!vehicle) return res.status(404).json({ message: "Introuvable" });
+
+    const today = new Date();
+    const diffDays = (date) =>
+      date ? Math.ceil((new Date(date) - today) / 86_400_000) : null;
+
+    const kmActuel =
+      typeof vehicle.kilometrage === "object"
+        ? (vehicle.kilometrage?.actuel ?? 0)
+        : (vehicle.kilometrage ?? 0);
+
+    const prochainVidange =
+      typeof vehicle.kilometrage === "object"
+        ? vehicle.kilometrage?.prochainVidange
+        : null;
+
+    const equipementsActifs = [];
+    const eq = vehicle.equipements || {};
+    if (eq.oxygene       || vehicle.equipeOxygene)   equipementsActifs.push("oxygene");
+    if (eq.brancard      || vehicle.equipeBrancard)   equipementsActifs.push("brancard");
+    if (eq.fauteuilRampe || vehicle.equipeFauteuil)   equipementsActifs.push("fauteuil");
+    if (eq.dae)           equipementsActifs.push("dae");
+    if (eq.aspirateur)    equipementsActifs.push("aspirateur");
+    if (eq.climatisation) equipementsActifs.push("climatisation");
+
+    const depuis30j = new Date(today - 30 * 86_400_000);
+    const transports30j = await Transport.countDocuments({
+      vehicule: vehicle._id,
+      dateTransport: { $gte: depuis30j },
+    });
+
+    return res.json({
+      kilometrage_actuel:       kmActuel,
+      jours_avant_ct:           diffDays(vehicle.controleTechnique?.dateExpiration),
+      jours_avant_assurance:    diffDays(vehicle.assurance?.dateExpiration),
+      prochaine_vidange_dans_km:prochainVidange != null ? prochainVidange - kmActuel : null,
+      equipements_actifs:       equipementsActifs,
+      taux_utilisation_30j:     Math.min(100, Math.round((transports30j / 30) * 100)),
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 // ── GET /api/vehicles/:id ─────────────────────────────────────────────────────
 router.get("/:id", protect, async (req, res, next) => {
   try {

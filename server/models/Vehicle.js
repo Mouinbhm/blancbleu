@@ -65,7 +65,13 @@ const vehicleSchema = new mongoose.Schema(
     },
 
     // ── Métriques ─────────────────────────────────────────────────────────────
-    kilometrage: { type: Number, default: 0 },
+    // Changed from flat Number to nested object for maintenance tracking
+    kilometrage: {
+      actuel:          { type: Number, default: 0, min: 0 },
+      dernierControle: { type: Number, default: 0 },
+      prochainVidange: { type: Number },
+      prochainControle:{ type: Number },
+    },
     carburant: { type: Number, default: 100, min: 0, max: 100 },
     annee: { type: Number, min: 2000 },
     tauxPonctualite: { type: Number, default: 95, min: 0, max: 100 },
@@ -77,7 +83,66 @@ const vehicleSchema = new mongoose.Schema(
       default: null,
     },
 
-    notes: { type: String, default: "" },
+    // ── Identification étendue ────────────────────────────────────────────────────
+    marque:      { type: String, trim: true, default: "" },
+    modele:      { type: String, trim: true, default: "" },
+    couleur:     { type: String, trim: true, default: "" },
+    numeroSerie: { type: String, trim: true, default: "" },
+    actif:       { type: Boolean, default: true },
+
+    // ── Motorisation ──────────────────────────────────────────────────────────────
+    typeEnergie: {
+      type: String,
+      enum: ["Diesel", "Essence", "Hybride", "Electrique", "GPL", "Hydrogène"],
+      default: "Diesel",
+    },
+    consommationL100: { type: Number, min: 0, max: 30 },
+    autonomieKm:      { type: Number, min: 0 },
+    puissanceCv:      { type: Number, min: 0 },
+
+    // ── Contrôles réglementaires ──────────────────────────────────────────────────
+    controleTechnique: {
+      dateExpiration: { type: Date },
+      rappel30j:      { type: Boolean, default: true },
+    },
+    assurance: {
+      compagnie:      { type: String, trim: true, default: "" },
+      numeroPolice:   { type: String, trim: true, default: "" },
+      dateExpiration: { type: Date },
+      rappel30j:      { type: Boolean, default: true },
+    },
+    vignetteControlePollution: {
+      categorie:      { type: String, enum: ["Crit'Air 1", "Crit'Air 2", "Crit'Air 3", "Non classé"] },
+      dateExpiration: { type: Date },
+    },
+
+    // ── Équipements médicaux ──────────────────────────────────────────────────────
+    equipements: {
+      oxygene:       { type: Boolean, default: false },
+      fauteuilRampe: { type: Boolean, default: false },
+      brancard:      { type: Boolean, default: false },
+      dae:           { type: Boolean, default: false },
+      aspirateur:    { type: Boolean, default: false },
+      chauffage:     { type: Boolean, default: false },
+      climatisation: { type: Boolean, default: false },
+    },
+
+    // ── Capacité ──────────────────────────────────────────────────────────────────
+    capacite: {
+      placesAssises:  { type: Number, default: 1, min: 1, max: 6 },
+      placesFauteuil: { type: Number, default: 0, min: 0, max: 2 },
+      placesBrancard: { type: Number, default: 0, min: 0, max: 1 },
+    },
+
+    // ── Garage d'attache ──────────────────────────────────────────────────────────
+    garage: {
+      nom:     { type: String, default: "Garage principal" },
+      adresse: { type: String, default: "59 Bd Madeleine, Nice" },
+      lat:     { type: Number, default: 43.7102 },
+      lng:     { type: Number, default: 7.262 },
+    },
+
+    notes:     { type: String, default: "" },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true },

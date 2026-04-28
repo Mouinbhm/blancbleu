@@ -251,37 +251,130 @@ const updateTransportSchema = Joi.object({
 const TYPES_VEHICULE = ["VSL", "AMBULANCE", "TPMR"];
 const STATUTS_VEHICULE = ["disponible", "en_mission", "maintenance", "hors_service"];
 
+const TYPES_ENERGIE = ["Diesel", "Essence", "Hybride", "Electrique", "GPL", "Hydrogène"];
+const CATEGORIES_CRIT_AIR = ["Crit'Air 1", "Crit'Air 2", "Crit'Air 3", "Non classé"];
+
+const kilometrageSchema = Joi.object({
+  actuel:          Joi.number().min(0).default(0),
+  dernierControle: Joi.number().min(0).default(0),
+  prochainVidange: Joi.number().min(0).allow(null),
+  prochainControle:Joi.number().min(0).allow(null),
+}).default({ actuel: 0, dernierControle: 0 });
+
+const controleTechniqueSchema = Joi.object({
+  dateExpiration: Joi.date().allow(null, ""),
+  rappel30j:      Joi.boolean().default(true),
+}).default({ rappel30j: true });
+
+const assuranceSchema = Joi.object({
+  compagnie:      Joi.string().max(100).allow("").default(""),
+  numeroPolice:   Joi.string().max(50).allow("").default(""),
+  dateExpiration: Joi.date().allow(null, ""),
+  rappel30j:      Joi.boolean().default(true),
+}).default({ rappel30j: true });
+
+const vignetteSchema = Joi.object({
+  categorie:      Joi.string().valid(...CATEGORIES_CRIT_AIR).allow("", null),
+  dateExpiration: Joi.date().allow(null, ""),
+}).default({});
+
+const equipementsSchema = Joi.object({
+  oxygene:       Joi.boolean().default(false),
+  fauteuilRampe: Joi.boolean().default(false),
+  brancard:      Joi.boolean().default(false),
+  dae:           Joi.boolean().default(false),
+  aspirateur:    Joi.boolean().default(false),
+  chauffage:     Joi.boolean().default(false),
+  climatisation: Joi.boolean().default(false),
+}).default({});
+
+const capaciteSchema = Joi.object({
+  placesAssises:  Joi.number().integer().min(1).max(6).default(1),
+  placesFauteuil: Joi.number().integer().min(0).max(2).default(0),
+  placesBrancard: Joi.number().integer().min(0).max(1).default(0),
+}).default({ placesAssises: 1, placesFauteuil: 0, placesBrancard: 0 });
+
+const positionVehicleSchema = Joi.object({
+  lat:    Joi.number().min(-90).max(90).allow(null),
+  lng:    Joi.number().min(-180).max(180).allow(null),
+  adresse:Joi.string().max(200).allow("").default(""),
+}).default({});
+
+const garageSchema = Joi.object({
+  nom:    Joi.string().max(100).allow("").default("Garage principal"),
+  adresse:Joi.string().max(200).allow("").default("59 Bd Madeleine, Nice"),
+  lat:    Joi.number().min(-90).max(90).allow(null),
+  lng:    Joi.number().min(-180).max(180).allow(null),
+}).default({ nom: "Garage principal", adresse: "59 Bd Madeleine, Nice" });
+
 const createVehicleSchema = Joi.object({
+  // Identification
   immatriculation: Joi.string().max(20).uppercase().trim().required(),
-  nom: Joi.string().min(2).max(100).trim().required(),
-  type: Joi.string().valid(...TYPES_VEHICULE).required().messages({
+  nom:             Joi.string().min(2).max(100).trim().required(),
+  type:            Joi.string().valid(...TYPES_VEHICULE).required().messages({
     "any.only": `type invalide. Valeurs : ${TYPES_VEHICULE.join(", ")}`,
   }),
-  statut: Joi.string().valid(...STATUTS_VEHICULE).default("disponible"),
+  marque:      Joi.string().max(50).trim().allow("").default(""),
+  modele:      Joi.string().max(50).trim().allow("").default(""),
+  couleur:     Joi.string().max(30).trim().allow("").default(""),
+  numeroSerie: Joi.string().max(20).trim().allow("").default(""),
+  annee:       Joi.number().integer().min(2000).max(new Date().getFullYear() + 5).allow(null).default(null),
+  actif:       Joi.boolean().default(true),
+  // Legacy équipements (rétrocompatibilité)
   capacitePassagers: Joi.number().integer().min(1).max(10).default(1),
-  equipeFauteuil: Joi.boolean().default(false),
-  equipeOxygene: Joi.boolean().default(false),
-  equipeBrancard: Joi.boolean().default(false),
-  kilometrage: Joi.number().min(0).default(0),
-  carburant: Joi.number().min(0).max(100).default(100),
-  annee: Joi.number().integer().min(2000).max(new Date().getFullYear() + 1).allow(null).default(null),
-  notes: Joi.string().max(1000).allow("").default(""),
+  equipeFauteuil:    Joi.boolean().default(false),
+  equipeOxygene:     Joi.boolean().default(false),
+  equipeBrancard:    Joi.boolean().default(false),
+  carburant:         Joi.number().min(0).max(100).default(100),
+  // Motorisation
+  typeEnergie:      Joi.string().valid(...TYPES_ENERGIE).default("Diesel"),
+  consommationL100: Joi.number().min(0).max(30).allow(null),
+  autonomieKm:      Joi.number().min(0).allow(null),
+  puissanceCv:      Joi.number().min(0).allow(null),
+  // Nested
+  kilometrage:              kilometrageSchema,
+  controleTechnique:        controleTechniqueSchema,
+  assurance:                assuranceSchema,
+  vignetteControlePollution:vignetteSchema,
+  equipements:              equipementsSchema,
+  capacite:                 capaciteSchema,
+  position:                 positionVehicleSchema,
+  garage:                   garageSchema,
+  // État
+  statut: Joi.string().valid(...STATUTS_VEHICULE).default("disponible"),
+  notes:  Joi.string().max(500).allow("").default(""),
 });
 
 const updateVehicleSchema = Joi.object({
-  immatriculation: Joi.string().max(20).uppercase().trim(),
-  nom: Joi.string().min(2).max(100).trim(),
-  type: Joi.string().valid(...TYPES_VEHICULE),
-  statut: Joi.string().valid(...STATUTS_VEHICULE),
-  capacitePassagers: Joi.number().integer().min(1).max(10),
-  equipeFauteuil: Joi.boolean(),
-  equipeOxygene: Joi.boolean(),
-  equipeBrancard: Joi.boolean(),
-  kilometrage: Joi.number().min(0),
-  carburant: Joi.number().min(0).max(100),
-  annee: Joi.number().integer().min(2000).allow(null),
-  notes: Joi.string().max(1000).allow(""),
-  chauffeurAssigne: Joi.string().hex().length(24).allow(null),
+  immatriculation:  Joi.string().max(20).uppercase().trim(),
+  nom:              Joi.string().min(2).max(100).trim(),
+  type:             Joi.string().valid(...TYPES_VEHICULE),
+  marque:           Joi.string().max(50).trim().allow(""),
+  modele:           Joi.string().max(50).trim().allow(""),
+  couleur:          Joi.string().max(30).trim().allow(""),
+  numeroSerie:      Joi.string().max(20).trim().allow(""),
+  annee:            Joi.number().integer().min(2000).allow(null),
+  actif:            Joi.boolean(),
+  capacitePassagers:Joi.number().integer().min(1).max(10),
+  equipeFauteuil:   Joi.boolean(),
+  equipeOxygene:    Joi.boolean(),
+  equipeBrancard:   Joi.boolean(),
+  carburant:        Joi.number().min(0).max(100),
+  typeEnergie:      Joi.string().valid(...TYPES_ENERGIE),
+  consommationL100: Joi.number().min(0).max(30).allow(null),
+  autonomieKm:      Joi.number().min(0).allow(null),
+  puissanceCv:      Joi.number().min(0).allow(null),
+  kilometrage:               kilometrageSchema,
+  controleTechnique:         controleTechniqueSchema,
+  assurance:                 assuranceSchema,
+  vignetteControlePollution: vignetteSchema,
+  equipements:               equipementsSchema,
+  capacite:                  capaciteSchema,
+  position:                  positionVehicleSchema,
+  garage:                    garageSchema,
+  statut:         Joi.string().valid(...STATUTS_VEHICULE),
+  notes:          Joi.string().max(500).allow(""),
+  chauffeurAssigne:Joi.string().hex().length(24).allow(null),
 }).min(1).messages({ "object.min": "Au moins un champ à modifier est requis" });
 
 // ─── Analyse IA ───────────────────────────────────────────────────────────────

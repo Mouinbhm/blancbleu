@@ -83,7 +83,11 @@ export default function VehicleCard({ vehicle, onClick }) {
           <span className="material-symbols-outlined text-slate-400 text-base">
             speed
           </span>
-          {vehicle.kilometrage?.toLocaleString("fr-FR") ?? "—"} km
+          {(
+            typeof vehicle.kilometrage === "object"
+              ? vehicle.kilometrage?.actuel
+              : vehicle.kilometrage
+          )?.toLocaleString("fr-FR") ?? "—"} km
         </div>
       </div>
 
