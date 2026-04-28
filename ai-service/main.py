@@ -20,9 +20,10 @@ from contextlib import asynccontextmanager
 import logging
 import os
 
-from routes.pmt import router as pmt_router
-from routes.dispatch import router as dispatch_router
-from routes.routing import router as routing_router
+from routes.pmt       import router as pmt_router
+from routes.dispatch  import router as dispatch_router
+from routes.routing   import router as routing_router
+from routes.optimizer import router as optimizer_router
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -88,6 +89,17 @@ async def lifespan(app: FastAPI):
         )
         app.state.nlp = None
 
+    # ── Charger le DurationPredictor ─────────────────────────────────────────
+    from services.duration_predictor import DurationPredictor
+    from services.realtime_optimizer import RealtimeOptimizer
+
+    predictor = DurationPredictor()
+    loaded    = predictor.load()
+    if not loaded:
+        logger.warning("Modèle non trouvé — lancer POST /optimizer/model/train")
+    app.state.predictor = predictor
+    app.state.optimizer = RealtimeOptimizer(predictor)
+
     yield
     logger.info("BlancBleu AI Service arrêt.")
 
@@ -113,9 +125,10 @@ app.add_middleware(
 )
 
 # ─── Inclusion des routes ─────────────────────────────────────────────────────
-app.include_router(pmt_router, prefix="/pmt", tags=["PMT"])
-app.include_router(dispatch_router, prefix="/dispatch", tags=["Dispatch"])
-app.include_router(routing_router, prefix="/routing", tags=["Routing"])
+app.include_router(pmt_router,       prefix="/pmt",       tags=["PMT"])
+app.include_router(dispatch_router,  prefix="/dispatch",  tags=["Dispatch"])
+app.include_router(routing_router,   prefix="/routing",   tags=["Routing"])
+app.include_router(optimizer_router, prefix="/optimizer", tags=["Optimizer"])
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────
@@ -140,6 +153,12 @@ async def health():
         modules["routing"] = False
 
     modules["dispatch"] = True  # Toujours disponible (règles locales)
+
+    # Duration predictor + realtime optimizer
+    predictor = getattr(app.state, "predictor", None)
+    modules["duration_predictor"] = predictor is not None and predictor.model is not None
+    optimizer = getattr(app.state, "optimizer", None)
+    modules["realtime_optimizer"] = optimizer is not None
 
     return {
         "status": "ok",

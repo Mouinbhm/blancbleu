@@ -10,10 +10,15 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(npm run *)",
-      "Bash(python -m pytest tests/test_ia.py -v)"
+      "Bash(python -m pytest tests/test_ia.py -v)",
+      "Bash(python -c \"import xgboost, shap, sklearn, pandas, numpy, matplotlib, joblib; print\\('OK'\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -m pytest tests/test_optimizer.py -v --tb=short)",
+      "Bash(python -m pytest tests/ -v --tb=short)"
     ],
     "additionalDirectories": [
-      "c:\\Users\\MSI\\.claude\\projects\\c--Users-MSI-OneDrive-Bureau-PFE-blancbleu\\memory"
+      "c:\\Users\\MSI\\.claude\\projects\\c--Users-MSI-OneDrive-Bureau-PFE-blancbleu\\memory",
+      "c:\\Users\\MSI\\OneDrive\\Bureau\\PFE\\blancbleu\\ai-service"
     ]
   }
 }

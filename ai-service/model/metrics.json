@@ -1,0 +1,24 @@
+{
+  "modeles": {
+    "Linear Regression": {
+      "MAE": 13.88,
+      "R2": 0.885,
+      "MAPE": 30.0,
+      "CV_MAE": 13.8
+    },
+    "Random Forest": {
+      "MAE": 6.86,
+      "R2": 0.969,
+      "MAPE": 11.6,
+      "CV_MAE": 7.43
+    },
+    "XGBoost": {
+      "MAE": 6.27,
+      "R2": 0.973,
+      "MAPE": 10.4,
+      "CV_MAE": 6.49
+    }
+  },
+  "gagnant": "XGBoost",
+  "meilleur_mae": 6.27
+}
