@@ -126,7 +126,15 @@ export const transportService = {
 // VÉHICULES (remplace unités)
 // ════════════════════════════════════════════════════════════════════════════
 export const vehicleService = {
-  getAll: (params) => api.get("/vehicles", { params }),
+  getAll: async (params) => {
+    const res = await api.get("/vehicles", { params });
+    const body = res.data;
+    return {
+      ...res,
+      data: Array.isArray(body) ? body : (body?.data || []),
+      pagination: Array.isArray(body) ? null : (body?.pagination || null),
+    };
+  },
   getOne: (id) => api.get(`/vehicles/${id}`),
   getStats: () => api.get("/vehicles/stats"),
   create: (data) => api.post("/vehicles", data),
