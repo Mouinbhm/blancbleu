@@ -63,7 +63,20 @@ const createFacture = async (req, res) => {
 
 const updateFacture = async (req, res) => {
   try {
-    const { numero, ...updates } = req.body; // numero immuable
+    const { numero, transportId, ...updates } = req.body; // numero et transportId immuables
+
+    // Recalcul des parts si montant ou taux changent
+    if (updates.montantTotal !== undefined || updates.tauxPriseEnCharge !== undefined) {
+      const existing = await Facture.findById(req.params.id).select("montantTotal tauxPriseEnCharge");
+      if (!existing) return res.status(404).json({ message: "Facture introuvable" });
+      const montant = parseFloat(updates.montantTotal ?? existing.montantTotal) || 0;
+      const taux    = parseFloat(updates.tauxPriseEnCharge ?? existing.tauxPriseEnCharge) || 65;
+      updates.montantTotal        = montant;
+      updates.tauxPriseEnCharge   = taux;
+      updates.montantCPAM         = parseFloat((montant * taux / 100).toFixed(2));
+      updates.montantPatient      = parseFloat((montant - updates.montantCPAM).toFixed(2));
+    }
+
     const f = await Facture.findByIdAndUpdate(req.params.id, updates, {
       new: true,
       runValidators: true,

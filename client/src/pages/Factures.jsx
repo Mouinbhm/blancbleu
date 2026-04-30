@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import api, { factureService } from "../services/api";
+import { useState, useEffect, useRef, useCallback } from "react";
+import api, { factureService, transportService } from "../services/api";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -336,6 +336,537 @@ function ChargesDetail({ compta, fmtEur }) {
   );
 }
 
+// ─── Constantes formulaires ───────────────────────────────────────────────────
+const MOTIFS_FAC   = ["Consultation", "Hospitalisation", "Sortie hospitalisation", "Rééducation", "Analyse", "Autre"];
+const TYPES_VEH    = ["VSL", "TPMR", "AMBULANCE"];
+const MODES_PAI    = [
+  { value: "", label: "Non renseigné" },
+  { value: "virement", label: "Virement" },
+  { value: "cheque", label: "Chèque" },
+  { value: "cb", label: "Carte bancaire" },
+  { value: "especes", label: "Espèces" },
+  { value: "cpam_direct", label: "CPAM direct" },
+];
+const inputF = "w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-primary bg-white";
+const labelF = "text-xs font-semibold text-slate-500 uppercase tracking-widest block mb-1.5";
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function ToastContainer({ toasts }) {
+  const CFG = {
+    success: { bg: "bg-emerald-600", icon: "check_circle" },
+    error:   { bg: "bg-red-600",     icon: "error"        },
+    warning: { bg: "bg-orange-500",  icon: "warning"      },
+  };
+  if (!toasts.length) return null;
+  return (
+    <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
+      {toasts.map((t) => {
+        const c = CFG[t.type] || CFG.warning;
+        return (
+          <div key={t.id} className={`flex items-center gap-3 ${c.bg} text-white px-4 py-3 rounded-xl shadow-2xl text-sm font-medium min-w-64 max-w-xs`}
+            style={{ animation: "slideInRight .2s ease" }}>
+            <span className="material-symbols-outlined text-base flex-shrink-0">{c.icon}</span>
+            <span>{t.message}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ConfirmToast({ message, onConfirm, onCancel }) {
+  return (
+    <div className="fixed bottom-6 left-1/2 z-[200]" style={{ transform: "translateX(-50%)" }}>
+      <div className="flex items-center gap-4 bg-slate-800 text-white rounded-2xl shadow-2xl px-5 py-3.5 text-sm font-medium whitespace-nowrap">
+        <span className="material-symbols-outlined text-yellow-400 text-base">help</span>
+        <span>{message}</span>
+        <button onClick={onCancel}
+          className="px-3 py-1.5 rounded-lg border border-white/20 text-white/70 hover:text-white text-xs font-bold">
+          Annuler
+        </button>
+        <button onClick={onConfirm}
+          className="px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-400">
+          Confirmer
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal : Nouvelle facture ─────────────────────────────────────────────────
+function ModalNouvelleFacture({ onClose, onCreated }) {
+  const today = new Date().toISOString().split("T")[0];
+  const [form, setForm] = useState({
+    transportId: "", patientNom: "", patientPrenom: "",
+    typeVehicule: "VSL", motif: "Consultation", allerRetour: false,
+    distanceKm: "", dateEmission: today,
+    montantTotal: "", tauxPriseEnCharge: 65,
+    statut: "emise", notes: "",
+  });
+  const [transports, setTransports] = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [erreur, setErreur]         = useState(null);
+  const sf = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const montant    = parseFloat(form.montantTotal)     || 0;
+  const taux       = parseFloat(form.tauxPriseEnCharge) || 0;
+  const partCPAM   = Math.round(montant * taux / 100 * 100) / 100;
+  const partPatient = Math.round((montant - partCPAM) * 100) / 100;
+
+  useEffect(() => {
+    transportService.getAll({ limit: 200 })
+      .then((r) => setTransports(r.data?.transports || []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const handleTransportSelect = (tId) => {
+    const t = transports.find((tr) => tr._id === tId);
+    if (t) {
+      setForm((f) => ({
+        ...f,
+        transportId: tId,
+        patientNom:    t.patient?.nom    || f.patientNom,
+        patientPrenom: t.patient?.prenom || f.patientPrenom,
+        typeVehicule:  t.typeTransport   || f.typeVehicule,
+        motif:         t.motif           || f.motif,
+        allerRetour:   t.allerRetour     || false,
+      }));
+    } else {
+      sf("transportId", "");
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (montant <= 0) { setErreur("Le montant total est obligatoire (> 0 €)."); return; }
+    if (!form.dateEmission) { setErreur("La date d'émission est obligatoire."); return; }
+    setLoading(true); setErreur(null);
+    try {
+      const payload = {
+        patientNom: form.patientNom, patientPrenom: form.patientPrenom,
+        typeVehicule: form.typeVehicule, motif: form.motif,
+        allerRetour: form.allerRetour,
+        distanceKm: parseFloat(form.distanceKm) || 0,
+        dateEmission: new Date(form.dateEmission),
+        montantTotal: montant, montantBase: montant,
+        tauxPriseEnCharge: taux, montantCPAM: partCPAM, montantPatient: partPatient,
+        statut: form.statut, notes: form.notes,
+      };
+      if (form.transportId) payload.transportId = form.transportId;
+      const { data } = await factureService.create(payload);
+      onCreated(data.facture?.numero || "—");
+    } catch (err) {
+      setErreur(err.response?.data?.message || "Erreur lors de la création.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+              <span className="material-symbols-outlined text-primary text-lg">receipt_long</span>
+            </div>
+            <div>
+              <h3 className="font-brand font-bold text-navy text-base">Nouvelle facture</h3>
+              <p className="text-xs text-slate-400">Création manuelle</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-400">
+            <span className="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {erreur && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 text-sm text-red-700 flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">error</span>{erreur}
+            </div>
+          )}
+
+          {/* Transport */}
+          <div>
+            <label className={labelF}>Transport associé (optionnel)</label>
+            <select value={form.transportId} onChange={(e) => handleTransportSelect(e.target.value)} className={inputF}>
+              <option value="">— Aucun transport —</option>
+              {transports.map((t) => (
+                <option key={t._id} value={t._id}>
+                  {t.numero} · {t.patient?.nom || "Patient"} {t.patient?.prenom || ""} · {t.motif}
+                  {t.dateTransport ? ` (${new Date(t.dateTransport).toLocaleDateString("fr-FR")})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Patient */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelF}>Nom patient</label>
+              <input type="text" value={form.patientNom} onChange={(e) => sf("patientNom", e.target.value)}
+                placeholder="Dupont" className={inputF} />
+            </div>
+            <div>
+              <label className={labelF}>Prénom</label>
+              <input type="text" value={form.patientPrenom} onChange={(e) => sf("patientPrenom", e.target.value)}
+                placeholder="Marie" className={inputF} />
+            </div>
+          </div>
+
+          {/* Type + Motif */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelF}>Type de transport</label>
+              <select value={form.typeVehicule} onChange={(e) => sf("typeVehicule", e.target.value)} className={inputF}>
+                {TYPES_VEH.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelF}>Motif</label>
+              <select value={form.motif} onChange={(e) => sf("motif", e.target.value)} className={inputF}>
+                {MOTIFS_FAC.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Aller-retour + Distance */}
+          <div className="grid grid-cols-2 gap-3 items-end">
+            <label className="flex items-center gap-2 cursor-pointer pb-1">
+              <input type="checkbox" checked={form.allerRetour} onChange={(e) => sf("allerRetour", e.target.checked)}
+                className="w-4 h-4 rounded accent-primary" />
+              <span className="text-sm font-medium text-slate-600">Aller-retour</span>
+            </label>
+            <div>
+              <label className={labelF}>Distance (km)</label>
+              <input type="number" min="0" step="0.1" value={form.distanceKm}
+                onChange={(e) => sf("distanceKm", e.target.value)} placeholder="0" className={inputF} />
+            </div>
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className={labelF}>Date d'émission *</label>
+            <input type="date" value={form.dateEmission} onChange={(e) => sf("dateEmission", e.target.value)} className={inputF} />
+          </div>
+
+          {/* Montants */}
+          <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-100">
+            <p className={labelF}>Montants</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelF}>Montant total (€) *</label>
+                <input type="number" min="0" step="0.01" value={form.montantTotal}
+                  onChange={(e) => sf("montantTotal", e.target.value)} placeholder="0.00" className={inputF} />
+              </div>
+              <div>
+                <label className={labelF}>Taux CPAM (%)</label>
+                <input type="number" min="0" max="100" value={form.tauxPriseEnCharge}
+                  onChange={(e) => sf("tauxPriseEnCharge", e.target.value)} className={inputF} />
+              </div>
+            </div>
+            {montant > 0 && (
+              <div className="flex items-center gap-4 text-xs bg-white rounded-lg px-3 py-2 border border-slate-200">
+                <span className="text-slate-500">Part CPAM : <strong className="text-emerald-600">{fmtEur(partCPAM)}</strong></span>
+                <span className="text-slate-200">|</span>
+                <span className="text-slate-500">Part patient : <strong className="text-red-500">{fmtEur(partPatient)}</strong></span>
+              </div>
+            )}
+          </div>
+
+          {/* Statut */}
+          <div>
+            <label className={labelF}>Statut initial</label>
+            <div className="flex gap-3 flex-wrap">
+              {["brouillon", "emise", "en_attente", "payee"].map((s) => {
+                const cfg = STATUT_STYLE[s];
+                return (
+                  <label key={s} className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="statut-init" value={s} checked={form.statut === s}
+                      onChange={() => sf("statut", s)} className="accent-primary" />
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${cfg.cls}`}>{cfg.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className={labelF}>Notes</label>
+            <textarea rows={2} value={form.notes} onChange={(e) => sf("notes", e.target.value)}
+              placeholder="Référence CPAM, remarques…" className={`${inputF} resize-none`} />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-6 pb-6">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-500 hover:bg-slate-50">
+            Annuler
+          </button>
+          <button onClick={handleSubmit} disabled={loading}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+            {loading
+              ? <><div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,.4)", borderTop: "2px solid white", borderRadius: "50%", animation: "spin .7s linear infinite" }} />Création…</>
+              : <><span className="material-symbols-outlined text-base">add</span>Créer la facture</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal : Détail / Modification facture ────────────────────────────────────
+function ModalDetailFacture({ facture, onClose, onUpdated }) {
+  const readonly = ["payee", "annulee"].includes(facture.statut);
+  const [form, setForm] = useState({
+    montantTotal:      String(facture.montantTotal      || 0),
+    tauxPriseEnCharge: String(facture.tauxPriseEnCharge || 65),
+    statut:        facture.statut,
+    datePaiement:  facture.datePaiement ? new Date(facture.datePaiement).toISOString().split("T")[0] : "",
+    modePaiement:  facture.modePaiement || "",
+    notes:         facture.notes || "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [erreur,  setErreur]  = useState(null);
+  const sf = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const montant     = parseFloat(form.montantTotal)      || 0;
+  const taux        = parseFloat(form.tauxPriseEnCharge)  || 0;
+  const partCPAM    = Math.round(montant * taux / 100 * 100) / 100;
+  const partPatient = Math.round((montant - partCPAM) * 100) / 100;
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const handleSave = async () => {
+    if (montant <= 0) { setErreur("Montant obligatoire."); return; }
+    setLoading(true); setErreur(null);
+    try {
+      await factureService.update(facture._id, {
+        montantTotal: montant, tauxPriseEnCharge: taux,
+        montantCPAM: partCPAM, montantPatient: partPatient,
+        statut: form.statut,
+        datePaiement: form.statut === "payee"
+          ? (form.datePaiement ? new Date(form.datePaiement) : new Date())
+          : null,
+        modePaiement: form.modePaiement,
+        notes: form.notes,
+      });
+      onUpdated("success", facture.numero);
+    } catch (err) {
+      setErreur(err.response?.data?.message || "Erreur.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAnnulerFacture = async () => {
+    if (!window.confirm(`Annuler ${facture.numero} ? Cette action est irréversible.`)) return;
+    try {
+      await factureService.update(facture._id, { statut: "annulee" });
+      onUpdated("annulee", facture.numero);
+    } catch {
+      setErreur("Erreur lors de l'annulation.");
+    }
+  };
+
+  const statCfg   = STATUT_STYLE[facture.statut] || STATUT_STYLE.en_attente;
+  const nomPatient = patientNom(facture);
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-slate-100">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-brand font-bold text-navy text-base">{facture.numero}</h3>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${statCfg.cls}`}>{statCfg.label}</span>
+              </div>
+              <p className="text-xs text-slate-400">{fmtDate(facture.dateEmission)} · {nomPatient}</p>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-400">
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {erreur && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 text-sm text-red-700 flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">error</span>{erreur}
+            </div>
+          )}
+
+          {/* Infos transport/patient */}
+          <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm border border-slate-100">
+            <p className={labelF}>Informations</p>
+            {facture.transportId?.numero && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">Transport</span>
+                <span className="font-mono text-navy">{facture.transportId.numero}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-slate-500">Patient</span>
+              <span className="font-semibold text-navy">{nomPatient}</span>
+            </div>
+            {facture.motif && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">Motif</span>
+                <span className="text-slate-600">{facture.motif}</span>
+              </div>
+            )}
+            {facture.typeVehicule && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">Type</span>
+                <span className="font-mono text-slate-600">{facture.typeVehicule}</span>
+              </div>
+            )}
+            {facture.allerRetour !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">Aller-retour</span>
+                <span className="text-slate-600">{facture.allerRetour ? "Oui" : "Non"}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Montants — lecture seule si payée/annulée */}
+          {readonly ? (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2 text-sm">
+              <p className={labelF}>Montants</p>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Montant total</span>
+                <span className="font-mono font-bold text-navy">{fmtEur(facture.montantTotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Part CPAM ({facture.tauxPriseEnCharge}%)</span>
+                <span className="font-mono text-emerald-600">{fmtEur(facture.montantCPAM)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Part patient</span>
+                <span className="font-mono text-red-500">{fmtEur(facture.montantPatient)}</span>
+              </div>
+              {facture.statut === "payee" && facture.datePaiement && (
+                <div className="flex justify-between pt-1 border-t border-blue-100">
+                  <span className="text-slate-500">Payée le</span>
+                  <span className="font-semibold text-emerald-600">{fmtDate(facture.datePaiement)}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-100">
+              <p className={labelF}>Montants (modifiables)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelF}>Montant total (€)</label>
+                  <input type="number" min="0" step="0.01" value={form.montantTotal}
+                    onChange={(e) => sf("montantTotal", e.target.value)} className={inputF} />
+                </div>
+                <div>
+                  <label className={labelF}>Taux CPAM (%)</label>
+                  <input type="number" min="0" max="100" value={form.tauxPriseEnCharge}
+                    onChange={(e) => sf("tauxPriseEnCharge", e.target.value)} className={inputF} />
+                </div>
+              </div>
+              {montant > 0 && (
+                <div className="flex items-center gap-4 text-xs bg-white rounded-lg px-3 py-2 border border-slate-200">
+                  <span className="text-slate-500">Part CPAM : <strong className="text-emerald-600">{fmtEur(partCPAM)}</strong></span>
+                  <span className="text-slate-200">|</span>
+                  <span className="text-slate-500">Part patient : <strong className="text-red-500">{fmtEur(partPatient)}</strong></span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Statut + mode paiement (modifiable uniquement) */}
+          {!readonly && (
+            <>
+              <div>
+                <label className={labelF}>Statut</label>
+                <div className="flex gap-3 flex-wrap">
+                  {["brouillon", "emise", "en_attente", "payee"].map((s) => {
+                    const cfg = STATUT_STYLE[s];
+                    return (
+                      <label key={s} className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="statut-edit" value={s} checked={form.statut === s}
+                          onChange={() => sf("statut", s)} className="accent-primary" />
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${cfg.cls}`}>{cfg.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              {form.statut === "payee" && (
+                <div>
+                  <label className={labelF}>Date de paiement</label>
+                  <input type="date" value={form.datePaiement} onChange={(e) => sf("datePaiement", e.target.value)} className={inputF} />
+                </div>
+              )}
+              <div>
+                <label className={labelF}>Mode de paiement</label>
+                <select value={form.modePaiement} onChange={(e) => sf("modePaiement", e.target.value)} className={inputF}>
+                  {MODES_PAI.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+
+          {/* Notes */}
+          <div>
+            <label className={labelF}>Notes</label>
+            {readonly
+              ? <p className="text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{facture.notes || "—"}</p>
+              : <textarea rows={2} value={form.notes} onChange={(e) => sf("notes", e.target.value)}
+                  placeholder="Référence CPAM, remarques…" className={`${inputF} resize-none`} />
+            }
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-6 pb-6">
+          {readonly ? (
+            <button onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200">
+              Fermer
+            </button>
+          ) : (
+            <>
+              <button onClick={handleAnnulerFacture}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50">
+                <span className="material-symbols-outlined text-sm">delete</span>Annuler la facture
+              </button>
+              <button onClick={handleSave} disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50">
+                {loading
+                  ? <div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,.4)", borderTop: "2px solid white", borderRadius: "50%", animation: "spin .7s linear infinite" }} />
+                  : <span className="material-symbols-outlined text-base">save</span>
+                }
+                {loading ? "Enregistrement…" : "Enregistrer"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 export default function Factures() {
   const now = new Date();
@@ -350,10 +881,31 @@ export default function Factures() {
   const [filterStatut, setFilterStatut] = useState("");
   const [factureImprimer, setFactureImprimer] = useState(null);
   const [actionId, setActionId] = useState(null);
+  const [modalNouvelle, setModalNouvelle] = useState(false);
+  const [factureDetail, setFactureDetail] = useState(null);
+  const [toasts, setToasts] = useState([]);
+  const [confirmPay, setConfirmPay] = useState(null);
 
   // Comptabilité
   const [compta, setCompta] = useState(null);
   const [comptaLoading, setComptaLoading] = useState(true);
+
+  const addToast = useCallback((message, type = "success") => {
+    const id = Date.now();
+    setToasts((t) => [...t, { id, message, type }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3500);
+  }, []);
+
+  const reloadFactures = useCallback(() => {
+    const params = { limit: 100 };
+    if (filterStatut) params.statut = filterStatut;
+    Promise.all([factureService.getAll(params), factureService.getStats()])
+      .then(([f, s]) => {
+        setFactures(f.data.factures || []);
+        setStats(s.data);
+      })
+      .catch(() => {});
+  }, [filterStatut]);
 
   // ── Chargement factures ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -400,11 +952,13 @@ export default function Factures() {
   // ── Actions factures ────────────────────────────────────────────────────────
   const handleStatut = async (id, statut) => {
     setActionId(id);
+    setConfirmPay(null);
     try {
       const { data } = await factureService.updateStatut(id, statut);
       setFactures((prev) => prev.map((f) => (f._id === id ? data.facture : f)));
+      addToast(`Facture marquée ${STATUT_STYLE[statut]?.label || statut}`);
     } catch {
-      alert("Erreur mise à jour statut.");
+      addToast("Erreur mise à jour statut.", "error");
     } finally {
       setActionId(null);
     }
@@ -417,8 +971,9 @@ export default function Factures() {
       setFactures((prev) =>
         prev.map((f) => (f._id === id ? { ...f, statut: "annulee" } : f))
       );
+      addToast("Facture annulée.", "warning");
     } catch {
-      alert("Erreur annulation.");
+      addToast("Erreur annulation.", "error");
     }
   };
 
@@ -550,7 +1105,40 @@ export default function Factures() {
 
   return (
     <div className="p-7 fade-in">
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideInRight{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}`}</style>
+
+      <ToastContainer toasts={toasts} />
+      {confirmPay && (
+        <ConfirmToast
+          message={`Marquer ${confirmPay.numero} comme payée ?`}
+          onConfirm={() => handleStatut(confirmPay.id, "payee")}
+          onCancel={() => setConfirmPay(null)}
+        />
+      )}
+      {modalNouvelle && (
+        <ModalNouvelleFacture
+          onClose={() => setModalNouvelle(false)}
+          onCreated={(num) => {
+            setModalNouvelle(false);
+            addToast(`Facture ${num} créée avec succès`);
+            reloadFactures();
+          }}
+        />
+      )}
+      {factureDetail && (
+        <ModalDetailFacture
+          facture={factureDetail}
+          onClose={() => setFactureDetail(null)}
+          onUpdated={(type, num) => {
+            setFactureDetail(null);
+            addToast(
+              type === "annulee" ? `Facture ${num} annulée` : `Facture ${num} mise à jour`,
+              type === "annulee" ? "warning" : "success"
+            );
+            reloadFactures();
+          }}
+        />
+      )}
 
       {factureImprimer && (
         <ModalImpression facture={factureImprimer} onClose={() => setFactureImprimer(null)} />
@@ -752,9 +1340,9 @@ export default function Factures() {
         </div>
       </div>
 
-      {/* ── Filtres & recherche (existants — intacts) ───────────────────────── */}
+      {/* ── Filtres & recherche ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {STATUTS.map(({ value, label }) => (
             <button
               key={value}
@@ -764,6 +1352,12 @@ export default function Factures() {
               {label}
             </button>
           ))}
+          <button
+            onClick={() => setModalNouvelle(true)}
+            style={{ background: "#1D6EF5", color: "white", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            + Nouvelle facture
+          </button>
         </div>
         <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 w-56">
           <span className="material-symbols-outlined text-slate-400 text-lg">search</span>
@@ -812,7 +1406,7 @@ export default function Factures() {
                 const statCfg = STATUT_STYLE[f.statut] || STATUT_STYLE.en_attente;
                 const isPaying = actionId === f._id;
                 return (
-                  <tr key={f._id} className={`border-b border-slate-100 hover:bg-blue-50 transition-all ${i % 2 === 1 ? "bg-slate-50/30" : "bg-white"}`}>
+                  <tr key={f._id} onClick={() => setFactureDetail(f)} className={`cursor-pointer border-b border-slate-100 hover:bg-blue-50 transition-all ${i % 2 === 1 ? "bg-slate-50/30" : "bg-white"}`}>
                     <td className="px-4 py-3 font-mono font-bold text-primary text-sm">{f.numero}</td>
                     <td className="px-4 py-3 font-mono text-sm text-slate-600">{fmtDate(f.dateEmission)}</td>
                     <td className="px-4 py-3 text-sm text-slate-500 font-mono">{f.transportId?.numero || "—"}</td>
@@ -823,25 +1417,25 @@ export default function Factures() {
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-bold ${statCfg.cls}`}>{statCfg.label}</span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-1 flex-wrap">
                         {["brouillon", "emise", "en_attente"].includes(f.statut) && (
                           <button
                             title="Marquer payée"
-                            onClick={() => handleStatut(f._id, "payee")}
+                            onClick={() => setConfirmPay({ id: f._id, numero: f.numero })}
                             disabled={isPaying}
-                            className="flex items-center gap-1 text-xs bg-emerald-50 border border-emerald-300 text-emerald-700 px-2 py-1 rounded-lg font-semibold hover:bg-emerald-100 disabled:opacity-50"
+                            className="w-7 h-7 rounded-lg border border-emerald-200 bg-emerald-50 flex items-center justify-center hover:bg-emerald-100 disabled:opacity-50"
                           >
-                            <span className="material-symbols-outlined text-xs">payments</span>Payer
+                            <span className="material-symbols-outlined text-emerald-600 text-sm">payments</span>
                           </button>
                         )}
                         {f.statut === "brouillon" && (
                           <button
                             title="Émettre la facture"
                             onClick={() => handleStatut(f._id, "emise")}
-                            className="flex items-center gap-1 text-xs bg-blue-50 border border-blue-300 text-blue-700 px-2 py-1 rounded-lg font-semibold hover:bg-blue-100"
+                            className="w-7 h-7 rounded-lg border border-blue-200 bg-blue-50 flex items-center justify-center hover:bg-blue-100"
                           >
-                            <span className="material-symbols-outlined text-xs">send</span>Émettre
+                            <span className="material-symbols-outlined text-blue-600 text-sm">send</span>
                           </button>
                         )}
                         <button
