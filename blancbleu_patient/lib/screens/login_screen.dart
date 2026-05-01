@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,10 +41,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
     await Future.delayed(const Duration(seconds: 1));
 
-    setState(() {
-      _isLoading = false;
-      _errorMessage = 'Identifiant ou mot de passe incorrect.';
-    });
+    if (!mounted) return;
+
+    // Simulation : toute combinaison non vide → accès autorisé
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
   }
 
   Widget _dot(double opacity) => Container(
