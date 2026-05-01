@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
+import '../services/api_service.dart';
+import 'login_screen.dart';
 import 'nouveau_transport_screen.dart';
 import 'profile_screen.dart';
 import 'transports_screen.dart';
@@ -13,6 +15,99 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+
+  // ── Dashboard state ────────────────────────────────────────────────────────
+  bool _isLoading = true;
+  Map<String, dynamic>? _dashboard;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboard();
+  }
+
+  Future<void> _loadDashboard() async {
+    try {
+      setState(() { _isLoading = true; _error = null; });
+      final data = await ApiService.getDashboard();
+      if (mounted) setState(() { _dashboard = data; _isLoading = false; });
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      if (msg == 'SESSION_EXPIRED') {
+        await ApiService.clearSession();
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+        return;
+      }
+      setState(() { _error = msg; _isLoading = false; });
+    }
+  }
+
+  // ── Date helpers ───────────────────────────────────────────────────────────
+  static const _jours = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+  static const _mois  = ['janvier','février','mars','avril','mai','juin',
+                          'juillet','août','septembre','octobre','novembre','décembre'];
+  static const _moisCap = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                            'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+  String _todayLabel() {
+    final now = DateTime.now();
+    return '${_jours[now.weekday - 1]} ${now.day} ${_moisCap[now.month - 1]}';
+  }
+
+  String _formatTransportDate(String? iso, String? heure) {
+    if (iso == null) return '';
+    final date = DateTime.parse(iso).toLocal();
+    final now  = DateTime.now();
+    final today    = DateTime(now.year,  now.month,  now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final d        = DateTime(date.year, date.month, date.day);
+    String prefix;
+    if (d == today) {
+      prefix = "Aujourd'hui";
+    } else if (d == tomorrow) {
+      prefix = 'Demain ${date.day} ${_mois[date.month - 1]}';
+    } else {
+      prefix = '${_jours[date.weekday - 1]} ${date.day} ${_mois[date.month - 1]}';
+    }
+    final h = (heure ?? '').replaceAll(':', 'h');
+    return h.isNotEmpty ? '$prefix à $h' : prefix;
+  }
+
+  String _formatShortDate(String? iso) {
+    if (iso == null) return '';
+    final d = DateTime.parse(iso).toLocal();
+    return '${d.day} ${_moisCap[d.month - 1]} · ${d.hour.toString().padLeft(2,'0')}h${d.minute.toString().padLeft(2,'0')}';
+  }
+
+  // ── Statut helpers ─────────────────────────────────────────────────────────
+  static Map<String, dynamic> _statutInfo(String statut) {
+    switch (statut) {
+      case 'REQUESTED':
+        return {'label': 'En attente', 'color': Colors.orange.shade700, 'bg': Colors.orange.shade50};
+      case 'CONFIRMED':
+        return {'label': 'Confirmé ✅', 'color': const Color(0xFF2563EB), 'bg': const Color(0xFFEFF6FF)};
+      case 'SCHEDULED':
+      case 'ASSIGNED':
+        return {'label': 'Planifié', 'color': Colors.purple.shade700, 'bg': Colors.purple.shade50};
+      case 'EN_ROUTE_TO_PICKUP':
+      case 'ARRIVED_AT_PICKUP':
+      case 'PATIENT_ON_BOARD':
+        return {'label': 'En cours', 'color': AppTheme.primaryContainer, 'bg': const Color(0xFFEFF6FF)};
+      case 'COMPLETED':
+      case 'BILLED':
+        return {'label': 'Terminé', 'color': Colors.green.shade700, 'bg': Colors.green.shade50};
+      case 'CANCELLED':
+        return {'label': 'Annulé', 'color': const Color(0xFFDC2626), 'bg': const Color(0xFFFEF2F2)};
+      case 'NO_SHOW':
+        return {'label': 'Non présenté', 'color': Colors.grey.shade600, 'bg': Colors.grey.shade100};
+      default:
+        return {'label': statut, 'color': Colors.grey.shade600, 'bg': Colors.grey.shade100};
+    }
+  }
 
   static const _navItems = [
     _NavItem(icon: Icons.home_outlined,      filledIcon: Icons.home,           label: 'Accueil'),
@@ -150,6 +245,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Body ───────────────────────────────────────────────────────────────────
   Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.only(top: 80),
+          child: CircularProgressIndicator(color: AppTheme.primary),
+        ),
+      );
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.wifi_off, size: 48, color: AppTheme.secondary),
+              const SizedBox(height: 16),
+              Text(_error!, textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppTheme.secondary, fontSize: 14)),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _loadDashboard,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryContainer,
+                    foregroundColor: Colors.white),
+                child: const Text('Réessayer'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
       child: Column(
@@ -171,22 +298,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Section 1 — Welcome ────────────────────────────────────────────────────
   Widget _buildWelcome() {
+    final prenom = (_dashboard?['patient']?['prenom'] as String?) ?? 'Patient';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
+      children: [
         Text(
-          'Bonjour Marcel 👋',
-          style: TextStyle(
+          'Bonjour $prenom 👋',
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w700,
             letterSpacing: -0.5,
             color: AppTheme.onSurface,
           ),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
-          'Mardi 29 Avril · Nice 22°C ☀️',
-          style: TextStyle(
+          '${_todayLabel()} · Nice ☀️',
+          style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: AppTheme.secondary,
@@ -198,18 +326,55 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Section 2 — Prochain transport ─────────────────────────────────────────
   Widget _buildNextTransportCard() {
+    final transport = _dashboard?['prochainTransport'];
+    if (transport == null) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade100),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48, height: 48,
+              decoration: BoxDecoration(color: AppTheme.surfaceContainer, borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.calendar_today_outlined, color: AppTheme.secondary),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Aucun transport prévu', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.onSurface)),
+                SizedBox(height: 2),
+                Text('Demandez un nouveau transport', style: TextStyle(fontSize: 12, color: AppTheme.secondary)),
+              ]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final statut     = (transport['statut'] as String?) ?? 'REQUESTED';
+    final si         = _statutInfo(statut);
+    final dateStr    = _formatTransportDate(transport['dateTransport'] as String?, transport['heureRDV'] as String?);
+    final dest       = (transport['adresseDestination']?['nom'] as String?) ?? 'Destination';
+    final rue        = (transport['adresseDestination']?['rue'] as String?) ?? '';
+    final ville      = (transport['adresseDestination']?['ville'] as String?) ?? '';
+    final motif      = (transport['motif'] as String?) ?? '';
+    final vehicule   = transport['vehicule'];
+    final vehicleNom = vehicule != null ? (vehicule['nom'] as String? ?? '') : '';
+
+    final adresseLine = [rue, ville].where((s) => s.isNotEmpty).join(', ');
+    final destLabel   = motif.isNotEmpty ? '$dest · $motif' : dest;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -222,43 +387,24 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'PROCHAIN TRANSPORT',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.primary,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Demain 30 avril à 08h00',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.onSurface,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
+                  children: [
+                    const Text('PROCHAIN TRANSPORT',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                            color: AppTheme.primary, letterSpacing: 1.2)),
+                    const SizedBox(height: 4),
+                    Text(dateStr,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600,
+                            color: AppTheme.onSurface, letterSpacing: -0.3)),
                   ],
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
+                    color: si['bg'] as Color,
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: const Color(0xFFBFDBFE)),
                   ),
-                  child: const Text(
-                    'Confirmé ✅',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF2563EB),
-                    ),
-                  ),
+                  child: Text(si['label'] as String,
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: si['color'] as Color)),
                 ),
               ],
             ),
@@ -268,46 +414,26 @@ class _HomeScreenState extends State<HomeScreen> {
             // Destination
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F3FE),
-                borderRadius: BorderRadius.circular(10),
-              ),
+              decoration: BoxDecoration(color: const Color(0xFFF2F3FE), borderRadius: BorderRadius.circular(10)),
               child: Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.06),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
+                    width: 48, height: 48,
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 2))]),
                     child: const Icon(Icons.medical_services, color: AppTheme.primary),
                   ),
                   const SizedBox(width: 14),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'CHU de Nice · Dialyse',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.onSurface,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Route de Grenoble, Nice',
-                          style: TextStyle(fontSize: 12, color: AppTheme.secondary),
-                        ),
+                        Text(destLabel,
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.onSurface)),
+                        if (adresseLine.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(adresseLine, style: const TextStyle(fontSize: 12, color: AppTheme.secondary)),
+                        ],
                       ],
                     ),
                   ),
@@ -321,16 +447,16 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
-                  children: [
-                    Icon(Icons.directions_car_outlined, size: 18, color: AppTheme.secondary),
-                    SizedBox(width: 6),
-                    Text(
-                      'Véhicule : TPMR-01',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.secondary),
-                    ),
-                  ],
-                ),
+                if (vehicleNom.isNotEmpty)
+                  Row(children: [
+                    const Icon(Icons.directions_car_outlined, size: 18, color: AppTheme.secondary),
+                    const SizedBox(width: 6),
+                    Text('Véhicule : $vehicleNom',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.secondary)),
+                  ])
+                else
+                  const Text('Véhicule non assigné',
+                      style: TextStyle(fontSize: 13, color: AppTheme.secondary)),
                 ElevatedButton.icon(
                   onPressed: () {},
                   icon: const Text('Suivre en direct', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -450,127 +576,89 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Section 4 — Derniers transports ───────────────────────────────────────
   Widget _buildLastTransports() {
-    final trips = [
-      _TripItem(
-        destination: 'Cabinet Cardiologie',
-        date: '25 Avril · 14h30',
-        status: 'Terminé',
-        statusColor: Colors.green.shade700,
-        statusBg: Colors.green.shade50,
-        icon: Icons.task_alt,
-        iconColor: Colors.green.shade600,
-        iconBg: Colors.green.shade50,
-        cancelled: false,
-      ),
-      _TripItem(
-        destination: 'Clinique du Parc',
-        date: '22 Avril · 09h15',
-        status: 'Terminé',
-        statusColor: Colors.green.shade700,
-        statusBg: Colors.green.shade50,
-        icon: Icons.task_alt,
-        iconColor: Colors.green.shade600,
-        iconBg: Colors.green.shade50,
-        cancelled: false,
-      ),
-      _TripItem(
-        destination: 'Laboratoire Bio-Azuro',
-        date: '18 Avril · 11h00',
-        status: 'Annulé',
-        statusColor: const Color(0xFFDC2626),
-        statusBg: const Color(0xFFFEF2F2),
-        icon: Icons.cancel,
-        iconColor: const Color(0xFFDC2626),
-        iconBg: const Color(0xFFFEF2F2),
-        cancelled: true,
-      ),
-    ];
+    final raw = (_dashboard?['derniersTransports'] as List<dynamic>?) ?? [];
 
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Derniers transports',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.onSurface),
-            ),
+            const Text('Derniers transports',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.onSurface)),
             TextButton(
-              onPressed: () {},
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TransportsScreen())),
               child: const Text('Tout voir', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w600)),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        ...trips.map((t) => Opacity(
-          opacity: t.cancelled ? 0.75 : 1.0,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade100),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
+        if (raw.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(child: Text('Aucun transport récent', style: TextStyle(color: AppTheme.secondary))),
+          )
+        else
+          ...raw.map((t) {
+            final statut   = (t['statut'] as String?) ?? '';
+            final si       = _statutInfo(statut);
+            final cancelled = statut == 'CANCELLED' || statut == 'NO_SHOW';
+            final dest     = (t['adresseDestination']?['nom'] as String?)
+                          ?? (t['adresseDestination']?['ville'] as String?)
+                          ?? 'Destination';
+            final dateStr  = _formatShortDate(t['dateTransport'] as String?);
+            final icon     = cancelled ? Icons.cancel : (statut == 'COMPLETED' || statut == 'BILLED' ? Icons.task_alt : Icons.local_shipping_outlined);
+
+            return Opacity(
+              opacity: cancelled ? 0.75 : 1.0,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade100),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Icon
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: t.iconBg,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(t.icon, color: t.iconColor, size: 22),
-                ),
-                const SizedBox(width: 14),
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        t.destination,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.onSurface),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(t.date, style: const TextStyle(fontSize: 12, color: AppTheme.secondary)),
-                    ],
-                  ),
-                ),
-                // Status
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: t.statusBg,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        t.status,
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: t.statusColor),
+                      width: 42, height: 42,
+                      decoration: BoxDecoration(color: si['bg'] as Color, borderRadius: BorderRadius.circular(10)),
+                      child: Icon(icon, color: si['color'] as Color, size: 22),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(dest, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.onSurface)),
+                          const SizedBox(height: 2),
+                          Text(dateStr, style: const TextStyle(fontSize: 12, color: AppTheme.secondary)),
+                        ],
                       ),
                     ),
-                    if (!t.cancelled) ...[
-                      const SizedBox(height: 4),
-                      const Icon(Icons.chevron_right, color: Colors.black12, size: 18),
-                    ],
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: si['bg'] as Color, borderRadius: BorderRadius.circular(6)),
+                          child: Text(
+                            si['label'] as String,
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: si['color'] as Color),
+                          ),
+                        ),
+                        if (!cancelled) ...[
+                          const SizedBox(height: 4),
+                          const Icon(Icons.chevron_right, color: Colors.black12, size: 18),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
-        )),
+              ),
+            );
+          }),
       ],
     );
   }
@@ -581,13 +669,13 @@ class _HomeScreenState extends State<HomeScreen> {
       height: 148,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFFBFD7FF),
+            Color(0xFFBFD7FF),
             AppTheme.primaryFixed,
-            const Color(0xFFE8F0FE),
+            Color(0xFFE8F0FE),
           ],
         ),
         boxShadow: [
@@ -676,23 +764,6 @@ class _QuickAction {
   const _QuickAction({
     required this.icon, required this.label, required this.bgColor,
     required this.iconColor, required this.textColor, required this.filled,
-  });
-}
-
-class _TripItem {
-  final String destination;
-  final String date;
-  final String status;
-  final Color statusColor;
-  final Color statusBg;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  final bool cancelled;
-  const _TripItem({
-    required this.destination, required this.date, required this.status,
-    required this.statusColor, required this.statusBg, required this.icon,
-    required this.iconColor, required this.iconBg, required this.cancelled,
   });
 }
 

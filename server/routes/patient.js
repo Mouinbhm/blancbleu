@@ -11,6 +11,8 @@ const Facture   = require('../models/Facture')
 // findOneAndUpdate avec upsert ne déclenche pas le pre('save') qui génère numeroPatient,
 // donc on crée manuellement avec .save() si le document est nouveau.
 async function syncPatientRecord(user) {
+  // User.adresse est une String ; Patient.adresse est { rue, ville, codePostal }
+  const adresseStr = typeof user.adresse === 'string' ? user.adresse.trim() : ''
   const data = {
     nom:       user.nom,
     prenom:    user.prenom,
@@ -19,6 +21,11 @@ async function syncPatientRecord(user) {
     mobilite:  user.mobilite  || 'ASSIS',
     mutuelle:  user.mutuelle  || '',
     actif:     true,
+    adresse: {
+      rue:        adresseStr,
+      ville:      '',
+      codePostal: '',
+    },
     contactUrgence: {
       nom:       user.contactUrgence?.nom       || '',
       telephone: user.contactUrgence?.telephone || '',
@@ -110,40 +117,54 @@ const authPatient = async (req, res, next) => {
 
 router.post('/register', async (req, res) => {
   try {
-    const { prenom, nom, email, password, telephone } = req.body
+    const {
+      prenom, nom, email, password,
+      telephone, mobilite, adresse, medecin, mutuelle, contactUrgence,
+    } = req.body
 
     if (!prenom || !nom || !email || !password) {
-      return res.status(400).json({ message: 'Champs obligatoires manquants' })
+      return res.status(400).json({ message: 'Prénom, nom, email et mot de passe requis' })
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase() })
+    const existing = await User.findOne({ email: email.toLowerCase().trim() })
     if (existing) {
-      return res.status(409).json({ message: 'Email déjà utilisé' })
+      return res.status(409).json({ message: 'Cet email est déjà utilisé' })
     }
 
-    const hash    = await bcrypt.hash(password, 10)
-    const patient = await User.create({
-      prenom,
-      nom,
-      email:     email.toLowerCase(),
+    const hash = await bcrypt.hash(password, 10)
+    const user = await User.create({
+      prenom:    prenom.trim(),
+      nom:       nom.trim().toUpperCase(),
+      email:     email.toLowerCase().trim(),
       password:  hash,
       telephone: telephone || '',
       role:      'patient',
       actif:     true,
+      mobilite:  mobilite || 'ASSIS',
+      adresse:   adresse  || '',
+      medecin:   medecin  || '',
+      mutuelle:  mutuelle || '',
+      contactUrgence: {
+        nom:       contactUrgence?.nom       || '',
+        telephone: contactUrgence?.telephone || '',
+      },
     })
 
-    // Créer le dossier Patient visible sur la plateforme web
+    // Créer le dossier Patient visible dans le Dispatcher (patients collection)
+    // Si le sync échoue, on rollback le User pour ne pas laisser d'orphelin
     try {
-      await syncPatientRecord(patient)
+      await syncPatientRecord(user)
     } catch (syncErr) {
-      console.error('[patient/register] sync Patient échoué', syncErr.message)
+      await User.findByIdAndDelete(user._id).catch(() => {})
+      console.error('[patient/register] sync Patient échoué — User rollback', syncErr.message)
+      return res.status(500).json({ message: 'Erreur lors de la création du dossier patient : ' + syncErr.message })
     }
 
-    const accessToken = signToken(patient._id)
-    res.status(201).json({ accessToken, patient: patientPayload(patient) })
+    const accessToken = signToken(user._id)
+    res.status(201).json({ accessToken, patient: patientPayload(user) })
   } catch (err) {
     console.error('[patient/register]', err)
-    res.status(500).json({ message: 'Erreur serveur', detail: err.message })
+    res.status(500).json({ message: err.message || 'Erreur serveur' })
   }
 })
 
@@ -202,16 +223,12 @@ router.put('/profil', authPatient, async (req, res) => {
     ).select('-password')
 
     // Synchroniser avec le dossier Patient de la plateforme web
-    try {
-      await syncPatientRecord(updated)
-    } catch (syncErr) {
-      console.error('[patient/profil] sync Patient échoué', syncErr.message)
-    }
+    await syncPatientRecord(updated)
 
     res.json({ message: 'Profil mis à jour', patient: patientPayload(updated) })
   } catch (err) {
     console.error('[patient/profil]', err)
-    res.status(500).json({ message: 'Erreur serveur', detail: err.message })
+    res.status(500).json({ message: err.message || 'Erreur serveur' })
   }
 })
 
@@ -432,6 +449,64 @@ router.get('/stats', authPatient, async (req, res) => {
     res.json({ totalTransports, transportsTermines, transportsAVenir, totalFactures })
   } catch (err) {
     console.error('[patient/stats]', err)
+    res.status(500).json({ message: 'Erreur serveur', detail: err.message })
+  }
+})
+
+// ── ROUTE 11 : GET /api/patient/dashboard ────────────────────────────────────
+
+router.get('/dashboard', authPatient, async (req, res) => {
+  try {
+    const patientFilter = {
+      deletedAt: null,
+      $or: [
+        { 'patient.email':     req.user.email },
+        { 'patient.telephone': req.user.telephone },
+        { 'patient.nom': req.user.nom, 'patient.prenom': req.user.prenom },
+      ],
+    }
+    const factureFilter = {
+      $or: [{ patientNom: req.user.nom, patientPrenom: req.user.prenom }],
+    }
+    const now = new Date()
+
+    const [prochainTransport, derniersTransports, counts] = await Promise.all([
+
+      Transport.findOne({
+        ...patientFilter,
+        dateTransport: { $gte: now },
+        statut: { $nin: ['CANCELLED', 'NO_SHOW'] },
+      })
+        .sort({ dateTransport: 1 })
+        .populate('vehicule', 'nom type immatriculation position'),
+
+      Transport.find(patientFilter)
+        .sort({ dateTransport: -1 })
+        .limit(5)
+        .populate('vehicule', 'nom type immatriculation'),
+
+      Promise.all([
+        Transport.countDocuments(patientFilter),
+        Transport.countDocuments({ ...patientFilter, statut: { $in: ['COMPLETED', 'BILLED'] } }),
+        Transport.countDocuments({
+          ...patientFilter,
+          dateTransport: { $gt: now },
+          statut: { $nin: ['CANCELLED', 'NO_SHOW'] },
+        }),
+        Facture.countDocuments(factureFilter),
+      ]),
+    ])
+
+    const [totalTransports, transportsTermines, transportsAVenir, totalFactures] = counts
+
+    res.json({
+      patient:           patientPayload(req.user),
+      prochainTransport: prochainTransport || null,
+      derniersTransports,
+      stats: { totalTransports, transportsTermines, transportsAVenir, totalFactures },
+    })
+  } catch (err) {
+    console.error('[patient/dashboard]', err)
     res.status(500).json({ message: 'Erreur serveur', detail: err.message })
   }
 })

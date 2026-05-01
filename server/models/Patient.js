@@ -71,11 +71,23 @@ patientSchema.index({ telephone: 1 }, { sparse: true });
 patientSchema.index({ deletedAt: 1 });
 
 // ── Numéro patient automatique : PAT-YYYYMMDD-XXXX ───────────────────────────
+// Utilise le MAX existant au lieu de countDocuments() pour éviter les doublons
+// en cas de suppressions ou d'insertions concurrentes.
 patientSchema.pre("save", async function (next) {
   if (!this.numeroPatient) {
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const count = await mongoose.model("Patient").countDocuments();
-    this.numeroPatient = `PAT-${date}-${String(count + 1).padStart(4, "0")}`;
+    const last = await mongoose.model("Patient")
+      .findOne({ numeroPatient: { $exists: true, $ne: null } })
+      .sort({ numeroPatient: -1 })
+      .select("numeroPatient")
+      .lean();
+    let seq = 1;
+    if (last?.numeroPatient) {
+      const parts = last.numeroPatient.split("-");
+      const n = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(n)) seq = n + 1;
+    }
+    this.numeroPatient = `PAT-${date}-${String(seq).padStart(4, "0")}`;
   }
   next();
 });

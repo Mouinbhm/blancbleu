@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
+import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'signup_screen.dart';
 
@@ -29,25 +30,25 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
 
     if (identifier.isEmpty || password.isEmpty) {
-      setState(() {
-        _errorMessage = 'Veuillez renseigner tous les champs.';
-      });
+      setState(() => _errorMessage = 'Veuillez renseigner tous les champs.');
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    setState(() { _isLoading = true; _errorMessage = null; });
 
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (!mounted) return;
-
-    // Simulation : toute combinaison non vide → accès autorisé
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
+    try {
+      await ApiService.login(identifier, password);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
   }
 
   Widget _dot(double opacity) => Container(
