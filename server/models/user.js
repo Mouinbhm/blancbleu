@@ -16,10 +16,25 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 6, select: false },
     role: {
       type: String,
-      enum: ["dispatcher", "superviseur", "admin"],
+      enum: ["dispatcher", "superviseur", "admin", "patient"],
       default: "dispatcher",
     },
     actif: { type: Boolean, default: true },
+
+    // ── Champs patient ────────────────────────────────────────────────────────
+    telephone: { type: String, default: "" },
+    adresse:   { type: String, default: "" },
+    mobilite: {
+      type: String,
+      enum: ["ASSIS", "FAUTEUIL_ROULANT", "ALLONGE", "CIVIERE"],
+      default: "ASSIS",
+    },
+    medecin:  { type: String, default: "" },
+    mutuelle: { type: String, default: "" },
+    contactUrgence: {
+      nom:       { type: String, default: "" },
+      telephone: { type: String, default: "" },
+    },
   },
   { timestamps: true },
 );
