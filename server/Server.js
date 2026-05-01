@@ -40,16 +40,17 @@ app.use(
     },
   }),
 );
-app.use(
-  cors({
-    origin: (origin, cb) =>
-      !origin || ALLOWED_ORIGINS.includes(origin)
-        ? cb(null, true)
-        : cb(new Error(`CORS bloqué : ${origin}`)),
-    credentials: true,
-    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-  }),
-);
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Autorise toutes les origines — les apps mobiles Flutter n'envoient pas d'Origin
+    callback(null, true);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -61,7 +62,7 @@ app.use(require("./middleware/auditMiddleware"));
 
 // ─── Socket.IO ────────────────────────────────────────────────────────────────
 const io = new Server(server, {
-  cors: { origin: ALLOWED_ORIGINS, credentials: true },
+  cors: { origin: "*", credentials: false },
 });
 app.set("io", io);
 require("./services/socketService").init(io);
@@ -93,6 +94,9 @@ if (process.env.NODE_ENV !== "production") {
 // /api/interventions  → remplacé par /api/transports
 // /api/workflow       → intégré dans transportController
 // /api/escalade       → supprimé (logique urgence non applicable)
+
+// ── Routes mobile patient ─────────────────────────────────────────────────────
+app.use("/api/patient", require("./routes/patient"));
 
 // ─── Health ────────────────────────────────────────────────────────────────────
 app.get("/api/health", healthHandler);
