@@ -31,7 +31,10 @@
       "Read(//c/Users/MSI/dev/flutter/flutter/packages/flutter_tools/gradle/build/libs/**)",
       "Bash(./gradlew assembleDebug --stacktrace)",
       "Bash(./gradlew --stop)",
-      "Bash(GRADLE_OPTS=\"-Dorg.gradle.daemon=false\" ./gradlew assembleDebug)"
+      "Bash(GRADLE_OPTS=\"-Dorg.gradle.daemon=false\" ./gradlew assembleDebug)",
+      "Bash(node scripts/create-patient.js)",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(Get-Content \"C:\\\\Users\\\\MSI\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-MSI-OneDrive-Bureau-PFE-blancbleu\\\\fe7ae880-ae77-4b66-94e7-07adebedc507\\\\tasks\\\\btt4hfoxz.output\" -Tail 20)"
     ],
     "additionalDirectories": [
       "c:\\Users\\MSI\\.claude\\projects\\c--Users-MSI-OneDrive-Bureau-PFE-blancbleu\\memory",
