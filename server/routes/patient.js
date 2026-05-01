@@ -3,8 +3,35 @@ const router    = express.Router()
 const jwt       = require('jsonwebtoken')
 const bcrypt    = require('bcryptjs')
 const User      = require('../models/User')
+const Patient   = require('../models/Patient')
 const Transport = require('../models/Transport')
 const Facture   = require('../models/Facture')
+
+// Crée ou met à jour le dossier Patient de la plateforme web à partir d'un User patient.
+// findOneAndUpdate avec upsert ne déclenche pas le pre('save') qui génère numeroPatient,
+// donc on crée manuellement avec .save() si le document est nouveau.
+async function syncPatientRecord(user) {
+  const data = {
+    nom:       user.nom,
+    prenom:    user.prenom,
+    email:     user.email,
+    telephone: user.telephone || '',
+    mobilite:  user.mobilite  || 'ASSIS',
+    mutuelle:  user.mutuelle  || '',
+    actif:     true,
+    contactUrgence: {
+      nom:       user.contactUrgence?.nom       || '',
+      telephone: user.contactUrgence?.telephone || '',
+    },
+  }
+
+  const existing = await Patient.findOne({ email: user.email })
+  if (existing) {
+    Object.assign(existing, data)
+    return existing.save()
+  }
+  return new Patient(data).save()
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -105,6 +132,13 @@ router.post('/register', async (req, res) => {
       actif:     true,
     })
 
+    // Créer le dossier Patient visible sur la plateforme web
+    try {
+      await syncPatientRecord(patient)
+    } catch (syncErr) {
+      console.error('[patient/register] sync Patient échoué', syncErr.message)
+    }
+
     const accessToken = signToken(patient._id)
     res.status(201).json({ accessToken, patient: patientPayload(patient) })
   } catch (err) {
@@ -166,6 +200,13 @@ router.put('/profil', authPatient, async (req, res) => {
       { $set: { telephone, adresse, mobilite, medecin, mutuelle, contactUrgence } },
       { new: true, runValidators: true },
     ).select('-password')
+
+    // Synchroniser avec le dossier Patient de la plateforme web
+    try {
+      await syncPatientRecord(updated)
+    } catch (syncErr) {
+      console.error('[patient/profil] sync Patient échoué', syncErr.message)
+    }
 
     res.json({ message: 'Profil mis à jour', patient: patientPayload(updated) })
   } catch (err) {
