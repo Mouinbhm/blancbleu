@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import 'profile_screen.dart';
+import 'transports_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -97,7 +98,12 @@ class _HomeScreenState extends State<HomeScreen> {
               final active = _selectedIndex == i;
               return GestureDetector(
                 onTap: () {
-                  if (i == 3) {
+                  if (i == 1) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const TransportsScreen()),
+                    );
+                  } else if (i == 3) {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const ProfileScreen()),
@@ -346,7 +352,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Section 3 — Quick Actions ──────────────────────────────────────────────
   Widget _buildQuickActions() {
-    final actions = [
+    const actions = [
       _QuickAction(
         icon: Icons.add_circle,
         label: 'Nouveau',
@@ -613,10 +619,10 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Icon(Icons.location_on, color: Color(0xFF0056CB), size: 36),
           ),
           // Label
-          Positioned(
+          const Positioned(
             bottom: 12, left: 14, right: 14,
             child: Row(
-              children: const [
+              children: [
                 Icon(Icons.location_on, size: 14, color: AppTheme.secondary),
                 SizedBox(width: 4),
                 Text(
