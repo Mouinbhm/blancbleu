@@ -38,6 +38,7 @@ const patientSchema = new mongoose.Schema(
   {
     nom: { type: String, required: true },
     prenom: { type: String, default: "" },
+    email: { type: String, default: "" },
     dateNaissance: { type: Date },
     telephone: { type: String, default: "" },
     numeroSecu: { type: String, default: "" },
@@ -227,6 +228,9 @@ const transportSchema = new mongoose.Schema(
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     deletedAt: { type: Date, default: null },
     notes: { type: String, default: "" },
+
+    // ── Origine de la demande ─────────────────────────────────────────────────
+    origine: { type: String, default: "" },
   },
   { timestamps: true },
 );
