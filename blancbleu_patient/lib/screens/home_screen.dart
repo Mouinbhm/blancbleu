@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
+import 'nouveau_transport_screen.dart';
 import 'profile_screen.dart';
 import 'transports_screen.dart';
 
@@ -394,9 +395,17 @@ class _HomeScreenState extends State<HomeScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: 1.8,
-      children: actions.map((a) {
+      children: List.generate(actions.length, (i) {
+        final a = actions[i];
         return GestureDetector(
-          onTap: () {},
+          onTap: () {
+            if (i == 0) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NouveauTransportScreen()),
+              );
+            }
+          },
           child: AnimatedScale(
             scale: 1,
             duration: const Duration(milliseconds: 100),
@@ -435,7 +444,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         );
-      }).toList(),
+      }),
     );
   }
 
