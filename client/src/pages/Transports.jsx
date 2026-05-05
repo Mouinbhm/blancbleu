@@ -95,6 +95,12 @@ export default function Transports() {
     return unsub;
   }, [subscribe, loadData]);
 
+  // Nouveau transport créé depuis l'app mobile → recharger la liste
+  useEffect(() => {
+    const unsub = subscribe("transport:created", () => loadData());
+    return unsub;
+  }, [subscribe, loadData]);
+
   const handleFiltre = (key, value) => {
     setFiltres((f) => ({ ...f, [key]: value }));
     setPage(1);

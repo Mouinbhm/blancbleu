@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../services/api_service.dart';
+import 'factures_screen.dart';
 import 'login_screen.dart';
 import 'nouveau_transport_screen.dart';
 import 'profile_screen.dart';
+import 'tracking_screen.dart';
 import 'transports_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -195,15 +197,11 @@ class _HomeScreenState extends State<HomeScreen> {
               return GestureDetector(
                 onTap: () {
                   if (i == 1) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const TransportsScreen()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const TransportsScreen()));
+                  } else if (i == 2) {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const FacturesScreen()));
                   } else if (i == 3) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
                   } else {
                     setState(() => _selectedIndex = i);
                   }
@@ -458,7 +456,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Text('Véhicule non assigné',
                       style: TextStyle(fontSize: 13, color: AppTheme.secondary)),
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    final id = transport['_id']?.toString() ?? '';
+                    if (id.isNotEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TrackingScreen(
+                            transportId: id,
+                            transport: transport as Map<String, dynamic>,
+                          ),
+                        ),
+                      );
+                    }
+                  },
                   icon: const Text('Suivre en direct', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   label: const Icon(Icons.arrow_forward, size: 16),
                   style: ElevatedButton.styleFrom(
@@ -526,10 +537,14 @@ class _HomeScreenState extends State<HomeScreen> {
         return GestureDetector(
           onTap: () {
             if (i == 0) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NouveauTransportScreen()),
-              );
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const NouveauTransportScreen()))
+                  .then((_) => _loadDashboard());
+            } else if (i == 1) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const TransportsScreen()));
+            } else if (i == 2) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const FacturesScreen()));
+            } else if (i == 3) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
             }
           },
           child: AnimatedScale(

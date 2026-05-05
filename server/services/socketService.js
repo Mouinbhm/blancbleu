@@ -12,6 +12,7 @@
  * ║  vehicule:position       → position GPS mise à jour         ║
  * ║  dispatch:completed      → dispatch automatique effectué    ║
  * ║  pmt:extraite            → PMT extraite par IA              ║
+ * ║  patient:created         → nouveau patient enregistré       ║
  * ║  stats:update            → mise à jour des KPIs             ║
  * ║  system:heartbeat        → ping serveur toutes les 30s      ║
  * ╚══════════════════════════════════════════════════════════════╝
@@ -236,6 +237,27 @@ function emitPmtExtraite({ transportId, extraction, confiance }) {
 }
 
 /**
+ * patient:created
+ * Émis quand un nouveau patient crée un compte via l'app mobile
+ */
+function emitPatientCreated(patient) {
+  if (!_io) return;
+  _io.to(ROOMS.DISPATCHERS).to(ROOMS.SUPERVISORS).to(ROOMS.ADMINS).emit('patient:created', {
+    _id:           patient._id,
+    numeroPatient: patient.numeroPatient,
+    nom:           patient.nom,
+    prenom:        patient.prenom,
+    email:         patient.email,
+    telephone:     patient.telephone,
+    mobilite:      patient.mobilite,
+    actif:         patient.actif,
+    createdAt:     patient.createdAt || new Date(),
+    timestamp:     new Date(),
+  });
+  console.log(`[Socket] patient:created → ${patient.numeroPatient} (${patient.nom} ${patient.prenom})`);
+}
+
+/**
  * stats:update
  * Émis après chaque événement important pour actualiser les KPIs dashboard
  */
@@ -324,5 +346,6 @@ module.exports = {
   emitVehiculePosition,
   emitDispatchCompleted,
   emitPmtExtraite,
+  emitPatientCreated,
   emitStatsUpdate,
 };

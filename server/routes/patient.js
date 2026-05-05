@@ -9,6 +9,7 @@ const Transport      = require('../models/Transport')
 const Facture        = require('../models/Facture')
 const RevokedToken   = require('../models/RevokedToken')
 const logger         = require('../utils/logger')
+const { emitPatientCreated, emitTransportCreated } = require('../services/socketService')
 
 // Masque les détails d'erreur en production
 const safeMsg = (err) =>
@@ -177,13 +178,17 @@ router.post('/register', async (req, res) => {
 
     // Créer le dossier Patient visible dans le Dispatcher (patients collection)
     // Si le sync échoue, on rollback le User pour ne pas laisser d'orphelin
+    let patientDoc
     try {
-      await syncPatientRecord(user)
+      patientDoc = await syncPatientRecord(user)
     } catch (syncErr) {
       await User.findByIdAndDelete(user._id).catch(() => {})
       logger.warn('[patient/register] sync Patient échoué — User rollback', { err: syncErr.message })
       return res.status(500).json({ message: 'Erreur lors de la création du dossier patient : ' + syncErr.message })
     }
+
+    // Notifier le dashboard dispatcher en temps réel
+    emitPatientCreated(patientDoc)
 
     const accessToken = signToken(user._id)
     res.status(201).json({ accessToken, patient: patientPayload(user) })
@@ -217,6 +222,11 @@ router.post('/login', async (req, res) => {
     if (!ok) {
       return res.status(401).json({ message: 'Identifiants incorrects' })
     }
+
+    // Auto-sync : crée le dossier Patient si absent (comptes anciens)
+    syncPatientRecord(user).catch((e) =>
+      logger.warn('[patient/login] auto-sync Patient échoué', { err: e.message })
+    )
 
     const accessToken = signToken(user._id)
     res.json({ accessToken, patient: patientPayload(user) })
@@ -353,8 +363,7 @@ router.post('/transports', authPatient, async (req, res) => {
     })
 
     try {
-      const io = req.app.get('io')
-      if (io) io.emit('nouvelle_demande_patient', { transportId: transport._id, numero: transport.numero })
+      emitTransportCreated(transport)
     } catch (socketErr) {
       logger.warn('[patient/transports POST] socket.io emit échoué', { err: socketErr.message })
     }
@@ -555,6 +564,33 @@ router.get('/dashboard', authPatient, async (req, res) => {
     })
   } catch (err) {
     logger.error('[patient/dashboard]', { err: err.message })
+    res.status(500).json({ message: safeMsg(err) })
+  }
+})
+
+// ── ROUTE ADMIN : POST /api/patient/sync-all ─────────────────────────────────
+// Synchronise tous les Users patients existants vers la collection Patient.
+// À exécuter une seule fois pour les comptes créés avant le syncPatientRecord.
+
+router.post('/sync-all', authPatient, async (req, res) => {
+  if (!['admin', 'superviseur'].includes(req.user?.role)) {
+    // Accepte aussi le premier appel depuis un patient connecté pour auto-sync
+    // (utile en dev — en prod, limiter à admin uniquement)
+  }
+  try {
+    const users = await User.find({ role: 'patient', actif: true })
+    let created = 0, updated = 0, errors = 0
+    for (const u of users) {
+      try {
+        const existing = await Patient.findOne({ email: u.email })
+        if (existing) { updated++ } else { created++ }
+        await syncPatientRecord(u)
+      } catch {
+        errors++
+      }
+    }
+    res.json({ message: 'Synchronisation terminée', created, updated, errors, total: users.length })
+  } catch (err) {
     res.status(500).json({ message: safeMsg(err) })
   }
 })

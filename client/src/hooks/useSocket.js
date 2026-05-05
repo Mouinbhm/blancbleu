@@ -49,6 +49,17 @@ export default function useSocket() {
       console.log("✅ Socket temps réel établi:", data.message);
     };
 
+    // ── transport:created (demande patient depuis app mobile) ─────────────
+    const onTransportCreated = (data) => {
+      addEvent({ type: "transport:created", data, color: "blue" });
+      if (Notification.permission === "granted") {
+        new Notification(`🚑 Nouvelle demande — ${data.patient?.nom || ''} ${data.patient?.prenom || ''}`.trim(), {
+          body: `${data.motif || ''} · ${data.typeTransport || ''}`,
+          icon: "/favicon.ico",
+        });
+      }
+    };
+
     // ── intervention:created ───────────────────────────────────────────────
     const onInterventionCreated = (data) => {
       addEvent({ type: "intervention:created", data, color: "blue" });
@@ -116,6 +127,7 @@ export default function useSocket() {
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("connected:ack", onAck);
+    socket.on("transport:created", onTransportCreated);
     socket.on("intervention:created", onInterventionCreated);
     socket.on("unit:assigned", onUnitAssigned);
     socket.on("status:updated", onStatusUpdated);
@@ -141,6 +153,7 @@ export default function useSocket() {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("connected:ack", onAck);
+      socket.off("transport:created", onTransportCreated);
       socket.off("intervention:created", onInterventionCreated);
       socket.off("unit:assigned", onUnitAssigned);
       socket.off("status:updated", onStatusUpdated);

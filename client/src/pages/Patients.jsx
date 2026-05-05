@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import StatutBadge from "../components/transport/StatutBadge";
 import { patientService } from "../services/api";
+import { getOrCreateSocket } from "../services/socketService";
 
 const MOBILITE_LABEL = {
   ASSIS: "Assis",
@@ -151,6 +152,21 @@ export default function Patients() {
     const timer = setTimeout(loadData, 300); // debounce recherche
     return () => clearTimeout(timer);
   }, [loadData]);
+
+  // Mise à jour temps réel : nouveau patient créé via l'app mobile
+  useEffect(() => {
+    const socket = getOrCreateSocket();
+    if (!socket) return;
+    const handler = (data) => {
+      setPatients((prev) => {
+        if (prev.some((p) => p._id === data._id)) return prev;
+        return [data, ...prev];
+      });
+      setStats((s) => s ? { ...s, total: s.total + 1, actifs: s.actifs + 1 } : s);
+    };
+    socket.on("patient:created", handler);
+    return () => socket.off("patient:created", handler);
+  }, []);
 
   const handlePatientCreated = (newPatient) => {
     setShowModal(false);

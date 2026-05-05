@@ -136,4 +136,53 @@ class ApiService {
     );
     return _parse(res);
   }
+
+  // ── Logout ─────────────────────────────────────────────────────────────────
+
+  static Future<void> logout() async {
+    try {
+      await http.post(Uri.parse('$_base/logout'), headers: await _headers());
+    } catch (_) {}
+    await clearSession();
+  }
+
+  // ── Transport par id ───────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getTransportById(String id) async {
+    final res = await http.get(
+      Uri.parse('$_base/transports/$id'),
+      headers: await _headers(),
+    );
+    return _parse(res)['transport'] as Map<String, dynamic>;
+  }
+
+  // ── Tracking ───────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getTracking(String id) async {
+    final res = await http.get(
+      Uri.parse('$_base/transports/$id/tracking'),
+      headers: await _headers(),
+    );
+    return _parse(res);
+  }
+
+  // ── Factures ───────────────────────────────────────────────────────────────
+
+  static Future<List<dynamic>> getFactures() async {
+    final res = await http.get(
+      Uri.parse('$_base/factures'),
+      headers: await _headers(),
+    );
+    return _parse(res)['factures'] as List<dynamic>;
+  }
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getStats() async {
+    final res = await http.get(
+      Uri.parse('$_base/stats'),
+      headers: await _headers(),
+    );
+    return _parse(res);
+  }
 }
