@@ -32,6 +32,7 @@ class _NouveauTransportScreenState extends State<NouveauTransportScreen> {
     _NavItem(icon: Icons.home_outlined,             filledIcon: Icons.home,             label: 'Accueil'),
     _NavItem(icon: Icons.medical_services_outlined, filledIcon: Icons.medical_services, label: 'Transports'),
     _NavItem(icon: Icons.receipt_long_outlined,     filledIcon: Icons.receipt_long,     label: 'Factures'),
+    _NavItem(icon: Icons.description_outlined,      filledIcon: Icons.description,      label: 'Ordonnances'),
     _NavItem(icon: Icons.person_outline,            filledIcon: Icons.person,           label: 'Profil'),
   ];
 

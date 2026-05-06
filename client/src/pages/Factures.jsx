@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import api, { factureService, transportService } from "../services/api";
+import useSocket from "../hooks/useSocket";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -397,7 +398,7 @@ function ConfirmToast({ message, onConfirm, onCancel }) {
 function ModalNouvelleFacture({ onClose, onCreated }) {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({
-    transportId: "", patientNom: "", patientPrenom: "",
+    transportId: "", patientId: null, patientNom: "", patientPrenom: "",
     typeVehicule: "VSL", motif: "Consultation", allerRetour: false,
     distanceKm: "", dateEmission: today,
     montantTotal: "", tauxPriseEnCharge: 65,
@@ -431,6 +432,7 @@ function ModalNouvelleFacture({ onClose, onCreated }) {
       setForm((f) => ({
         ...f,
         transportId: tId,
+        patientId:     t.patientId       || null,
         patientNom:    t.patient?.nom    || f.patientNom,
         patientPrenom: t.patient?.prenom || f.patientPrenom,
         typeVehicule:  t.typeTransport   || f.typeVehicule,
@@ -449,6 +451,7 @@ function ModalNouvelleFacture({ onClose, onCreated }) {
     try {
       const payload = {
         patientNom: form.patientNom, patientPrenom: form.patientPrenom,
+        ...(form.patientId ? { patientId: form.patientId } : {}),
         typeVehicule: form.typeVehicule, motif: form.motif,
         allerRetour: form.allerRetour,
         distanceKm: parseFloat(form.distanceKm) || 0,
@@ -906,6 +909,22 @@ export default function Factures() {
       })
       .catch(() => {});
   }, [filterStatut]);
+
+  // ── Socket : mise à jour temps réel quand une facture est payée ────────────
+  const { subscribe } = useSocket();
+  useEffect(() => {
+    const unsub = subscribe("facture:updated", (data) => {
+      setFactures((prev) =>
+        prev.map((f) =>
+          f._id === data._id
+            ? { ...f, statut: data.statut, datePaiement: data.datePaiement, modePaiement: data.modePaiement, referenceExterne: data.referenceExterne }
+            : f
+        )
+      );
+      addToast(`Facture ${data.numero} payée en ligne par le patient`);
+    });
+    return unsub;
+  }, [subscribe, addToast]);
 
   // ── Chargement factures ─────────────────────────────────────────────────────
   useEffect(() => {

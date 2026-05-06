@@ -13,7 +13,8 @@ const Facture        = require('../models/Facture')
 const Prescription   = require('../models/Prescription')
 const RevokedToken   = require('../models/RevokedToken')
 const logger         = require('../utils/logger')
-const { emitPatientCreated, emitTransportCreated, emitPrescriptionCreated } = require('../services/socketService')
+const { emitPatientCreated, emitTransportCreated, emitPrescriptionCreated, emitFactureUpdated } = require('../services/socketService')
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 
 // ── Multer — prescription file uploads ───────────────────────────────────────
 const _uploadDir = path.join(__dirname, '..', 'uploads', 'prescriptions')
@@ -488,15 +489,102 @@ router.get('/transports/:id/tracking', authPatient, async (req, res) => {
 
 router.get('/factures', authPatient, async (req, res) => {
   try {
-    const factures = await Facture.find({
-      $or: [
-        { patientNom: req.user.nom, patientPrenom: req.user.prenom },
-      ],
-    }).sort({ dateEmission: -1 })
-
+    const patientDoc = await Patient.findOne({ email: req.user.email }).select('_id')
+    const conditions = [
+      {
+        patientNom:    { $regex: new RegExp(`^${req.user.nom}$`,    'i') },
+        patientPrenom: { $regex: new RegExp(`^${req.user.prenom}$`, 'i') },
+      },
+    ]
+    if (patientDoc) conditions.push({ patientId: patientDoc._id })
+    const factures = await Facture.find({ $or: conditions }).sort({ dateEmission: -1 })
     res.json({ factures })
   } catch (err) {
     logger.error('[patient/factures]', { err: err.message })
+    res.status(500).json({ message: safeMsg(err) })
+  }
+})
+
+// ── ROUTE 10a : POST /api/patient/factures/:id/paiement-intent ───────────────
+// Crée un PaymentIntent Stripe pour que le patient puisse payer sa facture.
+
+router.post('/factures/:id/paiement-intent', authPatient, async (req, res) => {
+  try {
+    const patientDoc = await Patient.findOne({ email: req.user.email }).select('_id')
+    const conditions = [
+      { patientNom: { $regex: new RegExp(`^${req.user.nom}$`, 'i') }, patientPrenom: { $regex: new RegExp(`^${req.user.prenom}$`, 'i') } },
+    ]
+    if (patientDoc) conditions.push({ patientId: patientDoc._id })
+
+    const facture = await Facture.findOne({ _id: req.params.id, $or: conditions })
+    if (!facture) return res.status(404).json({ message: 'Facture introuvable' })
+    if (facture.statut === 'payee')    return res.status(400).json({ message: 'Facture déjà payée' })
+    if (facture.statut === 'annulee')  return res.status(400).json({ message: 'Facture annulée' })
+
+    const montantPatient = facture.montantPatient || facture.montantTotal
+    if (!montantPatient || montantPatient <= 0)
+      return res.status(400).json({ message: 'Montant invalide' })
+
+    // Stripe attend les montants en centimes (entier)
+    const amount = Math.round(montantPatient * 100)
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency: 'eur',
+      automatic_payment_methods: { enabled: true },
+      metadata: {
+        factureId: facture._id.toString(),
+        factureNumero: facture.numero,
+        patientEmail: req.user.email,
+      },
+    })
+
+    res.json({
+      clientSecret:    paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      amount:          montantPatient,
+      currency:        'EUR',
+    })
+  } catch (err) {
+    logger.error('[patient/paiement-intent]', { err: err.message })
+    res.status(500).json({ message: safeMsg(err) })
+  }
+})
+
+// ── ROUTE 10b : POST /api/patient/factures/:id/confirmer-paiement ─────────────
+// Appelé par le mobile après succès Stripe → vérifie et marque la facture payée.
+
+router.post('/factures/:id/confirmer-paiement', authPatient, async (req, res) => {
+  try {
+    const { paymentIntentId } = req.body
+    if (!paymentIntentId) return res.status(400).json({ message: 'paymentIntentId requis' })
+
+    // Vérification côté Stripe (source de vérité)
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId)
+    if (pi.status !== 'succeeded') {
+      return res.status(400).json({ message: `Paiement non confirmé (statut: ${pi.status})` })
+    }
+    if (pi.metadata?.factureId !== req.params.id) {
+      return res.status(400).json({ message: 'PaymentIntent ne correspond pas à cette facture' })
+    }
+
+    const patientDoc = await Patient.findOne({ email: req.user.email }).select('_id')
+    const conditions = [
+      { patientNom: { $regex: new RegExp(`^${req.user.nom}$`, 'i') }, patientPrenom: { $regex: new RegExp(`^${req.user.prenom}$`, 'i') } },
+    ]
+    if (patientDoc) conditions.push({ patientId: patientDoc._id })
+
+    const facture = await Facture.findOneAndUpdate(
+      { _id: req.params.id, $or: conditions, statut: { $ne: 'payee' } },
+      { statut: 'payee', datePaiement: new Date(), modePaiement: 'cb', referenceExterne: paymentIntentId },
+      { new: true },
+    )
+    if (!facture) return res.status(404).json({ message: 'Facture introuvable ou déjà payée' })
+
+    emitFactureUpdated(facture)
+    res.json({ message: 'Paiement confirmé', facture })
+  } catch (err) {
+    logger.error('[patient/confirmer-paiement]', { err: err.message })
     res.status(500).json({ message: safeMsg(err) })
   }
 })

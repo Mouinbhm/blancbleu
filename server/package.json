@@ -16,7 +16,9 @@
   "jest": {
     "testEnvironment": "node",
     "testTimeout": 30000,
-    "setupFilesAfterEnv": ["./jest.setup.js"],
+    "setupFilesAfterEnv": [
+      "./jest.setup.js"
+    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/_deprecated/"
@@ -76,6 +78,7 @@
     "multer": "^2.1.1",
     "nodemailer": "^8.0.4",
     "socket.io": "^4.6.2",
+    "stripe": "^22.1.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "winston": "^3.19.0",

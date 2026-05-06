@@ -24,7 +24,7 @@ if (flutterVersionName == null) {
 
 android {
     namespace "fr.blancbleu.blancbleu_patient"
-    compileSdk 34
+    compileSdk 35
     ndkVersion flutter.ndkVersion
 
     compileOptions {

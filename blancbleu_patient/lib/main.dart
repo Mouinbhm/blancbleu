@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 
+import 'config/stripe_config.dart';
 import 'config/theme.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/api_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  Stripe.publishableKey = StripeConfig.publishableKey;
+  await Stripe.instance.applySettings();
   runApp(const BlancBleuApp());
 }
 

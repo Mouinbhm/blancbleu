@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import '../config/theme.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
@@ -19,10 +20,11 @@ class _FacturesScreenState extends State<FacturesScreen> {
   static const _tabs = ['Toutes', 'En attente', 'Payees', 'Annulees'];
 
   static const _navItems = [
-    _NavItem(icon: Icons.home_outlined,             filledIcon: Icons.home,           label: 'Accueil'),
+    _NavItem(icon: Icons.home_outlined,             filledIcon: Icons.home,             label: 'Accueil'),
     _NavItem(icon: Icons.medical_services_outlined, filledIcon: Icons.medical_services, label: 'Transports'),
-    _NavItem(icon: Icons.receipt_long_outlined,     filledIcon: Icons.receipt_long,   label: 'Factures'),
-    _NavItem(icon: Icons.person_outline,            filledIcon: Icons.person,         label: 'Profil'),
+    _NavItem(icon: Icons.receipt_long_outlined,     filledIcon: Icons.receipt_long,     label: 'Factures'),
+    _NavItem(icon: Icons.description_outlined,      filledIcon: Icons.description,      label: 'Ordonnances'),
+    _NavItem(icon: Icons.person_outline,            filledIcon: Icons.person,           label: 'Profil'),
   ];
 
   static const _moisLong = [
@@ -53,6 +55,63 @@ class _FacturesScreenState extends State<FacturesScreen> {
         return;
       }
       setState(() { _error = msg; _loading = false; });
+    }
+  }
+
+  Future<void> _payer(Map<String, dynamic> facture) async {
+    final factureId = facture['_id'] as String? ?? '';
+    if (factureId.isEmpty) return;
+
+    try {
+      // 1. Créer le PaymentIntent côté serveur
+      final pi = await ApiService.createPaymentIntent(factureId);
+      final clientSecret    = pi['clientSecret']    as String;
+      final paymentIntentId = pi['paymentIntentId'] as String;
+
+      // 2. Préparer la feuille de paiement Stripe
+      await Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: SetupPaymentSheetParameters(
+          paymentIntentClientSecret: clientSecret,
+          merchantDisplayName: 'Ambulances Blanc Bleu',
+          style: ThemeMode.light,
+        ),
+      );
+
+      // 3. Afficher la feuille de paiement
+      await Stripe.instance.presentPaymentSheet();
+
+      // 4. Confirmer côté serveur et marquer comme payée
+      if (!mounted) return;
+      await ApiService.confirmerPaiement(factureId, paymentIntentId);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Paiement effectue avec succes !'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _load();
+    } on StripeException catch (e) {
+      if (!mounted) return;
+      if (e.error.code == FailureCode.Canceled) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.error.localizedMessage ?? 'Paiement echoue'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -514,6 +573,29 @@ class _FacturesScreenState extends State<FacturesScreen> {
                       Text('Echeance : $dateEch',
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade700)),
                     ],
+                  ),
+                ],
+
+                // Bouton paiement en ligne
+                if (!isPaid && (f['statut'] == 'emise' || f['statut'] == 'en_attente')) ...[
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _payer(f),
+                      icon: const Icon(Icons.credit_card, size: 18),
+                      label: const Text(
+                        'Payer en ligne',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                    ),
                   ),
                 ],
               ],

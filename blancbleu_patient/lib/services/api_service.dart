@@ -199,6 +199,30 @@ class ApiService {
     return _parse(res)['prescriptions'] as List<dynamic>;
   }
 
+  // ── Paiement Stripe ────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> createPaymentIntent(String factureId) async {
+    final res = await http.post(
+      Uri.parse('$_base/factures/$factureId/paiement-intent'),
+      headers: await _headers(),
+    );
+    return _parse(res);
+  }
+
+  static Future<Map<String, dynamic>> confirmerPaiement(
+    String factureId,
+    String paymentIntentId,
+  ) async {
+    final res = await http.post(
+      Uri.parse('$_base/factures/$factureId/confirmer-paiement'),
+      headers: await _headers(),
+      body: jsonEncode({'paymentIntentId': paymentIntentId}),
+    );
+    return _parse(res);
+  }
+
+  // ── Prescriptions ──────────────────────────────────────────────────────────
+
   static Future<Map<String, dynamic>> createPrescription(
     Map<String, dynamic> body, {
     File? fichier,

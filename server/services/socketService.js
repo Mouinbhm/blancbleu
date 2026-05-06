@@ -258,6 +258,25 @@ function emitPrescriptionCreated(prescription) {
 }
 
 /**
+ * facture:updated
+ * Émis quand une facture est marquée payée (paiement en ligne Stripe)
+ */
+function emitFactureUpdated(facture) {
+  if (!_io) return;
+  _io.to(ROOMS.DISPATCHERS).to(ROOMS.SUPERVISORS).to(ROOMS.ADMINS).emit('facture:updated', {
+    _id:            facture._id,
+    numero:         facture.numero,
+    statut:         facture.statut,
+    datePaiement:   facture.datePaiement,
+    modePaiement:   facture.modePaiement,
+    referenceExterne: facture.referenceExterne,
+    montantTotal:   facture.montantTotal,
+    timestamp:      new Date(),
+  });
+  console.log(`[Socket] facture:updated → ${facture.numero} (payee)`);
+}
+
+/**
  * patient:created
  * Émis quand un nouveau patient crée un compte via l'app mobile
  */
@@ -369,5 +388,6 @@ module.exports = {
   emitPmtExtraite,
   emitPrescriptionCreated,
   emitPatientCreated,
+  emitFactureUpdated,
   emitStatsUpdate,
 };
