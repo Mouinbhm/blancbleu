@@ -16,6 +16,15 @@ const axios = require("axios");
 const Transport = require("../models/Transport");
 const Vehicle = require("../models/Vehicle");
 const socketService = require("./socketService");
+const { geocodeAdresse } = require("../utils/geocodeUtils");
+
+// Coordonnées de fallback Nice centre si le géocodage échoue
+const NICE_FALLBACK = [
+  { lat: 43.7102, lng: 7.2620 }, // Nice centre
+  { lat: 43.7196, lng: 7.2714 }, // Nice Est
+  { lat: 43.6942, lng: 7.2389 }, // Nice Ouest
+  { lat: 43.7330, lng: 7.2497 }, // Nice Nord
+];
 
 const logger = (() => {
   try { return require("../utils/logger"); } catch { return console; }
@@ -144,11 +153,37 @@ async function demarrerSimulation(transportId) {
     return;
   }
 
-  const pickupCoords = transport.adresseDepart?.coordonnees;
-  const destCoords   = transport.adresseDestination?.coordonnees;
-  if (!pickupCoords?.lat || !destCoords?.lat) {
-    logger.warn("[simulationGPS] Coordonnées manquantes, simulation annulée", { transportId: key });
-    return;
+  let pickupCoords = transport.adresseDepart?.coordonnees;
+  let destCoords   = transport.adresseDestination?.coordonnees;
+
+  // Géocoder automatiquement si coordonnées absentes (transports créés via app mobile)
+  if (!pickupCoords?.lat) {
+    const adresseStr = transport.adresseDepart?.nom || transport.adresseDepart?.rue || '';
+    if (adresseStr) {
+      const geo = await geocodeAdresse(adresseStr + ' Nice').catch(() => null);
+      pickupCoords = geo ? { lat: geo.lat, lng: geo.lng } : NICE_FALLBACK[Math.floor(Math.random() * 2)];
+      logger.info(`[simulationGPS] Géocodage départ: ${adresseStr} → ${JSON.stringify(pickupCoords)}`);
+    } else {
+      pickupCoords = NICE_FALLBACK[0];
+    }
+    // Persister les coordonnées pour les prochains appels
+    await Transport.findByIdAndUpdate(transportId, {
+      'adresseDepart.coordonnees': pickupCoords,
+    }).catch(() => {});
+  }
+
+  if (!destCoords?.lat) {
+    const adresseStr = transport.adresseDestination?.nom || transport.adresseDestination?.rue || '';
+    if (adresseStr) {
+      const geo = await geocodeAdresse(adresseStr + ' Nice').catch(() => null);
+      destCoords = geo ? { lat: geo.lat, lng: geo.lng } : NICE_FALLBACK[2 + Math.floor(Math.random() * 2)];
+      logger.info(`[simulationGPS] Géocodage destination: ${adresseStr} → ${JSON.stringify(destCoords)}`);
+    } else {
+      destCoords = NICE_FALLBACK[3];
+    }
+    await Transport.findByIdAndUpdate(transportId, {
+      'adresseDestination.coordonnees': destCoords,
+    }).catch(() => {});
   }
 
   const depot = transport.vehicule?.position?.lat
