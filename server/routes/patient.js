@@ -3,13 +3,36 @@ const router         = express.Router()
 const jwt            = require('jsonwebtoken')
 const bcrypt         = require('bcryptjs')
 const { randomBytes } = require('crypto')
+const path           = require('path')
+const fs             = require('fs')
+const multer         = require('multer')
 const User           = require('../models/User')
 const Patient        = require('../models/Patient')
 const Transport      = require('../models/Transport')
 const Facture        = require('../models/Facture')
+const Prescription   = require('../models/Prescription')
 const RevokedToken   = require('../models/RevokedToken')
 const logger         = require('../utils/logger')
-const { emitPatientCreated, emitTransportCreated } = require('../services/socketService')
+const { emitPatientCreated, emitTransportCreated, emitPrescriptionCreated } = require('../services/socketService')
+
+// ── Multer — prescription file uploads ───────────────────────────────────────
+const _uploadDir = path.join(__dirname, '..', 'uploads', 'prescriptions')
+if (!fs.existsSync(_uploadDir)) fs.mkdirSync(_uploadDir, { recursive: true })
+
+const _prescriptionUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_, __, cb) => cb(null, _uploadDir),
+    filename: (_, file, cb) => {
+      const ext = path.extname(file.originalname) || '.bin'
+      cb(null, `pmt-${Date.now()}${ext}`)
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (_, file, cb) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+    cb(null, allowed.includes(file.mimetype))
+  },
+}).single('fichier')
 
 // Masque les détails d'erreur en production
 const safeMsg = (err) =>
@@ -67,6 +90,7 @@ function patientPayload(u) {
     prenom:         u.prenom,
     email:          u.email,
     telephone:      u.telephone,
+    dateNaissance:  u.dateNaissance || null,
     adresse:        u.adresse,
     mobilite:       u.mobilite,
     role:           u.role,
@@ -140,7 +164,7 @@ router.post('/register', async (req, res) => {
   try {
     const {
       prenom, nom, email, password,
-      telephone, mobilite, adresse, medecin, mutuelle, contactUrgence,
+      telephone, dateNaissance, mobilite, adresse, medecin, mutuelle, contactUrgence,
     } = req.body
 
     if (!prenom || !nom || !email || !password) {
@@ -164,10 +188,11 @@ router.post('/register', async (req, res) => {
       email:     email.toLowerCase().trim(),
       password:  hash,
       telephone: telephone || '',
-      role:      'patient',
-      actif:     true,
-      mobilite:  mobilite || 'ASSIS',
-      adresse:   adresse  || '',
+      role:          'patient',
+      actif:         true,
+      dateNaissance: dateNaissance ? new Date(dateNaissance) : null,
+      mobilite:      mobilite || 'ASSIS',
+      adresse:       adresse  || '',
       medecin:   medecin  || '',
       mutuelle:  mutuelle || '',
       contactUrgence: {
@@ -564,6 +589,80 @@ router.get('/dashboard', authPatient, async (req, res) => {
     })
   } catch (err) {
     logger.error('[patient/dashboard]', { err: err.message })
+    res.status(500).json({ message: safeMsg(err) })
+  }
+})
+
+// ── ROUTE 12 : GET /api/patient/prescriptions ────────────────────────────────
+
+router.get('/prescriptions', authPatient, async (req, res) => {
+  try {
+    const patientDoc = await Patient.findOne({ email: req.user.email }).select('_id')
+    if (!patientDoc) return res.json({ prescriptions: [] })
+
+    const prescriptions = await Prescription.find({
+      patientId: patientDoc._id,
+      deletedAt: null,
+    }).sort({ createdAt: -1 }).limit(50)
+
+    res.json({ prescriptions })
+  } catch (err) {
+    logger.error('[patient/prescriptions GET]', { err: err.message })
+    res.status(500).json({ message: safeMsg(err) })
+  }
+})
+
+// ── ROUTE 13 : POST /api/patient/prescriptions ───────────────────────────────
+
+router.post('/prescriptions', authPatient, (req, res, next) => {
+  _prescriptionUpload(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ message: `Fichier invalide : ${err.message}` })
+    }
+    if (err) return res.status(400).json({ message: err.message })
+    next()
+  })
+}, async (req, res) => {
+  try {
+    const { motif, dateEmission, etablissementDestination, notes } = req.body
+
+    if (!motif || !dateEmission) {
+      return res.status(400).json({ message: 'motif et dateEmission sont obligatoires' })
+    }
+
+    // medecin peut arriver comme JSON stringifié (multipart) ou objet (JSON)
+    let medecin = {}
+    try {
+      if (typeof req.body.medecin === 'string') medecin = JSON.parse(req.body.medecin)
+      else if (req.body.medecin) medecin = req.body.medecin
+    } catch { medecin = {} }
+
+    const patientDoc = await Patient.findOne({ email: req.user.email }).select('_id')
+    if (!patientDoc) {
+      return res.status(404).json({ message: 'Dossier patient introuvable — contactez votre transporteur' })
+    }
+
+    const fichierUrl = req.file ? `/uploads/prescriptions/${req.file.filename}` : ''
+    const fichierNom = req.file ? req.file.originalname : ''
+
+    const prescription = await Prescription.create({
+      patientId:               patientDoc._id,
+      motif,
+      medecin,
+      dateEmission:            new Date(dateEmission),
+      etablissementDestination: etablissementDestination || '',
+      notes:                   notes || '',
+      fichierUrl,
+      fichierNom,
+      statut:                  'en_attente_validation',
+      source:                  'PATIENT_APP',
+    })
+
+    try { emitPrescriptionCreated(prescription) } catch { }
+
+    res.status(201).json({ prescription })
+  } catch (err) {
+    logger.error('[patient/prescriptions POST]', { err: err.message })
     res.status(500).json({ message: safeMsg(err) })
   }
 })

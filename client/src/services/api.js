@@ -304,6 +304,7 @@ export const prescriptionService = {
   create: (data) => api.post("/prescriptions", data),
   update: (id, data) => api.patch(`/prescriptions/${id}`, data),
   valider: (id, contenuExtrait) => api.patch(`/prescriptions/${id}/valider`, { contenuExtrait }),
+  incomplet: (id, commentaire) => api.patch(`/prescriptions/${id}/incomplet`, { commentaire }),
   delete: (id) => api.delete(`/prescriptions/${id}`),
 };
 

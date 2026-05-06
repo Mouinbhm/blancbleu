@@ -54,8 +54,18 @@ const prescriptionSchema = new mongoose.Schema(
     // ── Statut de la prescription ─────────────────────────────────────────────
     statut: {
       type: String,
-      enum: ["active", "expiree", "annulee", "en_attente_validation"],
+      enum: ["active", "expiree", "annulee", "en_attente_validation", "incomplet"],
       default: "en_attente_validation",
+    },
+
+    // ── Commentaire dispatcher (statut incomplet) ─────────────────────────────
+    commentaireDispatcher: { type: String, default: "" },
+
+    // ── Origine ───────────────────────────────────────────────────────────────
+    source: {
+      type: String,
+      enum: ["DISPATCHER", "PATIENT_APP"],
+      default: "DISPATCHER",
     },
 
     // ── Document original ─────────────────────────────────────────────────────

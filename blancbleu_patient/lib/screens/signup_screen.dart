@@ -23,6 +23,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   // Étape 2
   String _mobilite = 'ASSIS';
+  DateTime? _dateNaissance;
   final _adresseController     = TextEditingController();
   final _medecinController     = TextEditingController();
   final _urgenceNomController  = TextEditingController();
@@ -84,18 +85,42 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
+  Future<void> _pickDateNaissance() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dateNaissance ?? DateTime(1980, 1, 1),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now().subtract(const Duration(days: 365)),
+      helpText: 'Date de naissance',
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppTheme.primary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _dateNaissance = picked);
+  }
+
+  String _fmtDateNaissance(DateTime d) {
+    const mois = ['janvier','février','mars','avril','mai','juin',
+                  'juillet','août','septembre','octobre','novembre','décembre'];
+    return '${d.day} ${mois[d.month - 1]} ${d.year}';
+  }
+
   Future<void> _createAccount() async {
     setState(() { _isLoading = true; _errorMessage = null; });
     try {
       await ApiService.register(
-        prenom:    _prenomController.text.trim(),
-        nom:       _nomController.text.trim(),
-        email:     _emailController.text.trim(),
-        password:  _passwordController.text,
-        telephone: _telephoneController.text.trim(),
-        mobilite:  _mobilite,
-        adresse:   _adresseController.text.trim(),
-        medecin:   _medecinController.text.trim(),
+        prenom:         _prenomController.text.trim(),
+        nom:            _nomController.text.trim(),
+        email:          _emailController.text.trim(),
+        password:       _passwordController.text,
+        telephone:      _telephoneController.text.trim(),
+        mobilite:       _mobilite,
+        adresse:        _adresseController.text.trim(),
+        medecin:        _medecinController.text.trim(),
+        dateNaissance:  _dateNaissance?.toIso8601String(),
         contactUrgence: {
           'nom':       _urgenceNomController.text.trim(),
           'telephone': _urgenceTelController.text.trim(),
@@ -499,6 +524,52 @@ class _SignupScreenState extends State<SignupScreen> {
           }),
 
           const SizedBox(height: 20),
+
+          // Date de naissance
+          const Text('Date de naissance',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.onSurface),
+          ),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: _pickDateNaissance,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _dateNaissance != null ? AppTheme.primary : AppTheme.outlineVariant,
+                  width: _dateNaissance != null ? 2 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.cake_outlined,
+                    color: _dateNaissance != null ? AppTheme.primary : AppTheme.outlineVariant,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _dateNaissance != null
+                          ? _fmtDateNaissance(_dateNaissance!)
+                          : 'JJ / MM / AAAA',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _dateNaissance != null ? AppTheme.onSurface : AppTheme.outlineVariant,
+                        fontWeight: _dateNaissance != null ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right,
+                    color: _dateNaissance != null ? AppTheme.primary : AppTheme.outlineVariant,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
 
           _buildField(
             label: 'Adresse domicile (optionnel)', controller: _adresseController,

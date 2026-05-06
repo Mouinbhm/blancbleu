@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { prescriptionService, patientService } from "../services/api";
+import useSocket from "../hooks/useSocket";
 
 const STATUT_CONFIG = {
-  active: { label: "Active", cls: "bg-green-100 text-green-700" },
-  expiree: { label: "Expirée", cls: "bg-red-100 text-red-700" },
-  annulee: { label: "Annulée", cls: "bg-slate-100 text-slate-500" },
-  en_attente_validation: { label: "À valider", cls: "bg-amber-100 text-amber-700" },
+  active:                { label: "Active",      cls: "bg-green-100 text-green-700" },
+  expiree:               { label: "Expirée",     cls: "bg-red-100 text-red-700" },
+  annulee:               { label: "Annulée",     cls: "bg-slate-100 text-slate-500" },
+  en_attente_validation: { label: "À valider",   cls: "bg-amber-100 text-amber-700" },
+  incomplet:             { label: "Incomplet",   cls: "bg-orange-100 text-orange-700" },
 };
 
 const MOTIFS = [
@@ -1068,10 +1070,79 @@ function ModalNouvellePrescription({ onClose, onSuccess, prescriptionToEdit }) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// MODAL INCOMPLET — commentaire dispatcher vers patient
+// ═════════════════════════════════════════════════════════════════════════════
+function ModalIncomplet({ prescription, onClose, onSuccess }) {
+  const [commentaire, setCommentaire] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!commentaire.trim()) return;
+    setLoading(true);
+    try {
+      await prescriptionService.incomplet(prescription._id, commentaire.trim());
+      onSuccess();
+    } catch (err) {
+      alert(err.response?.data?.message || "Erreur");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-orange-500">report_problem</span>
+            <h2 className="font-bold text-navy text-base">Marquer incomplète</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <p className="text-sm text-slate-500">
+            Indiquez au patient ce qu'il doit corriger pour que sa prescription soit validée.
+          </p>
+          <div className="bg-slate-50 rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-500 font-mono">
+            {prescription.numero} · {prescription.motif}
+          </div>
+          <textarea
+            rows={4}
+            placeholder="Ex : Le nom du médecin est manquant. Veuillez joindre l'ordonnance signée en PDF…"
+            value={commentaire}
+            onChange={(e) => setCommentaire(e.target.value)}
+            className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-200 resize-none"
+            autoFocus
+          />
+        </div>
+        <div className="flex gap-3 px-6 pb-5">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || !commentaire.trim()}
+            className="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold disabled:opacity-40 transition-colors"
+          >
+            {loading ? "Envoi…" : "Envoyer au patient"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // PAGE PRINCIPALE — LISTE DES PRESCRIPTIONS
 // ═════════════════════════════════════════════════════════════════════════════
 export default function Prescriptions() {
   const [prescriptions, setPrescriptions] = useState([]);
+  const [pendingMobile, setPendingMobile] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [erreur, setErreur] = useState(null);
@@ -1080,7 +1151,17 @@ export default function Prescriptions() {
   const [showModal, setShowModal] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showIncomplet, setShowIncomplet] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState(null);
+
+  const { subscribe } = useSocket();
+
+  const loadPendingMobile = useCallback(async () => {
+    try {
+      const res = await prescriptionService.getAll({ statut: "en_attente_validation", source: "PATIENT_APP", limit: 50 });
+      setPendingMobile(res.data?.prescriptions || []);
+    } catch { /* silencieux */ }
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -1102,12 +1183,19 @@ export default function Prescriptions() {
     }
   }, [filtreStatut, filtreMotif]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(); loadPendingMobile(); }, [loadData, loadPendingMobile]);
+
+  // Temps réel — prescription envoyée depuis l'app mobile
+  useEffect(() => {
+    const unsub = subscribe("prescription:created", () => { loadData(); loadPendingMobile(); });
+    return unsub;
+  }, [subscribe, loadData, loadPendingMobile]);
 
   const handleValider = async (id) => {
     try {
       await prescriptionService.valider(id);
       loadData();
+      loadPendingMobile();
     } catch (err) {
       alert(err.response?.data?.message || "Erreur lors de la validation");
     }
@@ -1118,6 +1206,7 @@ export default function Prescriptions() {
     try {
       await prescriptionService.delete(id);
       loadData();
+      loadPendingMobile();
     } catch (err) {
       alert(err.response?.data?.message || "Erreur");
     }
@@ -1147,6 +1236,14 @@ export default function Prescriptions() {
           prescriptionToEdit={selectedPrescription}
           onClose={() => { setShowEdit(false); setSelectedPrescription(null); }}
           onSuccess={() => { setShowEdit(false); setSelectedPrescription(null); loadData(); }}
+        />
+      )}
+
+      {showIncomplet && selectedPrescription && (
+        <ModalIncomplet
+          prescription={selectedPrescription}
+          onClose={() => { setShowIncomplet(false); setSelectedPrescription(null); }}
+          onSuccess={() => { setShowIncomplet(false); setSelectedPrescription(null); loadData(); loadPendingMobile(); }}
         />
       )}
 
@@ -1183,6 +1280,83 @@ export default function Prescriptions() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Prescriptions en attente de l'app mobile ──────────────────────────── */}
+      {pendingMobile.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+            </span>
+            <h2 className="font-bold text-amber-700 text-sm">
+              {pendingMobile.length} ordonnance{pendingMobile.length > 1 ? "s" : ""} à valider — App mobile
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+            {pendingMobile.map((p) => (
+              <div key={p._id} className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 flex flex-col gap-3">
+                {/* Header */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-mono text-xs text-amber-400">{p.numero}</p>
+                    <p className="font-bold text-navy text-sm">
+                      {p.patientId?.nom} {p.patientId?.prenom}
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-1 rounded-full border border-amber-200 whitespace-nowrap">
+                    {p.motif}
+                  </span>
+                </div>
+
+                {/* Infos */}
+                <div className="space-y-1 text-xs text-slate-600">
+                  {p.medecin?.nom && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm text-amber-400">medical_information</span>
+                      Dr {p.medecin.prenom} {p.medecin.nom}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-amber-400">calendar_today</span>
+                    Émise le {fmtDate(p.dateEmission)}
+                  </div>
+                  {p.fichierNom && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm text-green-500">attach_file</span>
+                      <span className="truncate text-green-700 font-medium">{p.fichierNom}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-1 border-t border-amber-100">
+                  <button
+                    onClick={() => handleValider(p._id)}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg transition-colors"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>
+                    Valider
+                  </button>
+                  <button
+                    onClick={() => { setSelectedPrescription(p); setShowIncomplet(true); }}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold py-2 rounded-lg transition-colors"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>report_problem</span>
+                    Incomplet
+                  </button>
+                  <button
+                    onClick={() => { setSelectedPrescription(p); setShowDetail(true); }}
+                    className="px-3 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold py-2 rounded-lg border border-slate-200 transition-colors"
+                  >
+                    Voir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1318,14 +1492,24 @@ export default function Prescriptions() {
                           >
                             <span className="material-symbols-outlined text-base">print</span>
                           </button>
-                          {/* Valider brouillon */}
+                          {/* Valider / Incomplet */}
                           {p.statut === "en_attente_validation" && (
-                            <button
-                              onClick={() => handleValider(p._id)}
-                              className="text-xs bg-green-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-green-700 ml-1"
-                            >
-                              Valider
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleValider(p._id)}
+                                className="text-xs bg-green-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-green-700 ml-1"
+                                title="Valider"
+                              >
+                                Valider
+                              </button>
+                              <button
+                                onClick={() => { setSelectedPrescription(p); setShowIncomplet(true); }}
+                                className="text-xs bg-orange-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-orange-600"
+                                title="Marquer incomplet"
+                              >
+                                Incomplet
+                              </button>
+                            </>
                           )}
                           {/* Annuler */}
                           {!["annulee", "expiree"].includes(p.statut) && (

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -71,10 +72,11 @@ class ApiService {
     required String nom,
     required String email,
     required String password,
-    String telephone = '',
-    String mobilite  = 'ASSIS',
-    String adresse   = '',
-    String medecin   = '',
+    String telephone       = '',
+    String mobilite        = 'ASSIS',
+    String adresse         = '',
+    String medecin         = '',
+    String? dateNaissance,
     Map<String, dynamic> contactUrgence = const {},
   }) async {
     final res = await http.post(
@@ -89,6 +91,7 @@ class ApiService {
         'mobilite':       mobilite,
         'adresse':        adresse,
         'medecin':        medecin,
+        if (dateNaissance != null) 'dateNaissance': dateNaissance,
         'contactUrgence': contactUrgence,
       }),
     );
@@ -184,5 +187,51 @@ class ApiService {
       headers: await _headers(),
     );
     return _parse(res);
+  }
+
+  // ── Prescriptions ──────────────────────────────────────────────────────────
+
+  static Future<List<dynamic>> getPrescriptions() async {
+    final res = await http.get(
+      Uri.parse('$_base/prescriptions'),
+      headers: await _headers(),
+    );
+    return _parse(res)['prescriptions'] as List<dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> createPrescription(
+    Map<String, dynamic> body, {
+    File? fichier,
+  }) async {
+    final token = await getToken();
+    final uri = Uri.parse('$_base/prescriptions');
+    final request = http.MultipartRequest('POST', uri);
+
+    if (token != null) request.headers['Authorization'] = 'Bearer $token';
+
+    // Encode medecin as JSON string (multipart fields are strings only)
+    final fields = <String, String>{
+      'motif':                    body['motif']?.toString() ?? '',
+      'dateEmission':             body['dateEmission']?.toString() ?? '',
+      'etablissementDestination': body['etablissementDestination']?.toString() ?? '',
+      'notes':                    body['notes']?.toString() ?? '',
+      'medecin':                  jsonEncode(body['medecin'] ?? {}),
+    };
+    request.fields.addAll(fields);
+
+    if (fichier != null) {
+      request.files.add(await http.MultipartFile.fromPath(
+        'fichier',
+        fichier.path,
+        filename: fichier.path.split('/').last.split('\\').last,
+      ));
+    }
+
+    final streamed = await request.send();
+    final res = await http.Response.fromStream(streamed);
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode == 401) throw Exception('SESSION_EXPIRED');
+    if (res.statusCode >= 400) throw Exception(data['message'] ?? 'Erreur serveur');
+    return data;
   }
 }

@@ -22,8 +22,9 @@ const userSchema = new mongoose.Schema(
     actif: { type: Boolean, default: true },
 
     // ── Champs patient ────────────────────────────────────────────────────────
-    telephone: { type: String, default: "" },
-    adresse:   { type: String, default: "" },
+    telephone:      { type: String, default: "" },
+    dateNaissance:  { type: Date, default: null },
+    adresse:        { type: String, default: "" },
     mobilite: {
       type: String,
       enum: ["ASSIS", "FAUTEUIL_ROULANT", "ALLONGE", "CIVIERE"],

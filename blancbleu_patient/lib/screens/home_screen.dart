@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import 'factures_screen.dart';
 import 'login_screen.dart';
 import 'nouveau_transport_screen.dart';
+import 'prescriptions_screen.dart';
 import 'profile_screen.dart';
 import 'tracking_screen.dart';
 import 'transports_screen.dart';
@@ -112,10 +113,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   static const _navItems = [
-    _NavItem(icon: Icons.home_outlined,      filledIcon: Icons.home,           label: 'Accueil'),
+    _NavItem(icon: Icons.home_outlined,           filledIcon: Icons.home,            label: 'Accueil'),
     _NavItem(icon: Icons.medical_services_outlined, filledIcon: Icons.medical_services, label: 'Transports'),
-    _NavItem(icon: Icons.receipt_long_outlined, filledIcon: Icons.receipt_long,  label: 'Factures'),
-    _NavItem(icon: Icons.person_outline,     filledIcon: Icons.person,          label: 'Profil'),
+    _NavItem(icon: Icons.receipt_long_outlined,   filledIcon: Icons.receipt_long,    label: 'Factures'),
+    _NavItem(icon: Icons.description_outlined,    filledIcon: Icons.description,     label: 'Ordonnances'),
+    _NavItem(icon: Icons.person_outline,          filledIcon: Icons.person,          label: 'Profil'),
   ];
 
   // ── AppBar ─────────────────────────────────────────────────────────────────
@@ -201,6 +203,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   } else if (i == 2) {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const FacturesScreen()));
                   } else if (i == 3) {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const PrescriptionsScreen()));
+                  } else if (i == 4) {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
                   } else {
                     setState(() => _selectedIndex = i);

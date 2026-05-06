@@ -237,6 +237,27 @@ function emitPmtExtraite({ transportId, extraction, confiance }) {
 }
 
 /**
+ * prescription:created
+ * Émis quand un patient envoie une prescription depuis l'app mobile
+ */
+function emitPrescriptionCreated(prescription) {
+  if (!_io) return;
+  _io.to(ROOMS.DISPATCHERS).to(ROOMS.SUPERVISORS).to(ROOMS.ADMINS).emit('prescription:created', {
+    _id:          prescription._id,
+    numero:       prescription.numero,
+    motif:        prescription.motif,
+    statut:       prescription.statut,
+    source:       prescription.source,
+    medecin:      prescription.medecin,
+    dateEmission: prescription.dateEmission,
+    fichierUrl:   prescription.fichierUrl,
+    fichierNom:   prescription.fichierNom,
+    timestamp:    new Date(),
+  });
+  console.log(`[Socket] prescription:created → ${prescription.numero}`);
+}
+
+/**
  * patient:created
  * Émis quand un nouveau patient crée un compte via l'app mobile
  */
@@ -346,6 +367,7 @@ module.exports = {
   emitVehiculePosition,
   emitDispatchCompleted,
   emitPmtExtraite,
+  emitPrescriptionCreated,
   emitPatientCreated,
   emitStatsUpdate,
 };

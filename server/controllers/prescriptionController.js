@@ -37,11 +37,12 @@ exports.getStats = async (req, res) => {
 // ── GET /api/prescriptions ────────────────────────────────────────────────────
 exports.getPrescriptions = async (req, res) => {
   try {
-    const { patientId, statut, motif, page = 1, limit = 50 } = req.query;
+    const { patientId, statut, motif, source, page = 1, limit = 50 } = req.query;
     const filtre = { deletedAt: null };
     if (patientId) filtre.patientId = patientId;
     if (statut) filtre.statut = statut;
     if (motif) filtre.motif = motif;
+    if (source) filtre.source = source;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const [prescriptions, total] = await Promise.all([
@@ -115,6 +116,25 @@ exports.validerPrescription = async (req, res) => {
         validePar: req.user._id,
         valideAt: new Date(),
         ...(contenuExtrait && { contenuExtrait }),
+      },
+      { new: true },
+    ).populate("patientId", "nom prenom");
+    if (!prescription) return res.status(404).json({ message: "Prescription introuvable" });
+    res.json(prescription);
+  } catch (err) {
+    _err(res, err);
+  }
+};
+
+// ── PATCH /api/prescriptions/:id/incomplet ────────────────────────────────────
+exports.marquerIncomplet = async (req, res) => {
+  try {
+    const { commentaire } = req.body;
+    const prescription = await Prescription.findOneAndUpdate(
+      { _id: req.params.id, deletedAt: null },
+      {
+        statut: "incomplet",
+        commentaireDispatcher: commentaire || "",
       },
       { new: true },
     ).populate("patientId", "nom prenom");
