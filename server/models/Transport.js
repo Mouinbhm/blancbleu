@@ -7,6 +7,7 @@
  */
 const mongoose = require("mongoose");
 const { STATUTS, LABELS } = require("../services/transportStateMachine");
+const Counter = require("./Counter");
 
 const journalSchema = new mongoose.Schema(
   {
@@ -260,7 +261,6 @@ transportSchema.pre("validate", function (next) {
 transportSchema.pre("save", async function (next) {
   if (!this.numero) {
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const Counter = mongoose.model("Counter");
     const counter = await Counter.findOneAndUpdate(
       { _id: "transport" },
       { $inc: { seq: 1 } },

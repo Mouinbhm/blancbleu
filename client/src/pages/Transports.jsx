@@ -5,6 +5,9 @@ import TransportCard from "../components/transport/TransportCard";
 import { transportService } from "../services/api";
 import useSocket from "../hooks/useSocket";
 
+const fmtDateCourt = (d) =>
+  d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) : "—";
+
 const STATUTS = [
   { value: "", label: "Tous les statuts" },
   { value: "REQUESTED", label: "Demandé" },
@@ -53,6 +56,7 @@ export default function Transports() {
   const [loading, setLoading] = useState(true);
   const [erreur, setErreur] = useState(null);
   const [page, setPage] = useState(1);
+  const [pendingMobile, setPendingMobile] = useState([]);
 
   const [filtres, setFiltres] = useState({
     statut: "",
@@ -63,6 +67,16 @@ export default function Transports() {
   });
 
   const { subscribe } = useSocket();
+
+  const loadPending = useCallback(async () => {
+    try {
+      const { data } = await transportService.getAll({ statut: "REQUESTED", origine: "PATIENT_APP", limit: 50 });
+      const liste = Array.isArray(data) ? data : data?.transports || [];
+      setPendingMobile(liste);
+    } catch {
+      // silencieux — la section disparaît simplement
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -88,18 +102,19 @@ export default function Transports() {
     }
   }, [filtres, page]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(); loadPending(); }, [loadData, loadPending]);
 
   useEffect(() => {
-    const unsub = subscribe("status:updated", () => loadData());
-    return unsub;
-  }, [subscribe, loadData]);
+    const u1 = subscribe("transport:statut",        () => { loadData(); loadPending(); });
+    const u2 = subscribe("transport:statut_change", () => { loadData(); loadPending(); });
+    return () => { u1(); u2(); };
+  }, [subscribe, loadData, loadPending]);
 
-  // Nouveau transport créé depuis l'app mobile → recharger la liste
+  // Nouveau transport créé depuis l'app mobile → recharger + alerte demandes
   useEffect(() => {
-    const unsub = subscribe("transport:created", () => loadData());
+    const unsub = subscribe("transport:created", () => { loadData(); loadPending(); });
     return unsub;
-  }, [subscribe, loadData]);
+  }, [subscribe, loadData, loadPending]);
 
   const handleFiltre = (key, value) => {
     setFiltres((f) => ({ ...f, [key]: value }));
@@ -126,6 +141,94 @@ export default function Transports() {
           Nouveau transport
         </button>
       </div>
+
+      {/* ── Demandes en attente (app mobile) ───────────────────────────────── */}
+      {pendingMobile.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500" />
+            </span>
+            <h2 className="font-bold text-orange-700 text-sm">
+              {pendingMobile.length} demande{pendingMobile.length > 1 ? "s" : ""} en attente — App mobile
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+            {pendingMobile.map((t) => (
+              <div
+                key={t._id}
+                className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4 flex flex-col gap-3"
+              >
+                {/* Patient + heure */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-mono text-xs text-orange-400">{t.numero}</p>
+                    <p className="font-bold text-navy text-sm">
+                      {t.patient?.nom} {t.patient?.prenom}
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold bg-orange-100 text-orange-700 px-2 py-1 rounded-full border border-orange-200 whitespace-nowrap">
+                    {fmtDateCourt(t.dateTransport)} · {t.heureRDV || "—"}
+                  </span>
+                </div>
+
+                {/* Trajet */}
+                <div className="space-y-1.5 text-xs text-slate-600">
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-orange-400">trip_origin</span>
+                    <span className="truncate">{t.adresseDepart?.nom || t.adresseDepart?.rue || "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-red-400">location_on</span>
+                    <span className="truncate">{t.adresseDestination?.nom || t.adresseDestination?.rue || "—"}</span>
+                  </div>
+                </div>
+
+                {/* Détails */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-full">
+                    {t.typeTransport}
+                  </span>
+                  <span className="text-xs bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-full">
+                    {t.motif}
+                  </span>
+                  {t.allerRetour && (
+                    <span className="text-xs bg-purple-50 border border-purple-200 text-purple-700 px-2 py-0.5 rounded-full">
+                      Aller-retour
+                    </span>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-1 border-t border-orange-100">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await transportService.confirmer(t._id);
+                        loadPending();
+                        loadData();
+                      } catch (err) {
+                        alert(err.response?.data?.message || "Erreur");
+                      }
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-lg transition-colors"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>
+                    Confirmer
+                  </button>
+                  <button
+                    onClick={() => navigate(`/transports/${t._id}`)}
+                    className="px-3 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold py-2 rounded-lg border border-slate-200 transition-colors"
+                  >
+                    Voir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filtres */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 grid grid-cols-2 lg:grid-cols-5 gap-3">

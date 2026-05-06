@@ -101,6 +101,8 @@ const getTransports = async (req, res, next) => {
       date,
       dateDebut,
       dateFin,
+      origine,
+      search,
       limit = 50,
       page = 1,
     } = req.query;
@@ -112,6 +114,16 @@ const getTransports = async (req, res, next) => {
     }
     if (typeTransport) filter.typeTransport = typeTransport;
     if (motif) filter.motif = motif;
+    if (origine) filter.origine = origine;
+    if (search) {
+      const re = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      filter.$or = [
+        { "patient.nom": re },
+        { "patient.prenom": re },
+        { "patient.telephone": re },
+        { numero: re },
+      ];
+    }
     if (date) {
       const d = new Date(date);
       const fin = new Date(date);

@@ -1,3 +1,8 @@
+import 'package:flutter/material.dart';
+
+import 'config/theme.dart';
+import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 import 'services/api_service.dart';
 
 void main() {
@@ -18,7 +23,6 @@ class BlancBleuApp extends StatelessWidget {
   }
 }
 
-// Vérifie si un token est stocké et route vers HomeScreen ou LoginScreen
 class _AuthGate extends StatefulWidget {
   const _AuthGate();
   @override

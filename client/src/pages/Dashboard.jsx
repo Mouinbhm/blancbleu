@@ -97,8 +97,9 @@ export default function Dashboard() {
 
   // Temps réel : statut mis à jour
   useEffect(() => {
-    const unsub = subscribe("status:updated", () => loadData());
-    return unsub;
+    const u1 = subscribe("transport:statut",        () => loadData());
+    const u2 = subscribe("transport:statut_change", () => loadData());
+    return () => { u1(); u2(); };
   }, [subscribe, loadData]);
 
   const disponibles = vehicles.filter((v) => v.statut === "disponible").length;

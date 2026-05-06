@@ -138,9 +138,9 @@ const VALIDATEURS = {
     const errors = [];
     if (!transport.dateTransport) errors.push("Date de transport manquante");
     if (!transport.heureRDV) errors.push("Heure de RDV manquante");
-    if (!transport.adresseDepart?.rue)
+    if (!transport.adresseDepart?.rue && !transport.adresseDepart?.nom)
       errors.push("Adresse de départ manquante");
-    if (!transport.adresseDestination?.rue)
+    if (!transport.adresseDestination?.rue && !transport.adresseDestination?.nom)
       errors.push("Adresse de destination manquante");
     return errors;
   },
