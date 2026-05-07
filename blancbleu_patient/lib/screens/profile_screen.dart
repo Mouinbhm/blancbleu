@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../config/theme.dart';
 import '../services/api_service.dart';
 import '../widgets/app_bottom_nav.dart';
+import 'edit_profile_screen.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -30,6 +31,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final p = await ApiService.getCachedPatient();
     if (!mounted) return;
     setState(() { _patient = p; _loading = false; });
+  }
+
+  Future<void> _openEdit() async {
+    if (_patient == null) return;
+    final updated = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(builder: (_) => EditProfileScreen(patient: _patient!)),
+    );
+    if (updated != null && mounted) setState(() => _patient = updated);
   }
 
   String _initials() {
@@ -131,6 +141,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
       actions: [
+        IconButton(
+          onPressed: _openEdit,
+          icon: const Icon(Icons.edit_outlined, color: AppTheme.primary),
+          tooltip: 'Modifier',
+        ),
         IconButton(
           onPressed: _load,
           icon: const Icon(Icons.refresh_outlined, color: Colors.grey),
