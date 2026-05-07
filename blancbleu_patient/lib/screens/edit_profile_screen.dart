@@ -62,8 +62,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           'telephone': _urgTel.text.trim(),
         },
       });
+      final updatedPatient = result['patient'] as Map<String, dynamic>;
+      await ApiService.savePatient(updatedPatient);
       if (!mounted) return;
-      Navigator.pop(context, result['patient']);
+      Navigator.pop(context, updatedPatient);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

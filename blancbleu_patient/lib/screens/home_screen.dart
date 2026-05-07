@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../config/theme.dart';
 import '../services/api_service.dart';
 import 'factures_screen.dart';
@@ -684,71 +686,64 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Section 5 — Map ────────────────────────────────────────────────────────
   Widget _buildMapSection() {
-    return Container(
+    // Nice city center
+    const nice = LatLng(43.7102, 7.262);
+
+    return SizedBox(
       height: 148,
-      decoration: BoxDecoration(
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFBFD7FF),
-            AppTheme.primaryFixed,
-            Color(0xFFE8F0FE),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primary.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          // Decorative grid pattern
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: CustomPaint(painter: _MapGridPainter()),
-            ),
-          ),
-          // Gradient overlay bottom
-          Positioned(
-            bottom: 0, left: 0, right: 0,
-            child: Container(
-              height: 72,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.white.withOpacity(0.85)],
-                ),
+        child: Stack(
+          children: [
+            FlutterMap(
+              options: const MapOptions(
+                initialCenter: nice,
+                initialZoom: 13.0,
+                interactionOptions: InteractionOptions(flags: InteractiveFlag.none),
               ),
-            ),
-          ),
-          // Pin icon
-          const Positioned(
-            top: 30, left: 0, right: 0,
-            child: Icon(Icons.location_on, color: Color(0xFF0056CB), size: 36),
-          ),
-          // Label
-          const Positioned(
-            bottom: 12, left: 14, right: 14,
-            child: Row(
               children: [
-                Icon(Icons.location_on, size: 14, color: AppTheme.secondary),
-                SizedBox(width: 4),
-                Text(
-                  'Zone de service active : Nice et environs',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.secondary),
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.blancbleu.patient',
+                ),
+                const MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: nice,
+                      width: 36,
+                      height: 36,
+                      child: Icon(Icons.location_on, color: Color(0xFF0056CB), size: 36),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ),
-        ],
+            // Bottom label overlay
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 18, 12, 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.white.withOpacity(0.92)],
+                  ),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.location_on, size: 13, color: AppTheme.secondary),
+                    SizedBox(width: 4),
+                    Text(
+                      'Zone de service active : Nice et environs',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.secondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -784,32 +779,4 @@ class _QuickAction {
     required this.icon, required this.label, required this.bgColor,
     required this.iconColor, required this.textColor, required this.filled,
   });
-}
-
-// Decorative map grid painter
-class _MapGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.35)
-      ..strokeWidth = 1;
-    const step = 28.0;
-    for (double x = 0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-    // Simulated roads
-    final roadPaint = Paint()
-      ..color = Colors.white.withOpacity(0.6)
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(0, size.height * 0.4), Offset(size.width, size.height * 0.4), roadPaint);
-    canvas.drawLine(Offset(size.width * 0.35, 0), Offset(size.width * 0.35, size.height), roadPaint);
-    canvas.drawLine(Offset(size.width * 0.7, 0), Offset(size.width * 0.7, size.height), roadPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

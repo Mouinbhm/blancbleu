@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../config/theme.dart';
 import '../services/api_service.dart';
 
 class TrackingScreen extends StatefulWidget {
-  final String              transportId;
+  final String               transportId;
   final Map<String, dynamic> transport;
 
   const TrackingScreen({
@@ -22,13 +25,20 @@ class _TrackingScreenState extends State<TrackingScreen> {
   String?                _error;
   Map<String, dynamic>?  _tracking;
 
+  final _mapController = MapController();
+  Timer? _refreshTimer;
+
+  static const _activeStatuts = [
+    'ASSIGNED', 'EN_ROUTE_TO_PICKUP', 'ARRIVED_AT_PICKUP', 'PATIENT_ON_BOARD',
+  ];
+
   static const _steps = [
-    {'statut': 'ASSIGNED',           'label': 'Chauffeur assigne',     'icon': Icons.person_pin},
-    {'statut': 'EN_ROUTE_TO_PICKUP', 'label': 'Chauffeur en route',    'icon': Icons.directions_car},
-    {'statut': 'ARRIVED_AT_PICKUP',  'label': 'Arrive a votre adresse','icon': Icons.location_on},
-    {'statut': 'PATIENT_ON_BOARD',   'label': 'Vous etes a bord',      'icon': Icons.airline_seat_recline_normal},
-    {'statut': 'ARRIVED_AT_DESTINATION','label': 'Arrive a destination','icon': Icons.local_hospital},
-    {'statut': 'COMPLETED',          'label': 'Transport termine',     'icon': Icons.check_circle},
+    {'statut': 'ASSIGNED',              'label': 'Chauffeur assigne',      'icon': Icons.person_pin},
+    {'statut': 'EN_ROUTE_TO_PICKUP',    'label': 'Chauffeur en route',     'icon': Icons.directions_car},
+    {'statut': 'ARRIVED_AT_PICKUP',     'label': 'Arrive a votre adresse', 'icon': Icons.location_on},
+    {'statut': 'PATIENT_ON_BOARD',      'label': 'Vous etes a bord',       'icon': Icons.airline_seat_recline_normal},
+    {'statut': 'ARRIVED_AT_DESTINATION','label': 'Arrive a destination',   'icon': Icons.local_hospital},
+    {'statut': 'COMPLETED',             'label': 'Transport termine',      'icon': Icons.check_circle},
   ];
 
   static const _statutOrder = [
@@ -41,20 +51,42 @@ class _TrackingScreenState extends State<TrackingScreen> {
   void initState() {
     super.initState();
     _load();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted && _isActive()) _load(silent: true);
+    });
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  bool _isActive() =>
+      _activeStatuts.contains((_tracking?['statut'] as String?) ?? '');
+
+  Future<void> _load({bool silent = false}) async {
     try {
-      setState(() { _loading = true; _error = null; });
+      if (!silent) setState(() { _loading = true; _error = null; });
       final t = await ApiService.getTracking(widget.transportId);
       if (!mounted) return;
       setState(() { _tracking = t; _loading = false; });
+
+      // Move camera to vehicle position
+      final vPos = t['vehicule']?['position'];
+      if (vPos != null) {
+        final lat = (vPos['lat'] as num?)?.toDouble();
+        final lng = (vPos['lng'] as num?)?.toDouble();
+        if (lat != null && lng != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _mapController.move(LatLng(lat, lng), 14.5);
+          });
+        }
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error   = e.toString().replaceFirst('Exception: ', '');
-        _loading = false;
-      });
+      if (!silent) setState(() { _error = e.toString().replaceFirst('Exception: ', ''); _loading = false; });
     }
   }
 
@@ -63,13 +95,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
     return i < 0 ? 0 : i;
   }
 
-  bool _stepDone(String stepStatut, String currentStatut) {
-    return _statutIndex(currentStatut) > _statutIndex(stepStatut);
-  }
+  bool _stepDone(String stepStatut, String currentStatut) =>
+      _statutIndex(currentStatut) > _statutIndex(stepStatut);
 
-  bool _stepActive(String stepStatut, String currentStatut) {
-    return currentStatut == stepStatut;
-  }
+  bool _stepActive(String stepStatut, String currentStatut) =>
+      currentStatut == stepStatut;
 
   // ── ETA banner ─────────────────────────────────────────────────────────────
   Widget _buildEtaBanner(int? etaMinutes) {
@@ -102,12 +132,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Temps d\'arrivee estime', style: TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w600)),
+              const Text('Temps d\'arrivee estime',
+                  style: TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
-              Text(
-                '$etaMinutes min',
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white),
-              ),
+              Text('$etaMinutes min',
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white)),
             ],
           ),
         ],
@@ -115,42 +144,162 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 
-  // ── Map placeholder ────────────────────────────────────────────────────────
-  Widget _buildMapPlaceholder() {
+  // ── Live map ────────────────────────────────────────────────────────────────
+  Widget _buildMap() {
+    final vehicule  = _tracking?['vehicule']  as Map<String, dynamic>?;
+    final adresseDep  = _tracking?['adresseDepart']  as Map<String, dynamic>?;
+    final adresseDest = _tracking?['adresseArrivee'] as Map<String, dynamic>?;
+
+    LatLng? vehiclePos;
+    LatLng? pickupPos;
+    LatLng? destPos;
+    LatLng center = const LatLng(43.7102, 7.262); // Nice par défaut
+
+    final vp = vehicule?['position'];
+    if (vp != null) {
+      final lat = (vp['lat'] as num?)?.toDouble();
+      final lng = (vp['lng'] as num?)?.toDouble();
+      if (lat != null && lng != null) {
+        vehiclePos = LatLng(lat, lng);
+        center = vehiclePos;
+      }
+    }
+
+    final dc = adresseDep?['coordonnees'];
+    if (dc != null) {
+      final lat = (dc['lat'] as num?)?.toDouble();
+      final lng = (dc['lng'] as num?)?.toDouble();
+      if (lat != null && lng != null) pickupPos = LatLng(lat, lng);
+    }
+
+    final destc = adresseDest?['coordonnees'];
+    if (destc != null) {
+      final lat = (destc['lat'] as num?)?.toDouble();
+      final lng = (destc['lng'] as num?)?.toDouble();
+      if (lat != null && lng != null) destPos = LatLng(lat, lng);
+    }
+
+    if (vehiclePos == null && pickupPos != null) center = pickupPos;
+
+    final markers = <Marker>[
+      if (pickupPos != null)
+        Marker(
+          point: pickupPos,
+          width: 36,
+          height: 36,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.green,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.location_on, color: Colors.white, size: 20),
+          ),
+        ),
+      if (destPos != null)
+        Marker(
+          point: destPos,
+          width: 36,
+          height: 36,
+          child: Container(
+            decoration: const BoxDecoration(color: Color(0xFFBA1A1A), shape: BoxShape.circle),
+            child: const Icon(Icons.local_hospital, color: Colors.white, size: 18),
+          ),
+        ),
+      if (vehiclePos != null)
+        Marker(
+          point: vehiclePos,
+          width: 44,
+          height: 44,
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppTheme.primary,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: AppTheme.primary.withOpacity(0.4), blurRadius: 8, spreadRadius: 2)],
+            ),
+            child: const Icon(Icons.local_shipping, color: Colors.white, size: 22),
+          ),
+        ),
+    ];
+
     return Container(
-      height: 180,
+      height: 220,
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [const Color(0xFFBFD7FF), AppTheme.primaryFixed, const Color(0xFFE8F0FE)],
-        ),
-        boxShadow: [BoxShadow(color: AppTheme.primary.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 3))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 3))],
       ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: CustomPaint(painter: _MapPainter()),
-            ),
-          ),
-          const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: center,
+                initialZoom: vehiclePos != null ? 14.5 : 13.0,
+              ),
               children: [
-                Icon(Icons.directions_car, color: AppTheme.primaryContainer, size: 40),
-                SizedBox(height: 8),
-                Text(
-                  'Suivi en temps reel',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.primary),
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.blancbleu.patient',
                 ),
+                MarkerLayer(markers: markers),
               ],
             ),
-          ),
-        ],
+            // Legend
+            Positioned(
+              bottom: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.92),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 4)],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.local_shipping, color: AppTheme.primary, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      vehiclePos != null ? 'Véhicule localisé' : 'En attente de localisation',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: vehiclePos != null ? AppTheme.primary : AppTheme.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Auto-refresh indicator
+            if (_isActive())
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade600,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 8, height: 8,
+                        child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white),
+                      ),
+                      SizedBox(width: 5),
+                      Text('En direct', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -246,13 +395,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
   Widget _buildDriverCard(Map<String, dynamic>? chauffeur, Map<String, dynamic>? vehicule) {
     if (chauffeur == null && vehicule == null) return const SizedBox.shrink();
 
-    final chNom  = chauffeur != null
+    final chNom   = chauffeur != null
         ? '${(chauffeur['prenom'] as String?) ?? ''} ${(chauffeur['nom'] as String?) ?? ''}'.trim()
         : '';
-    final chTel  = (chauffeur?['telephone'] as String?) ?? '';
-    final veNom  = (vehicule?['nom']           as String?) ?? '';
-    final veType = (vehicule?['type']           as String?) ?? '';
-    final veImmat= (vehicule?['immatriculation'] as String?) ?? '';
+    final chTel   = (chauffeur?['telephone']     as String?) ?? '';
+    final veNom   = (vehicule?['nom']            as String?) ?? '';
+    final veType  = (vehicule?['type']           as String?) ?? '';
+    final veImmat = (vehicule?['immatriculation'] as String?) ?? '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -298,10 +447,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 children: [
                   Container(
                     width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppTheme.primaryContainer,
-                    ),
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.primaryContainer),
                     child: Center(
                       child: Text(
                         chNom.isNotEmpty ? chNom[0].toUpperCase() : '?',
@@ -347,8 +493,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
   // ── Addresses ──────────────────────────────────────────────────────────────
   Widget _buildAddresses() {
-    final depart = (_tracking?['adresseDepart']?['nom']   as String?) ?? '--';
-    final dest   = (_tracking?['adresseArrivee']?['nom']  as String?) ?? '--';
+    final depart = (_tracking?['adresseDepart']?['nom']  as String?) ?? '--';
+    final dest   = (_tracking?['adresseArrivee']?['nom'] as String?) ?? '--';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -373,7 +519,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('DEPART', style: TextStyle(fontSize: 10, color: AppTheme.secondary, fontWeight: FontWeight.w600, letterSpacing: 0.6)),
+                      const Text('DEPART', style: TextStyle(fontSize: 10, color: AppTheme.secondary,
+                          fontWeight: FontWeight.w600, letterSpacing: 0.6)),
                       Text(depart, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.onSurface)),
                     ],
                   ),
@@ -393,7 +540,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('DESTINATION', style: TextStyle(fontSize: 10, color: AppTheme.secondary, fontWeight: FontWeight.w600, letterSpacing: 0.6)),
+                      const Text('DESTINATION', style: TextStyle(fontSize: 10, color: AppTheme.secondary,
+                          fontWeight: FontWeight.w600, letterSpacing: 0.6)),
                       Text(dest, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.onSurface)),
                     ],
                   ),
@@ -429,7 +577,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
         ),
         actions: [
           IconButton(
-            onPressed: _load,
+            onPressed: () => _load(),
             icon: _loading
                 ? const SizedBox(
                     width: 20, height: 20,
@@ -468,7 +616,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildEtaBanner(etaMin),
-                  _buildMapPlaceholder(),
+                  _buildMap(),
                   _buildAddresses(),
                   _buildDriverCard(chauffeur, vehicule),
                   _buildTimeline(statut),
@@ -493,35 +641,4 @@ class _TrackingScreenState extends State<TrackingScreen> {
             ),
     );
   }
-}
-
-class _MapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withOpacity(0.3)..strokeWidth = 1;
-    const step  = 28.0;
-    for (double x = 0; x < size.width;  x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-    final road = Paint()
-      ..color      = Colors.white.withOpacity(0.6)
-      ..strokeWidth = 4
-      ..strokeCap  = StrokeCap.round;
-    canvas.drawLine(Offset(0, size.height * 0.5), Offset(size.width, size.height * 0.5), road);
-    canvas.drawLine(Offset(size.width * 0.35, 0), Offset(size.width * 0.35, size.height), road);
-    canvas.drawLine(Offset(size.width * 0.7, 0), Offset(size.width * 0.7, size.height), road);
-
-    final car = Paint()..color = AppTheme.primaryContainer;
-    canvas.drawCircle(Offset(size.width * 0.35, size.height * 0.5), 8, car);
-    canvas.drawCircle(
-      Offset(size.width * 0.35, size.height * 0.5), 8,
-      Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
