@@ -1,322 +1,290 @@
-# 🚑 BlancBleu — Plateforme de Transport Sanitaire Non Urgent
-
 <div align="center">
 
-![BlancBleu CI](https://github.com/Mouinbhm/blancbleu/actions/workflows/ci.yml/badge.svg)
-![Node.js](https://img.shields.io/badge/Node.js-20-339933?logo=node.js&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi&logoColor=white)
-![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
-![Licence](https://img.shields.io/badge/Licence-Académique-blue)
+# 🚑 Ambulances Blanc Bleu
 
-**Système de gestion intelligent des transports sanitaires non urgents**
-**Ambulances Blanc Bleu — Nice, Alpes-Maritimes (06)**
+### Plateforme de gestion du transport sanitaire non urgent
+
+[![Node.js](https://img.shields.io/badge/Node.js-20.x-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+[![React](https://img.shields.io/badge/React-19.2-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?logo=mongodb&logoColor=white)](https://mongodb.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docker.com)
+[![License](https://img.shields.io/badge/Licence-MIT-blue)](LICENSE)
+
+> Système de dispatch, suivi GPS temps réel et assistance IA pour la gestion des transports médicaux — Nice, Alpes-Maritimes.
+> Application mobile patient disponible sur Android & iOS.
 
 </div>
 
 ---
 
-## 📋 Table des matières
+## Sommaire
 
-1. [Description du projet](#-description-du-projet)
-2. [Aperçu de l'interface](#-aperçu-de-linterface)
-3. [Architecture technique](#-architecture-technique)
-4. [Prérequis](#-prérequis)
-5. [Installation](#-installation-complète)
-6. [Lancement des services](#-lancement-des-services)
-7. [Variables d'environnement](#-variables-denvironnement)
-8. [Structure du projet](#-structure-du-projet)
-9. [API Reference](#-api-reference)
-10. [Tests](#-tests)
-11. [CI/CD](#-cicd-github-actions)
-12. [Fonctionnalités principales](#-fonctionnalités-principales)
-13. [Sécurité & RGPD](#-sécurité--rgpd)
-14. [Auteur & Licence](#-auteur--licence)
+- [Présentation](#-présentation)
+- [Fonctionnalités](#-fonctionnalités)
+- [Architecture](#-architecture)
+- [Stack technique](#-stack-technique)
+- [Prérequis](#-prérequis)
+- [Installation](#-installation)
+- [Application mobile (Flutter)](#-application-mobile-flutter)
+- [Variables d'environnement](#-variables-denvironnement)
+- [Premier démarrage](#-premier-démarrage)
+- [Docker](#-docker)
+- [Documentation API](#-documentation-api)
+- [Structure du projet](#-structure-du-projet)
+- [Tests](#-tests)
+- [Auteur](#-auteur)
 
 ---
 
-## 🎯 Description du projet
+## Présentation
 
-**BlancBleu** est une application web complète de gestion de transport sanitaire **non urgent** développée pour la société **Ambulances Blanc Bleu** de Nice.
+**Ambulances Blanc Bleu** est une plateforme complète de gestion du transport sanitaire non urgent (VSL, TPMR, Ambulance) composée de trois parties :
 
-Elle couvre l'ensemble du cycle de vie d'un transport — de la demande initiale jusqu'à la facturation — en intégrant un **microservice d'intelligence artificielle local** pour automatiser les tâches chronophages du dispatcher.
+- **Application web** (React) — interface dispatcher/admin pour gérer le cycle de vie complet d'un transport : réservation, assignation de véhicule, suivi GPS temps réel, facturation
+- **Application mobile** (Flutter) — interface patient pour réserver un transport, suivre son ambulance en direct, gérer ses prescriptions et consulter ses factures (Android & iOS)
+- **Microservice IA** (FastAPI / Python) — extraction automatique des PMT par OCR, recommandation de dispatch et optimisation de tournées
 
-### 🏥 Périmètre métier
+---
 
-| Type de patient | Transport |
+## Fonctionnalités
+
+### Transport & Dispatch
+- Création de transports avec géocodage automatique des adresses (BAN / data.gouv.fr)
+- Machine d'état complète : `REQUESTED → CONFIRMED → SCHEDULED → ASSIGNED → EN_ROUTE → ARRIVED → ON_BOARD → AT_DESTINATION → COMPLETED → BILLED`
+- Transports récurrents (dialyse, chimiothérapie, radiothérapie)
+- Reprogrammation, annulation, no-show
+- Simulation GPS temps réel (5 phases : dépôt → patient → hôpital)
+
+### Gestion de flotte
+- Suivi des véhicules (VSL, TPMR, Ambulance) en temps réel
+- Carte interactive (Leaflet + OSRM routing)
+- Historique de missions par véhicule
+
+### Module IA (FastAPI)
+- Extraction et validation automatique des PMT par OCR
+- Recommandation de dispatch (choix du véhicule optimal)
+- Optimisation de tournées
+
+### Gestion administrative
+- Patients, prescriptions, personnel, équipements, maintenances
+- Comptabilité & facturation
+- Planning journalier et hebdomadaire
+
+### Application mobile patient (Flutter)
+- Réservation d'un transport depuis le smartphone (Android & iOS)
+- Suivi GPS en temps réel de l'ambulance assignée (flutter_map)
+- Consultation et dépôt de prescriptions médicales (PMT)
+- Historique des transports et des factures
+- Paiement en ligne via Stripe
+- Authentification sécurisée avec persistance de session (shared_preferences)
+- Interface Material 3 adaptée aux patients
+
+### Système & Sécurité
+- Authentification JWT avec refresh tokens (cookies httpOnly)
+- Gestion des utilisateurs par l'admin : création, activation/désactivation, réinitialisation de mot de passe
+- Email de bienvenue avec identifiants temporaires + changement forcé au premier login
+- Audit log complet sur toutes les actions sensibles
+- Rate limiting, protection XSS / NoSQL injection, Helmet CSP
+- Notifications temps réel via Socket.IO
+- Documentation API Swagger interactive
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────┐     ┌──────────────────────────────┐
+│     WEB CLIENT (React)   │     │  MOBILE CLIENT (Flutter)     │
+│  Port 3000               │     │  Android & iOS               │
+│  Tailwind · Leaflet ·    │     │  flutter_map · Stripe ·      │
+│  Chart.js · Socket.io    │     │  shared_preferences          │
+└────────────┬─────────────┘     └──────────────┬───────────────┘
+             │ HTTP / WebSocket                  │ HTTP REST
+             └──────────────────┬───────────────┘
+                                │
+┌───────────────────────────────▼─────────────────────────────┐
+│                   SERVER (Express / Node.js)                  │
+│   Port 5000 — REST API · Socket.IO · JWT · Mongoose          │
+└──────────┬────────────────────────────────┬─────────────────┘
+           │                                │
+┌──────────▼──────────┐        ┌────────────▼────────────────┐
+│  MongoDB (Atlas /   │        │  Microservice IA (FastAPI)   │
+│  Docker) Port 27017 │        │  Port 5002 — OCR · Dispatch  │
+└─────────────────────┘        └─────────────────────────────┘
+```
+
+---
+
+## Stack technique
+
+| Couche | Technologies |
 |---|---|
-| Patients dialysés (séances récurrentes) | VSL, TPMR |
-| Chimiothérapie / Radiothérapie | VSL, AMBULANCE |
-| Personnes âgées / PMR | TPMR |
-| Consultations, hospitalisations, retours | VSL, AMBULANCE |
-
-> ⚠️ Ce système gère exclusivement le transport **non urgent**. Il n'y a pas de logique SAMU, SMUR, ni de priorités P1/P2/P3.
-
----
-
-## 🖥️ Aperçu de l'interface
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  🚑 BlancBleu                       [Dispatcher] Jean Dupont ▾  │
-├──────────┬──────────────────────────────────────────────────────┤
-│          │  📊 Dashboard            Aujourd'hui : 12 transports  │
-│ ▸ Tableau│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────────┐ │
-│   de bord│  │ PLANIFIÉS │ │ EN COURS │ │COMPLÉTÉS │ │ANNULÉS  │ │
-│          │  │    5      │ │    4     │ │    2     │ │   1     │ │
-│ ▸ Trans- │  └──────────┘ └──────────┘ └──────────┘ └─────────┘ │
-│   ports  │                                                       │
-│          │  🗺️ Carte temps réel (Leaflet)                        │
-│ ▸ Flotte │  ┌─────────────────────────────────────────────────┐ │
-│          │  │  🚐 VSL-03 ──────────►  🏥 Hôpital Pasteur     │ │
-│ ▸ IA     │  │  🚑 AMB-01        🏠 Patient — 43.71, 7.26     │ │
-│          │  └─────────────────────────────────────────────────┘ │
-│ ▸ Audit  │                                                       │
-└──────────┴──────────────────────────────────────────────────────┘
-```
+| **Web (Frontend)** | React 19, React Router 7, Tailwind CSS 3, Leaflet, Chart.js, Socket.io-client |
+| **Mobile** | Flutter 3, Dart, flutter_map, flutter_stripe, shared_preferences, google_fonts |
+| **Backend** | Node.js 20, Express 4, Socket.IO 4, Winston, Swagger UI |
+| **Base de données** | MongoDB 7, Mongoose 8 |
+| **Authentification** | JWT (access + refresh token), bcryptjs, cookies httpOnly |
+| **IA** | FastAPI (Python), Tesseract OCR |
+| **Cartographie** | Leaflet, React-Leaflet, flutter_map, OSRM routing, BAN géocodage |
+| **Paiement** | Stripe (flutter_stripe) |
+| **Email** | Nodemailer (SMTP) |
+| **Infrastructure** | Docker, Docker Compose |
+| **Tests** | Jest (backend), React Testing Library (frontend), flutter_test |
 
 ---
 
-## 🏗️ Architecture technique
+## Prérequis
 
-```mermaid
-graph TB
-    subgraph Client["🖥️ Frontend — React 19 (port 3000)"]
-        R[React Router v7]
-        L[Leaflet / react-leaflet]
-        S[Socket.IO Client]
-        TW[Tailwind CSS]
-    end
+**Web & Backend**
+- **Node.js** ≥ 20.x · **npm** ≥ 9.x
+- **MongoDB** (Atlas ou instance locale) — ou **Docker**
+- **Python** ≥ 3.10 (microservice IA — optionnel)
+- **Git**
 
-    subgraph Server["⚙️ Backend — Node.js / Express v4 (port 5000)"]
-        API[REST API]
-        JWT[JWT Auth Middleware]
-        SM[State Machine — 9 statuts]
-        WS[Socket.IO Server]
-        AUDIT[Audit RGPD]
-    end
-
-    subgraph AI["🤖 Microservice IA — Python / FastAPI (port 5002)"]
-        OCR[OCR Tesseract + spaCy]
-        DISP[Smart Dispatch Scorer]
-        VRP[OR-Tools VRP]
-    end
-
-    subgraph Data["🗄️ Données"]
-        MONGO[(MongoDB Atlas)]
-        OSRM[OSRM Routing API]
-    end
-
-    Client -->|HTTP + WebSocket| Server
-    Server -->|HTTP| AI
-    Server -->|Mongoose| MONGO
-    Server -->|HTTP| OSRM
-```
-
-### 🔄 Machine d'état transport (9 statuts)
-
-```
-                    ┌─────────────┐
-                    │  REQUESTED  │ ← Nouvelle demande
-                    └──────┬──────┘
-                           │ confirm
-                    ┌──────▼──────┐
-                    │  CONFIRMED  │ ← Vérifiée
-                    └──────┬──────┘
-                           │ schedule
-                    ┌──────▼──────┐
-                    │  SCHEDULED  │ ← Planifiée
-                    └──────┬──────┘
-                           │ assign
-                    ┌──────▼──────┐
-                    │  ASSIGNED   │ ← Véhicule + chauffeur affectés
-                    └──────┬──────┘
-                           │ en-route
-              ┌────────────▼────────────┐
-              │  EN_ROUTE_TO_PICKUP     │
-              └────────────┬────────────┘
-                           │ arrived
-              ┌────────────▼────────────┐
-              │  ARRIVED_AT_PICKUP      │──── no-show ──→ NO_SHOW
-              └────────────┬────────────┘
-                           │ on-board
-              ┌────────────▼────────────┐
-              │  PATIENT_ON_BOARD       │
-              └────────────┬────────────┘
-                           │ destination
-         ┌─────────────────▼─────────────────┐
-         │      ARRIVED_AT_DESTINATION        │
-         └─────────────────┬─────────────────┘
-                           │ complete
-                    ┌──────▼──────┐
-                    │  COMPLETED  │ ✅
-                    └─────────────┘
-
-   CANCELLED ← depuis tout statut avant EN_ROUTE
-```
+**Application mobile**
+- **Flutter SDK** ≥ 3.x ([installation](https://docs.flutter.dev/get-started/install))
+- **Android Studio** ou **Xcode** (émulateur ou appareil physique)
+- **Dart SDK** ≥ 3.2 (inclus dans Flutter)
 
 ---
 
-## ✅ Prérequis
+## Installation
 
-| Outil | Version minimale | Rôle |
-|---|---|---|
-| [Node.js](https://nodejs.org/) | **20 LTS** | Backend + Frontend |
-| [Python](https://python.org/) | **3.11** | Microservice IA |
-| [MongoDB](https://www.mongodb.com/atlas) | **7.0+** | Base de données (Atlas ou local) |
-| [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) | **5.3+** | Extraction PMT (optionnel) |
-| [Poppler](https://github.com/oschwartz10612/poppler-windows/releases) | **24.x** | Conversion PDF→image (optionnel) |
-| Git | **2.x** | Clonage du repo |
-
-> 💡 **Tesseract et Poppler sont optionnels** : le service démarre sans eux, mais le module OCR sera désactivé (`pmt_ocr: false` dans `/health`).
-
----
-
-## 🚀 Installation complète
-
-### 1️⃣ Cloner le dépôt
+### 1. Cloner le dépôt
 
 ```bash
 git clone https://github.com/Mouinbhm/blancbleu.git
 cd blancbleu
 ```
 
-### 2️⃣ Configurer les variables d'environnement
+### 2. Variables d'environnement
 
 ```bash
 cp .env.example .env
+# Éditer .env avec vos propres valeurs
 ```
 
-Éditer `.env` avec vos valeurs (voir section [Variables d'environnement](#-variables-denvironnement)).
-
-### 3️⃣ Installer le Backend Node.js
+### 3. Backend
 
 ```bash
 cd server
-npm ci
+npm install
+npm run dev        # Développement avec rechargement automatique
 ```
 
-Créer le premier compte administrateur :
-
-```bash
-npm run create-admin
-```
-
-### 4️⃣ Installer le Frontend React
+### 4. Frontend
 
 ```bash
 cd client
-npm ci
+npm install
+npm start          # http://localhost:3000
 ```
 
-### 5️⃣ Installer le Microservice IA Python
+### 5. Microservice IA *(optionnel)*
 
 ```bash
 cd ai-service
-
-# Créer et activer un environnement virtuel
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# Linux / macOS
-source venv/bin/activate
-
-# Installer les dépendances
 pip install -r requirements.txt
-
-# Télécharger le modèle NLP français (spaCy)
-python -m spacy download fr_core_news_sm
-```
-
-#### 🪟 Windows — configurer Tesseract & Poppler
-
-1. Télécharger et installer [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) dans `C:\Program Files\Tesseract-OCR\`
-2. Télécharger [Poppler pour Windows](https://github.com/oschwartz10612/poppler-windows/releases) et ajouter `poppler/bin/` au `PATH`
-3. Redémarrer le terminal
-
----
-
-## ▶️ Lancement des services
-
-Ouvrir **3 terminaux** distincts :
-
-### Terminal 1 — Backend Node.js
-
-```bash
-cd server
-npm run dev
-# ✅ BlancBleu Transport démarré sur http://localhost:5000
-# ✅ Swagger  : http://localhost:5000/api-docs
-```
-
-### Terminal 2 — Microservice IA Python
-
-```bash
-cd ai-service
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # Linux/macOS
-
 uvicorn main:app --host 0.0.0.0 --port 5002 --reload
-# ✅ BlancBleu AI Service sur http://localhost:5002
-# ✅ Swagger  : http://localhost:5002/docs
-```
-
-### Terminal 3 — Frontend React
-
-```bash
-cd client
-npm start
-# ✅ Interface sur http://localhost:3000
-```
-
-### 🐳 Alternative — Docker Compose
-
-```bash
-docker-compose up --build
 ```
 
 ---
 
-## 🔐 Variables d'environnement
+## Application mobile (Flutter)
 
-Copier `.env.example` → `.env` et renseigner :
+L'application patient `blancbleu_patient` est un projet Flutter indépendant ciblant Android et iOS.
+
+### Installation
+
+```bash
+cd blancbleu_patient
+flutter pub get
+```
+
+### Lancer sur émulateur / appareil
+
+```bash
+# Lister les appareils disponibles
+flutter devices
+
+# Lancer en mode debug
+flutter run
+
+# Build Android (APK)
+flutter build apk --release
+
+# Build iOS
+flutter build ios --release
+```
+
+### Configurer l'URL de l'API
+
+Dans `lib/services/api_service.dart`, mettre à jour `baseUrl` avec l'adresse de votre serveur :
+
+```dart
+// Développement local (émulateur Android)
+static const String baseUrl = 'http://10.0.2.2:5000/api';
+
+// Développement local (appareil physique sur le même réseau)
+static const String baseUrl = 'http://192.168.x.x:5000/api';
+
+// Production
+static const String baseUrl = 'https://api.blancbleu.fr/api';
+```
+
+### Screens disponibles
+
+| Screen | Description |
+|---|---|
+| `LoginScreen` | Connexion patient |
+| `SignupScreen` | Inscription |
+| `HomeScreen` | Tableau de bord patient |
+| `NouveauTransportScreen` | Réserver un transport |
+| `TransportsScreen` | Historique des transports |
+| `TransportDetailScreen` | Détail d'un transport |
+| `TrackingScreen` | Suivi GPS temps réel |
+| `PrescriptionsScreen` | Gestion des PMT |
+| `NouvelleOrdonnanceScreen` | Déposer une prescription |
+| `FacturesScreen` | Factures & paiements |
+| `ProfileScreen` | Profil utilisateur |
+| `NotificationsScreen` | Notifications |
+
+---
+
+## Variables d'environnement
+
+Copier `.env.example` en `.env` à la racine et renseigner toutes les valeurs :
 
 ```env
-# ── MongoDB ──────────────────────────────────────────────────────
+# MongoDB
 MONGO_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/blancbleu
 
-# ── JWT ─────────────────────────────────────────────────────────
-# Générer : node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+# JWT — générer avec :
+# node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 JWT_SECRET=CHANGE_ME_GENERATE_A_STRONG_64_CHAR_SECRET
 
-# ── Serveur ──────────────────────────────────────────────────────
+# Serveur
 PORT=5000
 NODE_ENV=development
-
-# ── CORS ─────────────────────────────────────────────────────────
 CLIENT_URL=http://localhost:3000
 ALLOWED_ORIGINS=http://localhost:3000
 
-# ── Microservice IA ──────────────────────────────────────────────
-AI_API_URL=http://localhost:5002
-
-# ── OSRM Routing (calcul de distances) ───────────────────────────
-OSRM_URL=https://router.project-osrm.org
-
-# ── Email (notifications) ────────────────────────────────────────
+# Email (SMTP)
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=votre-email@gmail.com
 EMAIL_PASS=votre-app-password-gmail
 EMAIL_FROM=BlancBleu <noreply@blancbleu.fr>
 
-# ── Alertes superviseurs ─────────────────────────────────────────
-SUPERVISEUR_EMAILS=superviseur@blancbleu.fr,admin@blancbleu.fr
+# Microservice IA
+AI_API_URL=http://localhost:5002
 
-# ── Premier admin ────────────────────────────────────────────────
+# Routing OSRM (instance publique en développement)
+OSRM_URL=https://router.project-osrm.org
+
+# Premier administrateur (retirer après création)
 ADMIN_EMAIL=admin@blancbleu.fr
 ADMIN_PASSWORD=CHANGE_ME_STRONG_PASSWORD
 ADMIN_NOM=Admin
@@ -325,362 +293,161 @@ ADMIN_PRENOM=BlancBleu
 
 ---
 
-## 📁 Structure du projet
+## Premier démarrage
 
-```
-blancbleu/
-├── 📂 server/                          # Backend Node.js v1.3.0
-│   ├── Server.js                       # Point d'entrée Express
-│   ├── controllers/
-│   │   ├── transportController.js      # Cycle de vie des transports
-│   │   ├── AuthController.js           # Authentification JWT
-│   │   ├── aiController.js             # Proxy vers le microservice IA
-│   │   ├── vehicleController.js        # Gestion de la flotte
-│   │   ├── personnelController.js
-│   │   ├── factureController.js
-│   │   └── analyticsController.js
-│   ├── models/
-│   │   ├── Transport.js                # Entité principale (9 statuts)
-│   │   ├── Vehicle.js                  # VSL / TPMR / AMBULANCE
-│   │   ├── User.js                     # Dispatcher / Superviseur / Admin
-│   │   ├── Personnel.js
-│   │   ├── Facture.js
-│   │   └── AuditLog.js                 # Audit RGPD (TTL 90 jours)
-│   ├── routes/
-│   │   ├── transports.js               # /api/transports (+ transitions)
-│   │   ├── auth.js                     # /api/auth
-│   │   ├── vehicles.js                 # /api/vehicles
-│   │   ├── ai.js                       # /api/ai
-│   │   ├── planning.js                 # /api/planning
-│   │   ├── analytics.js                # /api/analytics
-│   │   └── audit.js                    # /api/audit
-│   ├── services/
-│   │   ├── transportStateMachine.js    # Machine d'état (transitions valides)
-│   │   ├── transportLifecycle.js       # Orchestration des transitions
-│   │   ├── socketService.js            # WebSocket temps réel
-│   │   └── auditService.js             # Journalisation RGPD
-│   ├── middleware/
-│   │   ├── auth.js                     # Vérification JWT
-│   │   ├── auditMiddleware.js          # Log automatique des requêtes
-│   │   ├── rateLimiter.js              # Protection DDoS
-│   │   └── sanitize.js                 # Protection NoSQL + XSS
-│   ├── utils/
-│   │   ├── geoUtils.js                 # Haversine + intégration OSRM
-│   │   ├── healthCheck.js              # GET /api/health
-│   │   └── logger.js                   # Winston
-│   └── __tests__/
-│       ├── unit/                       # Tests unitaires (machine d'état, geo)
-│       └── integration/                # Tests intégration (auth, workflow)
-│
-├── 📂 client/                          # Frontend React 19
-│   ├── src/
-│   │   ├── components/                 # Composants réutilisables
-│   │   ├── pages/                      # Vues principales
-│   │   ├── services/                   # Appels API (axios)
-│   │   └── hooks/                      # Custom hooks (Socket.IO, auth)
-│   └── public/
-│
-├── 📂 ai-service/                      # Microservice IA Python v1.0.0
-│   ├── main.py                         # Point d'entrée FastAPI (port 5002)
-│   ├── routes/
-│   │   ├── pmt.py                      # POST /pmt/extract, GET /pmt/status
-│   │   ├── dispatch.py                 # POST /dispatch/recommend
-│   │   └── routing.py                  # POST /routing/optimize
-│   ├── services/
-│   │   ├── pmt_extractor.py            # Tesseract OCR + regex + spaCy NER
-│   │   ├── dispatch_scorer.py          # Scoring métier (0–100 pts)
-│   │   └── route_optimizer.py          # Google OR-Tools VRP
-│   ├── schemas/                        # Modèles Pydantic (validation)
-│   │   ├── pmt_schemas.py
-│   │   ├── dispatch_schemas.py
-│   │   └── routing_schemas.py
-│   ├── utils/
-│   │   ├── ocr_utils.py                # Pipeline PDF → image → texte
-│   │   └── regex_patterns.py           # Patterns regex PMT française
-│   ├── tests/
-│   │   └── test_ia.py                  # Tests pytest
-│   ├── requirements.txt                # Dépendances complètes
-│   └── requirements-ci.txt             # Dépendances CI (sans binaires système)
-│
-├── 📂 .github/
-│   └── workflows/
-│       └── ci.yml                      # Pipeline CI GitHub Actions
-├── .env.example                        # Template variables d'environnement
-└── docker-compose.yml
-```
-
----
-
-## 📡 API Reference
-
-### 🔑 Authentification
-
-| Méthode | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/api/auth/login` | ❌ | Connexion — retourne un JWT |
-| `POST` | `/api/auth/register` | Admin | Créer un compte utilisateur |
-| `GET` | `/api/auth/me` | ✅ | Profil de l'utilisateur connecté |
-
-### 🚑 Transports
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/transports` | Liste avec filtres (statut, type, date) |
-| `POST` | `/api/transports` | Créer une demande de transport |
-| `GET` | `/api/transports/:id` | Détail d'un transport |
-| `PATCH` | `/api/transports/:id/confirm` | REQUESTED → CONFIRMED |
-| `PATCH` | `/api/transports/:id/schedule` | CONFIRMED → SCHEDULED |
-| `PATCH` | `/api/transports/:id/assign` | SCHEDULED → ASSIGNED (véhicule + chauffeur) |
-| `PATCH` | `/api/transports/:id/en-route` | ASSIGNED → EN_ROUTE_TO_PICKUP |
-| `PATCH` | `/api/transports/:id/arrived` | → ARRIVED_AT_PICKUP |
-| `PATCH` | `/api/transports/:id/on-board` | → PATIENT_ON_BOARD |
-| `PATCH` | `/api/transports/:id/destination` | → ARRIVED_AT_DESTINATION |
-| `PATCH` | `/api/transports/:id/complete` | → COMPLETED |
-| `PATCH` | `/api/transports/:id/cancel` | → CANCELLED (body: `{ raison }`) |
-| `PATCH` | `/api/transports/:id/no-show` | → NO_SHOW (body: `{ raison }`) |
-| `GET` | `/api/transports/stats` | KPIs agrégés |
-
-### 🤖 Microservice IA (FastAPI — port 5002)
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| `GET` | `/health` | État du service et de ses modules |
-| `POST` | `/pmt/extract` | Extraction OCR d'une PMT (PDF/image, max 10 Mo) |
-| `GET` | `/pmt/status` | Disponibilité de Tesseract OCR |
-| `POST` | `/dispatch/recommend` | Recommandation véhicule par scoring (0–100 pts) |
-| `POST` | `/routing/optimize` | Optimisation de tournée OR-Tools VRP (max 100 transports) |
-
-#### Exemple — `/health`
-
-```json
-{
-  "status": "ok",
-  "version": "1.0.0",
-  "domaine": "transport sanitaire non urgent",
-  "modules": {
-    "pmt_ocr": true,
-    "pmt_nlp": true,
-    "routing": true,
-    "dispatch": true
-  }
-}
-```
-
-#### Exemple — `/pmt/extract`
-
-```bash
-curl -X POST http://localhost:5002/pmt/extract \
-  -F "pmt=@/chemin/vers/prescription.pdf" \
-  -F "transportId=6789abc"
-```
-
-```json
-{
-  "extraction": {
-    "patient": { "nom": "Martin", "prenom": "Jean", "dateNaissance": "1950-01-15" },
-    "medecin": { "nom": "Dr. Dupont", "rpps": "12345678901" },
-    "typeTransport": "VSL",
-    "mobilite": "ASSIS",
-    "destination": "Centre de dialyse Saint-Roch, Nice",
-    "allerRetour": true
-  },
-  "confiance": 0.91,
-  "validationRequise": false,
-  "champsManquants": []
-}
-```
-
-#### Exemple — `/dispatch/recommend`
-
-```bash
-curl -X POST http://localhost:5002/dispatch/recommend \
-  -H "Content-Type: application/json" \
-  -d '{
-    "transport": { "_id": "t1", "mobilite": "ASSIS", "motif": "Dialyse" },
-    "vehicules": [
-      { "_id": "v1", "type": "VSL", "statut": "disponible",
-        "position": { "lat": 43.71, "lng": 7.26 } }
-    ],
-    "chauffeurs": []
-  }'
-```
-
-### 🗺️ Autres endpoints
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/health` | Santé du backend (MongoDB + IA + mémoire) |
-| `GET` | `/api/vehicles` | Liste de la flotte |
-| `GET` | `/api/analytics/dashboard` | KPIs dashboard |
-| `GET` | `/api/audit` | Journal d'audit RGPD |
-| `POST` | `/api/geo/distance` | Calcul de distance OSRM |
-
-### ⚡ Événements WebSocket (Socket.IO)
-
-| Événement | Direction | Déclencheur |
-|---|---|---|
-| `transport:created` | Serveur → Client | Nouveau transport créé |
-| `transport:statut` | Serveur → Client | Changement de statut |
-| `vehicule:assigne` | Serveur → Client | Véhicule affecté |
-| `vehicule:position` | Serveur → Client | Mise à jour GPS |
-| `dispatch:completed` | Serveur → Client | Dispatch automatique terminé |
-| `pmt:extraite` | Serveur → Client | PMT extraite par IA |
-| `stats:update` | Serveur → Client | KPIs mis à jour |
-
-> 📖 **Documentation interactive** disponible sur `http://localhost:5000/api-docs` (Swagger UI) et `http://localhost:5002/docs` (FastAPI Swagger).
-
----
-
-## 🧪 Tests
-
-### Backend Node.js
+### Créer le premier compte administrateur
 
 ```bash
 cd server
-
-# Tous les tests
-npm test
-
-# Tests unitaires uniquement (machine d'état, géoutils)
-npm run test:unit
-
-# Tests d'intégration uniquement (auth, workflow complet)
-npm run test:integration
-
-# Couverture de code
-npm run test:coverage
+node scripts/create-admin.js
 ```
 
-Les tests d'intégration utilisent **MongoDB In-Memory** (`mongodb-memory-server`) — aucune base de données externe requise.
+> Les comptes suivants sont créés **uniquement par un administrateur connecté** depuis la page `Utilisateurs → Nouvel utilisateur`. L'employé reçoit automatiquement ses identifiants par email et est forcé de changer son mot de passe à la première connexion.
 
-| Suite | Fichier | Couverture |
-|---|---|---|
-| Machine d'état | `__tests__/unit/stateMachine.test.js` | Transitions + guards |
-| Géoutils | `__tests__/unit/geoUtils.test.js` | Haversine, OSRM |
-| Auth routes | `__tests__/integration/auth.test.js` | Login, register, JWT |
-| Workflow transport | `__tests__/integration/workflow.test.js` | Cycle de vie complet |
+### Données de démonstration *(développement uniquement)*
 
-### Microservice IA Python
+Pour peupler la base avec 6 transports et 6 véhicules de démonstration géolocalisés à Nice :
 
 ```bash
-cd ai-service
-source venv/bin/activate   # ou venv\Scripts\activate sur Windows
+# Seeder les données
+curl -X POST http://localhost:5000/api/demo/seed
 
-# Lancer les tests
-pytest tests/test_ia.py -v --tb=short
+# Réinitialiser
+curl -X POST http://localhost:5000/api/demo/reset
+```
 
-# Avec couverture
-pytest tests/test_ia.py -v --cov=. --cov-report=term-missing
+> L'endpoint `/api/demo` est **automatiquement désactivé** en `NODE_ENV=production`.
+
+---
+
+## Docker
+
+Démarrer l'ensemble de la stack (MongoDB + Backend + IA + Frontend) en une seule commande :
+
+```bash
+# Construire et démarrer
+docker-compose up --build
+
+# En arrière-plan
+docker-compose up -d --build
+
+# Arrêter
+docker-compose down
+
+# Supprimer les volumes (remet la base à zéro)
+docker-compose down -v
+```
+
+| Service | URL |
+|---|---|
+| Frontend React | http://localhost |
+| API REST | http://localhost:5000/api |
+| Documentation Swagger | http://localhost:5000/api/docs |
+| Microservice IA | http://localhost:5002 |
+| Health check | http://localhost:5000/api/health |
+
+---
+
+## Documentation API
+
+La documentation interactive Swagger est disponible à l'adresse :
+
+```
+http://localhost:5000/api/docs
+```
+
+### Principales routes
+
+| Méthode | Endpoint | Description | Accès |
+|---|---|---|---|
+| `POST` | `/api/auth/login` | Connexion | Public |
+| `POST` | `/api/auth/register` | Créer un compte | Admin |
+| `GET` | `/api/auth/users` | Lister les utilisateurs | Admin |
+| `GET` | `/api/transports` | Lister les transports | Privé |
+| `POST` | `/api/transports` | Créer un transport | Privé |
+| `PATCH` | `/api/transports/:id/assign` | Assigner un véhicule | Privé |
+| `PATCH` | `/api/transports/:id/complete` | Compléter un transport | Privé |
+| `GET` | `/api/vehicles` | Lister les véhicules | Privé |
+| `GET` | `/api/planning/daily` | Planning du jour | Privé |
+| `POST` | `/api/ai/pmt/extract` | Extraction PMT par OCR | Privé |
+| `POST` | `/api/ai/dispatch/:id` | Recommandation de véhicule | Privé |
+| `GET` | `/api/analytics/dashboard` | Statistiques générales | Privé |
+| `GET` | `/api/health` | Health check | Public |
+
+---
+
+## Structure du projet
+
+```
+blancbleu/
+├── client/                        # Frontend React
+│   ├── public/
+│   └── src/
+│       ├── components/
+│       │   ├── layout/            # Sidebar, topbar, notifications
+│       │   └── map/               # Carte Leaflet temps réel
+│       ├── context/               # AuthContext (JWT + état global)
+│       ├── hooks/                 # useSocket, ...
+│       ├── pages/                 # Dashboard, Transports, Flotte, ...
+│       └── services/              # api.js (Axios + tous les services)
+│
+├── server/                        # Backend Express
+│   ├── controllers/               # Logique métier par domaine
+│   ├── middleware/                # auth, rateLimiter, sanitize, ...
+│   ├── models/                    # Schémas Mongoose (15 modèles)
+│   ├── routes/                    # Définition des routes REST
+│   ├── services/                  # simulationGPS, transportLifecycle,
+│   │                              # emailService, socketService
+│   ├── utils/                     # logger, geocodeUtils, healthCheck
+│   └── scripts/                   # create-admin.js
+│
+├── ai-service/                    # Microservice IA Python / FastAPI
+│   ├── routers/                   # pmt, dispatch, routing
+│   └── main.py
+│
+├── blancbleu_patient/             # Application mobile Flutter (patient)
+│   ├── android/                   # Code natif Android
+│   ├── ios/                       # Code natif iOS
+│   └── lib/
+│       ├── config/                # theme.dart, stripe_config.dart
+│       ├── screens/               # 13 screens (login, tracking, ...)
+│       ├── services/              # api_service.dart
+│       └── widgets/               # app_bottom_nav.dart, ...
+│
+├── .env.example                   # Template des variables d'environnement
+├── docker-compose.yml             # Orchestration complète 4 services
+└── README.md
 ```
 
 ---
 
-## ⚙️ CI/CD GitHub Actions
+## Tests
 
-Le pipeline CI `.github/workflows/ci.yml` comporte **4 jobs** exécutés en parallèle :
+```bash
+# Backend — Jest
+cd server
+npm test                    # Tous les tests
+npm run test:coverage       # Rapport de couverture de code
 
-```
-Push / PR sur main ou develop
-         │
-         ├── 🟢 Tests Backend (Node.js)
-         │        npm run test:unit
-         │        npm run test:integration  (MongoDB In-Memory)
-         │
-         ├── 🟢 Tests IA (Python / FastAPI)
-         │        pytest tests/test_ia.py
-         │
-         ├── 🟢 Lint Frontend (React)
-         │        npm run build
-         │
-         └── 🏁 CI Status  (badge README)
-                  ✅ Tous verts → merge autorisé
+# Frontend — React Testing Library
+cd client
+npm test
+
+# Mobile — Flutter
+cd blancbleu_patient
+flutter test                # Tests unitaires et widgets
 ```
 
-### Variables CI (GitHub Secrets)
-
-Configurer dans `Settings → Secrets and variables → Actions` :
-
-| Secret | Valeur |
-|---|---|
-| `JWT_SECRET` | Clé JWT (64 chars hex) |
-| `MONGO_URI` | *(non requis en CI — MongoDB In-Memory)* |
-
 ---
 
-## ✨ Fonctionnalités principales
+## Auteur
 
-### 📋 Gestion des transports
-- Création de demandes avec validation métier complète
-- Machine d'état à 9 statuts avec guards (ex : PMT requise pour Dialyse/Chimio)
-- Historique complet des transitions horodatées
-- Soft delete et reprogrammation
-
-### 🗺️ Dispatch et planification
-- **Smart Dispatch manuel** : affectation véhicule + chauffeur avec validation
-- **Smart Dispatch IA** : recommandation automatique par scoring métier (0–100 pts)
-  - Compatibilité mobilité patient ↔ type véhicule
-  - Proximité GPS (Haversine)
-  - Charge de travail journalière
-  - Historique fiabilité/ponctualité
-- **Optimisation de tournée** : Google OR-Tools VRP (min. distance, respects des horaires)
-
-### 📄 OCR Prescription Médicale de Transport (PMT)
-- Upload PDF / JPEG / PNG / TIFF (max 10 Mo)
-- Extraction automatique : patient, médecin, mobilité, destination, aller-retour
-- Score de confiance (< 0.75 → validation humaine requise)
-- NLP spaCy `fr_core_news_sm` pour la reconnaissance d'entités nommées
-
-### 📊 Analytics & Reporting
-- Dashboard temps réel (WebSocket Socket.IO)
-- KPIs : taux de ponctualité, distance parcourue, no-shows, annulations
-- Statistiques par type de transport, motif, véhicule
-
-### 🔒 Sécurité & RGPD
-- Authentification JWT (access token 15 min)
-- Rate limiting sur toutes les routes
-- Sanitization NoSQL injection + XSS
-- Audit trail RGPD avec TTL automatique (90 jours)
-- Numéros de sécurité sociale masqués dans les logs
-- Soft delete sur les entités sensibles
-
-### 👥 Rôles utilisateur
-
-| Rôle | Permissions |
-|---|---|
-| `dispatcher` | Créer / modifier transports, dispatch, extraction PMT |
-| `superviseur` | Tout dispatcher + analytics, audit, optimisation tournée |
-| `admin` | Tout superviseur + gestion utilisateurs, configuration |
-
----
-
-## 🔒 Sécurité & RGPD
-
-- 🔑 **JWT** — tokens signés HS256, expiration configurable
-- 🛡️ **Helmet.js** — en-têtes HTTP sécurisés
-- 🚫 **Rate limiting** — protection contre les abus (express-rate-limit)
-- 🧹 **Sanitization** — protection NoSQL injection (express-mongo-sanitize) + XSS (xss)
-- 📝 **Audit trail** — toutes les actions critiques journalisées (TTL 90 jours, MongoDB)
-- 🗑️ **Soft delete** — les données patients ne sont jamais supprimées définitivement
-- 🔒 **HTTPS** — chiffrement en transit (obligatoire en production)
-- 👁️ **Masquage logs** — numéros de sécurité sociale filtrés de Winston
-
----
-
-## 👤 Auteur & Licence
-
-**Projet de Fin d'Études (PFE)**
-
-| | |
-|---|---|
-| **Auteur** | [Mouinbhm](https://github.com/Mouinbhm) |
-| **Société** | Ambulances Blanc Bleu — Nice, Alpes-Maritimes (06) |
-| **Contexte** | Projet de Fin d'Études (PFE) |
-| **Stack** | Node.js 20 · Express 4 · React 19 · MongoDB · Python 3.11 · FastAPI · Socket.IO · Tesseract OCR · spaCy · Google OR-Tools |
+**Mouïn Ben Hajmoussa**
+Projet de Fin d'Études (PFE) — Développement web full-stack
+Nice, France · 2026
 
 ---
 
 <div align="center">
-
-Développé avec ❤️ pour améliorer la coordination des transports sanitaires non urgents
-
+  <sub>Ambulances Blanc Bleu · 59 Boulevard Madeleine, Nice · 04 93 00 00 00</sub>
 </div>
