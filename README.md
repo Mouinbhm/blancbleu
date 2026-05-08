@@ -442,7 +442,7 @@ flutter test                # Tests unitaires et widgets
 
 ## Auteur
 
-**Mouïn Ben Hajmoussa**
+**Mouin Ben Hadj Mohamed**
 Projet de Fin d'Études (PFE) — Développement web full-stack
 Nice, France · 2026
 
