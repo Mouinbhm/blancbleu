@@ -493,22 +493,23 @@ export default function TransportDetail() {
     );
   }
 
-  const peutAnnuler = !["BILLED", "CANCELLED", "NO_SHOW"].includes(transport.statut);
-  const peutAssigner = ["CONFIRMED", "SCHEDULED"].includes(transport.statut);
-  const actionsStatut = ACTIONS_PAR_STATUT[transport.statut] || [];
-  const hasActions = actionsStatut.length > 0 || peutAnnuler || peutAssigner;
-
   // ── Validation jour J ────────────────────────────────────────────────────────
   const _dateT = transport.dateTransport ? new Date(transport.dateTransport) : null;
-  const _debutJour = new Date(); _debutJour.setHours(0, 0, 0, 0);
-  const estJourJ = !_dateT || (
-    _dateT.getFullYear() === _debutJour.getFullYear() &&
-    _dateT.getMonth()    === _debutJour.getMonth()    &&
-    _dateT.getDate()     === _debutJour.getDate()
-  );
+  const _debutAujourdhui = new Date(); _debutAujourdhui.setHours(0, 0, 0, 0);
+  const _finDemain = new Date(); _finDemain.setDate(_finDemain.getDate() + 1); _finDemain.setHours(23, 59, 59, 999);
+  // Fenêtre opérationnelle : aujourd'hui OU demain (J+1). Les dates passées sont exclues.
+  const estJourJ = !_dateT || (_dateT >= _debutAujourdhui && _dateT <= _finDemain);
+  // Date entièrement dépassée (avant aujourd'hui 00:00)
+  const dateDepassee = !!_dateT && _dateT < _debutAujourdhui;
   const dateTransportFormatee = _dateT
     ? _dateT.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
     : null;
+
+  const peutAnnuler = !["BILLED", "CANCELLED", "NO_SHOW"].includes(transport.statut);
+  // Assigner est bloqué si la date est entièrement dépassée — reprogrammer d'abord
+  const peutAssigner = ["CONFIRMED", "SCHEDULED"].includes(transport.statut) && !dateDepassee;
+  const actionsStatut = ACTIONS_PAR_STATUT[transport.statut] || [];
+  const hasActions = actionsStatut.length > 0 || peutAnnuler || peutAssigner;
 
   const age = calcAge(transport.patient?.dateNaissance);
   const vehiclePos = vehiclePosition || (transport.vehicule?.position?.lat ? transport.vehicule.position : null);
@@ -585,9 +586,13 @@ export default function TransportDetail() {
         </div>
         <ProgressBar statut={transport.statut} />
 
-        {/* ── Badge jour J / date future (Tâche 3) ──────────────────────────── */}
+        {/* ── Badge jour J / date future / date dépassée ────────────────────── */}
         {["REQUESTED","CONFIRMED","SCHEDULED","ASSIGNED"].includes(transport.statut) && _dateT && (
-          estJourJ ? (
+          dateDepassee ? (
+            <div className="mt-2 flex items-center gap-2 text-xs bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-1.5 font-medium">
+              ⚠️ Date dépassée — transport du {dateTransportFormatee} non effectué. Reprogrammer avant d'assigner.
+            </div>
+          ) : estJourJ ? (
             <div className="mt-2 flex items-center gap-2 text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg px-3 py-1.5 font-medium">
               ✅ Transport du jour — actions terrain disponibles
             </div>
@@ -1029,6 +1034,12 @@ export default function TransportDetail() {
               <span>Statut terrain incorrect — planifié le <strong>{dateTransportFormatee}</strong>. Actions verrouillées jusqu'à cette date.</span>
             </div>
           )}
+          {dateDepassee && ["CONFIRMED","SCHEDULED"].includes(transport.statut) && (
+            <div className="max-w-5xl mx-auto mb-2 flex items-center gap-2 bg-red-50 border border-red-300 rounded-lg px-3 py-1.5 text-xs text-red-800">
+              <span className="flex-shrink-0">⚠️</span>
+              <span>Date dépassée ({dateTransportFormatee}) — reprogrammer le transport avant de pouvoir l'assigner.</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 max-w-5xl mx-auto flex-wrap">
             {peutAssigner && (
               <button
@@ -1218,6 +1229,7 @@ export default function TransportDetail() {
               <input
                 type="date"
                 value={modalReprogDate}
+                min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => setModalReprogDate(e.target.value)}
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary"
               />
@@ -1227,6 +1239,11 @@ export default function TransportDetail() {
               <input
                 type="time"
                 value={modalReprogHeure}
+                min={
+                  modalReprogDate === new Date().toISOString().split("T")[0]
+                    ? `${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes()).padStart(2, "0")}`
+                    : undefined
+                }
                 onChange={(e) => setModalReprogHeure(e.target.value)}
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary"
               />

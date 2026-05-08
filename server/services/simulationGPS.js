@@ -26,6 +26,14 @@ const NICE_FALLBACK = [
   { lat: 43.7330, lng: 7.2497 }, // Nice Nord
 ];
 
+// Zone géographique raisonnable : Nice + 40 km
+const NICE_BOUNDS = { latMin: 43.4, latMax: 44.1, lngMin: 6.7, lngMax: 7.8 };
+function _dansZoneNice(coord) {
+  if (!coord?.lat || !coord?.lng) return false;
+  return coord.lat >= NICE_BOUNDS.latMin && coord.lat <= NICE_BOUNDS.latMax
+      && coord.lng >= NICE_BOUNDS.lngMin && coord.lng <= NICE_BOUNDS.lngMax;
+}
+
 const logger = (() => {
   try { return require("../utils/logger"); } catch { return console; }
 })();
@@ -156,31 +164,37 @@ async function demarrerSimulation(transportId) {
   let pickupCoords = transport.adresseDepart?.coordonnees;
   let destCoords   = transport.adresseDestination?.coordonnees;
 
-  // Géocoder automatiquement si coordonnées absentes (transports créés via app mobile)
-  if (!pickupCoords?.lat) {
-    const adresseStr = transport.adresseDepart?.nom || transport.adresseDepart?.rue || '';
-    if (adresseStr) {
-      const geo = await geocodeAdresse(adresseStr + ' Nice').catch(() => null);
-      pickupCoords = geo ? { lat: geo.lat, lng: geo.lng } : NICE_FALLBACK[Math.floor(Math.random() * 2)];
-      logger.info(`[simulationGPS] Géocodage départ: ${adresseStr} → ${JSON.stringify(pickupCoords)}`);
-    } else {
-      pickupCoords = NICE_FALLBACK[0];
+  // Géocoder automatiquement si coordonnées absentes ou hors zone Nice
+  const _geocodeAvecSanity = async (adresseStr, fallback) => {
+    if (!adresseStr) return fallback;
+    // Essayer plusieurs formulations pour améliorer le taux de succès
+    const queries = [
+      adresseStr + ' Nice',
+      adresseStr + ' 06000 Nice',
+      adresseStr,
+    ];
+    for (const q of queries) {
+      const geo = await geocodeAdresse(q).catch(() => null);
+      if (geo && _dansZoneNice(geo)) {
+        logger.info(`[simulationGPS] Géocodage OK: "${q}" → (${geo.lat}, ${geo.lng})`);
+        return { lat: geo.lat, lng: geo.lng };
+      }
     }
-    // Persister les coordonnées pour les prochains appels
+    logger.warn(`[simulationGPS] Géocodage hors zone ou échoué pour "${adresseStr}", fallback utilisé`);
+    return fallback;
+  };
+
+  if (!pickupCoords?.lat || !_dansZoneNice(pickupCoords)) {
+    const adresseStr = transport.adresseDepart?.nom || transport.adresseDepart?.rue || '';
+    pickupCoords = await _geocodeAvecSanity(adresseStr, NICE_FALLBACK[Math.floor(Math.random() * 2)]);
     await Transport.findByIdAndUpdate(transportId, {
       'adresseDepart.coordonnees': pickupCoords,
     }).catch(() => {});
   }
 
-  if (!destCoords?.lat) {
+  if (!destCoords?.lat || !_dansZoneNice(destCoords)) {
     const adresseStr = transport.adresseDestination?.nom || transport.adresseDestination?.rue || '';
-    if (adresseStr) {
-      const geo = await geocodeAdresse(adresseStr + ' Nice').catch(() => null);
-      destCoords = geo ? { lat: geo.lat, lng: geo.lng } : NICE_FALLBACK[2 + Math.floor(Math.random() * 2)];
-      logger.info(`[simulationGPS] Géocodage destination: ${adresseStr} → ${JSON.stringify(destCoords)}`);
-    } else {
-      destCoords = NICE_FALLBACK[3];
-    }
+    destCoords = await _geocodeAvecSanity(adresseStr, NICE_FALLBACK[2 + Math.floor(Math.random() * 2)]);
     await Transport.findByIdAndUpdate(transportId, {
       'adresseDestination.coordonnees': destCoords,
     }).catch(() => {});

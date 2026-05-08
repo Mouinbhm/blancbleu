@@ -446,11 +446,14 @@ router.get('/transports/:id/tracking', authPatient, async (req, res) => {
     // Calcul ETA par Haversine
     let etaMinutes = null
     try {
-      const vPos = transport.vehicule?.position
+      const vPos   = transport.vehicule?.position
       const dCoord = transport.adresseDepart?.coordonnees
       if (vPos?.lat && vPos?.lng && dCoord?.lat && dCoord?.lng) {
         const distKm = haversine(vPos.lat, vPos.lng, dCoord.lat, dCoord.lng)
-        etaMinutes = Math.round(distKm / 0.5) // 30 km/h en minutes
+        // Si > 100 km : position GPS invalide (données de simulation) → pas d'ETA
+        if (distKm <= 100) {
+          etaMinutes = Math.min(Math.round(distKm / 0.5), 90) // cap 90 min, 30 km/h
+        }
       }
     } catch (etaErr) {
       logger.warn('[tracking] calcul ETA échoué', { err: etaErr.message })

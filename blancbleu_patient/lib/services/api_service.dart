@@ -6,9 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   static const String _base = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:5000/api/patient',
+    defaultValue: 'http://192.168.1.56:5000/api/patient',
   );
-  static const String _tokenKey  = 'bb_token';
+
+  static const _timeout    = Duration(seconds: 15);
+  static const String _tokenKey   = 'bb_token';
   static const String _patientKey = 'bb_patient';
 
   // ── Token / session ────────────────────────────────────────────────────────
@@ -60,7 +62,7 @@ class ApiService {
       Uri.parse('$_base/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible. Vérifiez votre connexion.'));
     final data = _parse(res);
     await saveToken(data['accessToken'] as String);
     await savePatient(data['patient'] as Map<String, dynamic>);
@@ -94,7 +96,7 @@ class ApiService {
         if (dateNaissance != null) 'dateNaissance': dateNaissance,
         'contactUrgence': contactUrgence,
       }),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible. Vérifiez votre connexion.'));
     final data = _parse(res);
     await saveToken(data['accessToken'] as String);
     await savePatient(data['patient'] as Map<String, dynamic>);
@@ -107,7 +109,7 @@ class ApiService {
     final res = await http.get(
       Uri.parse('$_base/dashboard'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res);
   }
 
@@ -116,7 +118,8 @@ class ApiService {
   static Future<List<dynamic>> getTransports({String? statut}) async {
     var url = '$_base/transports';
     if (statut != null) url += '?statut=$statut';
-    final res = await http.get(Uri.parse(url), headers: await _headers());
+    final res = await http.get(Uri.parse(url), headers: await _headers())
+        .timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res)['transports'] as List<dynamic>;
   }
 
@@ -125,7 +128,7 @@ class ApiService {
       Uri.parse('$_base/transports'),
       headers: await _headers(),
       body: jsonEncode(body),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res);
   }
 
@@ -136,7 +139,7 @@ class ApiService {
       Uri.parse('$_base/profil'),
       headers: await _headers(),
       body: jsonEncode(body),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res);
   }
 
@@ -144,7 +147,8 @@ class ApiService {
 
   static Future<void> logout() async {
     try {
-      await http.post(Uri.parse('$_base/logout'), headers: await _headers());
+      await http.post(Uri.parse('$_base/logout'), headers: await _headers())
+          .timeout(_timeout);
     } catch (_) {}
     await clearSession();
   }
@@ -155,7 +159,7 @@ class ApiService {
     final res = await http.get(
       Uri.parse('$_base/transports/$id'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res)['transport'] as Map<String, dynamic>;
   }
 
@@ -165,7 +169,7 @@ class ApiService {
     final res = await http.get(
       Uri.parse('$_base/transports/$id/tracking'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res);
   }
 
@@ -175,7 +179,7 @@ class ApiService {
     final res = await http.get(
       Uri.parse('$_base/factures'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res)['factures'] as List<dynamic>;
   }
 
@@ -185,7 +189,7 @@ class ApiService {
     final res = await http.get(
       Uri.parse('$_base/stats'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res);
   }
 
@@ -195,7 +199,7 @@ class ApiService {
     final res = await http.get(
       Uri.parse('$_base/prescriptions'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res)['prescriptions'] as List<dynamic>;
   }
 
@@ -205,7 +209,7 @@ class ApiService {
     final res = await http.post(
       Uri.parse('$_base/factures/$factureId/paiement-intent'),
       headers: await _headers(),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res);
   }
 
@@ -217,11 +221,11 @@ class ApiService {
       Uri.parse('$_base/factures/$factureId/confirmer-paiement'),
       headers: await _headers(),
       body: jsonEncode({'paymentIntentId': paymentIntentId}),
-    );
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res);
   }
 
-  // ── Prescriptions ──────────────────────────────────────────────────────────
+  // ── Prescriptions (upload) ─────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> createPrescription(
     Map<String, dynamic> body, {
@@ -233,7 +237,6 @@ class ApiService {
 
     if (token != null) request.headers['Authorization'] = 'Bearer $token';
 
-    // Encode medecin as JSON string (multipart fields are strings only)
     final fields = <String, String>{
       'motif':                    body['motif']?.toString() ?? '',
       'dateEmission':             body['dateEmission']?.toString() ?? '',
@@ -251,7 +254,8 @@ class ApiService {
       ));
     }
 
-    final streamed = await request.send();
+    final streamed = await request.send()
+        .timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     final res = await http.Response.fromStream(streamed);
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     if (res.statusCode == 401) throw Exception('SESSION_EXPIRED');

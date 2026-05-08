@@ -506,7 +506,7 @@ const assigner = async (req, res, next) => {
 const enRoute = async (req, res, next) => {
   try {
     const errDate = await _verifierDateTerrain(req.params.id, req.body);
-    if (errDate) return res.status(400).json({ message: errDate });
+    if (errDate) return res.status(400).json(errDate);
     const r = await lifecycle.marquerEnRoute(req.params.id, req.user);
     res.json(r);
   } catch (e) {
@@ -516,7 +516,7 @@ const enRoute = async (req, res, next) => {
 const arriveePatient = async (req, res, next) => {
   try {
     const errDate = await _verifierDateTerrain(req.params.id, req.body);
-    if (errDate) return res.status(400).json({ message: errDate });
+    if (errDate) return res.status(400).json(errDate);
     const r = await lifecycle.marquerArriveePatient(
       req.params.id,
       req.body.position,
@@ -530,7 +530,7 @@ const arriveePatient = async (req, res, next) => {
 const patientABord = async (req, res, next) => {
   try {
     const errDate = await _verifierDateTerrain(req.params.id, req.body);
-    if (errDate) return res.status(400).json({ message: errDate });
+    if (errDate) return res.status(400).json(errDate);
     const r = await lifecycle.marquerPatientABord(req.params.id, req.user);
     res.json(r);
   } catch (e) {
@@ -540,7 +540,7 @@ const patientABord = async (req, res, next) => {
 const arriveeDestination = async (req, res, next) => {
   try {
     const errDate = await _verifierDateTerrain(req.params.id, req.body);
-    if (errDate) return res.status(400).json({ message: errDate });
+    if (errDate) return res.status(400).json(errDate);
     const r = await lifecycle.marquerArriveeDestination(
       req.params.id,
       req.body.position,
@@ -554,7 +554,7 @@ const arriveeDestination = async (req, res, next) => {
 const completer = async (req, res, next) => {
   try {
     const errDate = await _verifierDateTerrain(req.params.id, req.body);
-    if (errDate) return res.status(400).json({ message: errDate });
+    if (errDate) return res.status(400).json(errDate);
     const r = await lifecycle.completerTransport(req.params.id, req.user);
     res.json(r);
   } catch (e) {

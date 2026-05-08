@@ -272,6 +272,62 @@ router.post("/seed", async (req, res) => {
   }
 });
 
+// ── POST /api/demo/simulate/:id ──────────────────────────────────────────────
+// Remet le transport à ASSIGNED puis lance la simulation GPS complète.
+router.post("/simulate/:id", async (req, res) => {
+  try {
+    const { demarrerSimulation, arreterSimulation } = require("../services/simulationGPS");
+
+    const transport = await Transport.findById(req.params.id).populate("vehicule");
+    if (!transport) return res.status(404).json({ message: "Transport introuvable" });
+    if (!transport.vehicule) return res.status(400).json({ message: "Aucun véhicule assigné à ce transport" });
+
+    // Stopper une simulation déjà active sur ce transport
+    arreterSimulation(req.params.id);
+
+    // Remettre le véhicule en_mission + position de départ (légèrement décalé du pickup)
+    const pickup = transport.adresseDepart?.coordonnees;
+    const startPos = pickup?.lat
+      ? { lat: pickup.lat + 0.02, lng: pickup.lng + 0.015 }
+      : { lat: 43.7302, lng: 7.2770 };
+
+    await Vehicle.findByIdAndUpdate(transport.vehicule._id, {
+      statut: "en_mission",
+      "position.lat": startPos.lat,
+      "position.lng": startPos.lng,
+      "position.updatedAt": new Date(),
+      transportEnCours: transport._id,
+    });
+
+    // Remettre le transport à ASSIGNED + effacer les coordonnées mal geocodées
+    // pour forcer une re-geocodisation propre avec sanity check au démarrage de la simulation
+    await Transport.findByIdAndUpdate(req.params.id, {
+      statut: "ASSIGNED",
+      "adresseDepart.coordonnees": null,
+      "adresseDestination.coordonnees": null,
+    });
+
+    // Lancer la simulation GPS
+    await demarrerSimulation(req.params.id);
+
+    return res.json({ success: true, message: "Simulation lancée", transportId: req.params.id });
+  } catch (err) {
+    console.error("[demo/simulate]", err.message);
+    return res.status(500).json({ message: err.message || "Erreur simulation" });
+  }
+});
+
+// ── POST /api/demo/simulate/:id/stop ─────────────────────────────────────────
+router.post("/simulate/:id/stop", async (req, res) => {
+  try {
+    const { arreterSimulation } = require("../services/simulationGPS");
+    arreterSimulation(req.params.id);
+    return res.json({ success: true, message: "Simulation arrêtée" });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
 // ── POST /api/demo/reset ──────────────────────────────────────────────────────
 router.post("/reset", async (req, res) => {
   try {

@@ -18,6 +18,14 @@ try {
 const NICE = [43.7102, 7.262];
 const OSRM_PUBLIC = "https://router.project-osrm.org";
 
+// Limites raisonnables pour le secteur d'activité (Nice + 40 km)
+const NICE_BOUNDS = { latMin: 43.4, latMax: 44.1, lngMin: 6.7, lngMax: 7.8 };
+function _dansZoneNice(coord) {
+  if (!coord?.lat || !coord?.lng) return false;
+  return coord.lat >= NICE_BOUNDS.latMin && coord.lat <= NICE_BOUNDS.latMax
+      && coord.lng >= NICE_BOUNDS.lngMin && coord.lng <= NICE_BOUNDS.lngMax;
+}
+
 // Injecte le CSS d'animation une seule fois dans le document
 function _injectVehiculeCSS() {
   if (document.getElementById("vehicule-anim-css")) return;
@@ -70,7 +78,10 @@ function _estJourJ(transport) {
   jourTransport.setHours(0, 0, 0, 0);
   const debutJour = new Date();
   debutJour.setHours(0, 0, 0, 0);
-  return jourTransport.getTime() === debutJour.getTime();
+  // Accepter aujourd'hui ET demain (J+1) — cohérent avec TransportDetail.jsx
+  const finDemain = new Date(debutJour);
+  finDemain.setDate(finDemain.getDate() + 1);
+  return jourTransport <= finDemain;
 }
 
 const STATUTS_TERRAIN = [
@@ -182,6 +193,27 @@ export default function TransportMap({ transport, vehiclePosition }) {
     const dep  = transport?.adresseDepart?.coordonnees;
     const dest = transport?.adresseDestination?.coordonnees;
     if (!instanceRef.current || !dep?.lat || !dest?.lat || !L) return;
+
+    // Sanity check : si l'une des adresses est hors zone Nice, on trace une
+    // ligne droite entre les deux points valides (ou Nice centre en fallback)
+    const depOk  = _dansZoneNice(dep);
+    const destOk = _dansZoneNice(dest);
+    const safedep  = depOk  ? dep  : { lat: NICE[0] + 0.01, lng: NICE[1] - 0.01 };
+    const safedest = destOk ? dest : { lat: NICE[0] - 0.01, lng: NICE[1] + 0.01 };
+
+    if (!depOk || !destOk) {
+      // Coordonnées incorrectes : ligne droite de fallback dans Nice
+      if (routeLayerRef.current) instanceRef.current.removeLayer(routeLayerRef.current);
+      routeLayerRef.current = L.polyline(
+        [[safedep.lat, safedep.lng], [safedest.lat, safedest.lng]],
+        { color: "#94a3b8", weight: 2, opacity: 0.4, dashArray: "4, 4" },
+      ).addTo(instanceRef.current);
+      instanceRef.current.fitBounds(
+        [[safedep.lat, safedep.lng], [safedest.lat, safedest.lng]],
+        { padding: [40, 40], maxZoom: 14 },
+      );
+      return;
+    }
 
     let cancelled = false;
     const url =

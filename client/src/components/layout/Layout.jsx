@@ -37,6 +37,28 @@ const pageTitles = {
   "/aide-ia": "Aide IA — Optimisation",
 };
 
+// ── Sonnerie de notification ────────────────────────────────────────────────
+function playNotifSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [880, 1100, 1320];
+    notes.forEach((freq, i) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type            = "sine";
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.35, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      osc.start(t);
+      osc.stop(t + 0.35);
+    });
+  } catch (_) {}
+}
+
 export default function Layout() {
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -45,9 +67,13 @@ export default function Layout() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [notifCount, setNotifCount] = useState(0);
+  const [toasts, setToasts] = useState([]);
   const notifRef = useRef(null);
 
   const { connected, subscribe } = useSocket();
+
+  const removeToast = (id) =>
+    setToasts((prev) => prev.filter((t) => t.id !== id));
 
   // ── Écoute Socket.IO : nouveau transport ─────────────────────────────────
   useEffect(() => {
@@ -61,6 +87,15 @@ export default function Layout() {
       };
       setNotifs((prev) => [notif, ...prev].slice(0, 8));
       setNotifCount((prev) => prev + 1);
+
+      // Sonnerie + toast
+      playNotifSound();
+      const toastId = Date.now();
+      setToasts((prev) => [
+        { id: toastId, data, path: `/transports/${String(data._id)}` },
+        ...prev,
+      ].slice(0, 3));
+      setTimeout(() => removeToast(toastId), 6000);
     });
     return unsub;
   }, [subscribe]);
@@ -401,6 +436,72 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* ═══════════════ TOASTS TRANSPORT ═══════════════ */}
+      <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className="pointer-events-auto w-80 bg-white rounded-xl shadow-2xl border border-slate-200 border-l-4 border-l-primary overflow-hidden"
+            style={{ animation: "slideInRight 0.3s ease-out" }}
+          >
+            <div className="flex items-start gap-3 p-4">
+              <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 shadow-md shadow-primary/30">
+                <span
+                  className="material-symbols-outlined text-white"
+                  style={{ fontSize: "18px" }}
+                >
+                  directions_car
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-navy leading-tight">
+                  🚑 Nouveau transport — App patient
+                </p>
+                <p className="text-xs font-semibold text-slate-700 mt-0.5 truncate">
+                  {toast.data.patient?.prenom} {toast.data.patient?.nom}
+                </p>
+                <p className="text-xs text-slate-500 truncate">
+                  {toast.data.motif} · {toast.data.typeTransport}
+                </p>
+                <button
+                  onClick={() => {
+                    navigate(toast.path);
+                    removeToast(toast.id);
+                  }}
+                  className="mt-2 text-xs font-bold text-primary hover:underline"
+                >
+                  Voir le transport →
+                </button>
+              </div>
+              <button
+                onClick={() => removeToast(toast.id)}
+                className="text-slate-300 hover:text-slate-500 transition-colors flex-shrink-0"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>
+                  close
+                </span>
+              </button>
+            </div>
+            {/* Progress bar */}
+            <div
+              className="h-0.5 bg-primary"
+              style={{ animation: "shrinkWidth 6s linear forwards" }}
+            />
+          </div>
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes slideInRight {
+          from { opacity: 0; transform: translateX(100%); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes shrinkWidth {
+          from { width: 100%; }
+          to   { width: 0%; }
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,10 +1,16 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart';
 import '../services/api_service.dart';
 import '../widgets/app_bottom_nav.dart';
 import 'edit_profile_screen.dart';
 import 'login_screen.dart';
+import 'notifications_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -20,17 +26,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Map<String, dynamic>? _patient;
   bool _loading = true;
+  LatLng? _homeCoord;
+  String _langue = 'Français';
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final p = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _langue = p.getString('langue') ?? 'Français');
   }
 
   Future<void> _load() async {
     final p = await ApiService.getCachedPatient();
     if (!mounted) return;
     setState(() { _patient = p; _loading = false; });
+    final adresse = (p?['adresse'] as String?) ?? '';
+    if (adresse.isNotEmpty) _geocodeAdresse(adresse);
+  }
+
+  Future<void> _geocodeAdresse(String adresse) async {
+    try {
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(adresse)}&format=json&limit=1',
+      );
+      final res = await http.get(url, headers: {'User-Agent': 'BlancBleuPatient/1.0'});
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body) as List<dynamic>;
+        if (list.isNotEmpty) {
+          final lat = double.tryParse(list[0]['lat'] as String? ?? '');
+          final lng = double.tryParse(list[0]['lon'] as String? ?? '');
+          if (lat != null && lng != null && mounted) {
+            setState(() => _homeCoord = LatLng(lat, lng));
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _openEdit() async {
@@ -70,6 +106,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case 'ALLONGE':          return Icons.airline_seat_flat;
       default:                 return Icons.directions_walk;
     }
+  }
+
+  Future<void> _showLanguagePicker() async {
+    const options = [
+      {'flag': '🇫🇷', 'name': 'Français'},
+      {'flag': '🇬🇧', 'name': 'English'},
+      {'flag': '🇸🇦', 'name': 'العربية'},
+    ];
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Choisir la langue',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.onSurface)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...options.map((opt) {
+            final selected = _langue == opt['name'];
+            return ListTile(
+              leading: Text(opt['flag']!, style: const TextStyle(fontSize: 24)),
+              title: Text(opt['name']!,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected ? AppTheme.primary : AppTheme.onSurface,
+                  )),
+              trailing: selected
+                  ? const Icon(Icons.check_circle, color: AppTheme.primary)
+                  : null,
+              onTap: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('langue', opt['name']!);
+                if (mounted) setState(() => _langue = opt['name']!);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+            );
+          }),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -357,48 +447,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Section 4 — Map ────────────────────────────────────────────────────────
   Widget _buildMapSection() {
-    return Container(
+    final center = _homeCoord ?? const LatLng(43.7102, 7.262);
+    final adresse = (_patient?['adresse'] as String?) ?? 'Domicile enregistré';
+
+    return SizedBox(
       height: 124,
-      decoration: BoxDecoration(
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [const Color(0xFFBFD7FF), AppTheme.primaryFixed, const Color(0xFFE8F0FE)],
+        child: Stack(
+          children: [
+            FlutterMap(
+              options: MapOptions(
+                initialCenter: center,
+                initialZoom: _homeCoord != null ? 15.0 : 13.0,
+                interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.blancbleu.patient',
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: center,
+                      width: 36,
+                      height: 36,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary,
+                          shape: BoxShape.circle,
+                          boxShadow: [BoxShadow(color: AppTheme.primary.withOpacity(0.4), blurRadius: 6, spreadRadius: 1)],
+                        ),
+                        child: const Icon(Icons.home, color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.white.withOpacity(0.95)],
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.home, size: 13, color: AppTheme.primary),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        adresse.isNotEmpty ? adresse : 'Domicile enregistré',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.onSurface),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
-        border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [BoxShadow(color: AppTheme.primary.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 3))],
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: CustomPaint(painter: _GridPainter()),
-            ),
-          ),
-          const Positioned(top: 24, left: 0, right: 0,
-              child: Icon(Icons.home_outlined, color: AppTheme.primary, size: 32)),
-          Positioned(
-            bottom: 10, left: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withOpacity(0.5)),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4)],
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.home, size: 13, color: AppTheme.primary),
-                  SizedBox(width: 4),
-                  Text('Domicile enregistre', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.onSurface)),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -423,20 +538,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.notifications_outlined,
             label: 'Notifications',
             trailing: const Icon(Icons.chevron_right, color: Colors.black12),
-            onTap: () {},
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+            ),
           ),
           const Divider(height: 1, color: Color(0xFFF8F8F8)),
           _settingsItem(
             icon: Icons.language_outlined,
             label: 'Langue',
-            trailing: const Row(
+            trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Francais', style: TextStyle(fontSize: 13, color: AppTheme.secondary)),
-                Icon(Icons.chevron_right, color: Colors.black12),
+                Text(_langue, style: const TextStyle(fontSize: 13, color: AppTheme.secondary)),
+                const Icon(Icons.chevron_right, color: Colors.black12),
               ],
             ),
-            onTap: () {},
+            onTap: _showLanguagePicker,
           ),
           const Divider(height: 1, color: Color(0xFFF8F8F8)),
           _settingsItem(
@@ -580,20 +698,4 @@ class _ProfileScreenState extends State<ProfileScreen> {
       bottomNavigationBar: const AppBottomNav(activeIndex: 4),
     );
   }
-}
-
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withOpacity(0.3)..strokeWidth = 1;
-    const step  = 24.0;
-    for (double x = 0; x < size.width;  x += step) canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    for (double y = 0; y < size.height; y += step) canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    final road = Paint()..color = Colors.white.withOpacity(0.55)..strokeWidth = 2.5..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(0, size.height * 0.45), Offset(size.width, size.height * 0.45), road);
-    canvas.drawLine(Offset(size.width * 0.4, 0), Offset(size.width * 0.4, size.height), road);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
