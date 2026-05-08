@@ -22,6 +22,10 @@ const NAV_GESTION = [
   { path: "/aide-ia", icon: "psychology", label: "Aide IA" },
 ];
 
+const NAV_ADMIN = [
+  { path: "/utilisateurs", icon: "manage_accounts", label: "Utilisateurs" },
+];
+
 const pageTitles = {
   "/dashboard": "Tableau de bord — Vue opérationnelle",
   "/transports": "Transports — Gestion des transports",
@@ -35,6 +39,7 @@ const pageTitles = {
   "/maintenances": "Maintenances — Suivi véhicules",
   "/factures": "Comptabilité — Finances & Facturation",
   "/aide-ia": "Aide IA — Optimisation",
+  "/utilisateurs": "Utilisateurs — Gestion des accès",
 };
 
 // ── Sonnerie de notification ────────────────────────────────────────────────
@@ -255,6 +260,32 @@ export default function Layout() {
               {item.label}
             </NavLink>
           ))}
+
+          {user?.role === "admin" && (
+            <>
+              <p className="text-xs font-mono text-slate-600 uppercase tracking-widest px-4 py-2 mt-3">
+                Administration
+              </p>
+              {NAV_ADMIN.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm font-medium ${
+                      isActive
+                        ? "bg-primary text-white shadow-lg shadow-primary/30"
+                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                    }`
+                  }
+                >
+                  <span className="material-symbols-outlined text-xl">
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </>
+          )}
         </nav>
 
         {/* Infos société */}

@@ -16,10 +16,11 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 6, select: false },
     role: {
       type: String,
-      enum: ["dispatcher", "superviseur", "admin", "patient"],
+      enum: ["dispatcher", "superviseur", "admin", "patient", "ambulancier", "comptable"],
       default: "dispatcher",
     },
     actif: { type: Boolean, default: true },
+    mustChangePassword: { type: Boolean, default: false },
 
     // ── Champs patient ────────────────────────────────────────────────────────
     telephone:      { type: String, default: "" },

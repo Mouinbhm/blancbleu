@@ -37,5 +37,7 @@ export default function PrivateRoute({ children }) {
     );
   }
 
-  return user ? children : <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.mustChangePassword) return <Navigate to="/force-change-password" replace />;
+  return children;
 }

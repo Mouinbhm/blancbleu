@@ -20,6 +20,8 @@ import Equipements from "./pages/Equipements";
 import Maintenances from "./pages/Maintenances";
 import Factures from "./pages/Factures";
 import AideIA from "./pages/AideIA";
+import Utilisateurs from "./pages/Utilisateurs";
+import ForceChangePassword from "./pages/ForceChangePassword";
 
 function App() {
   return (
@@ -30,6 +32,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/force-change-password" element={<ForceChangePassword />} />
 
           {/* Privées sous Layout */}
           <Route
@@ -53,6 +56,7 @@ function App() {
             <Route path="/maintenances" element={<Maintenances />} />
             <Route path="/factures" element={<Factures />} />
             <Route path="/aide-ia" element={<AideIA />} />
+            <Route path="/utilisateurs" element={<Utilisateurs />} />
           </Route>
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

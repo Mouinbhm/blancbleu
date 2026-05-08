@@ -13,6 +13,8 @@ const {
   updateProfile,
   getAllUsers,
   toggleUser,
+  deleteUser,
+  adminResetPassword,
 } = require("../controllers/authController");
 const {
   forgotPassword,
@@ -51,5 +53,7 @@ router.post(
 // ─── Admin : gestion des utilisateurs ────────────────────────────────────────
 router.get("/users", protect, authorize("admin"), getAllUsers);
 router.patch("/users/:id/toggle", protect, authorize("admin"), toggleUser);
+router.delete("/users/:id", protect, authorize("admin"), deleteUser);
+router.post("/users/:id/reset-password", protect, authorize("admin"), adminResetPassword);
 
 module.exports = router;

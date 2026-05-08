@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const RefreshToken = require("../models/RefreshToken");
+const { sendWelcomeEmail } = require("../services/emailService");
 
 const safeMsg = (err) =>
   process.env.NODE_ENV === "production"
@@ -32,6 +33,7 @@ const userPayload = (user) => ({
   prenom: user.prenom,
   email: user.email,
   role: user.role,
+  mustChangePassword: user.mustChangePassword ?? false,
 });
 
 // Crée, persiste et pose le cookie refresh token
@@ -60,15 +62,10 @@ const register = async (req, res) => {
     const { nom, prenom, email, password, role } = req.body;
 
     if (!nom || !prenom || !email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Tous les champs sont obligatoires" });
+      return res.status(400).json({ message: "Tous les champs sont obligatoires" });
     }
-
     if (password.length < 8) {
-      return res.status(400).json({
-        message: "Le mot de passe doit contenir au moins 8 caractères",
-      });
+      return res.status(400).json({ message: "Le mot de passe doit contenir au moins 8 caractères" });
     }
 
     const existe = await User.findOne({ email: email.toLowerCase() });
@@ -76,8 +73,7 @@ const register = async (req, res) => {
       return res.status(409).json({ message: "Cet email est déjà utilisé" });
     }
 
-    // Valider le rôle — un dispatcher ne peut pas se créer un compte admin
-    const ROLES_VALIDES = ["dispatcher", "superviseur", "admin"];
+    const ROLES_VALIDES = ["dispatcher", "superviseur", "admin", "ambulancier", "comptable"];
     const roleValide = ROLES_VALIDES.includes(role) ? role : "dispatcher";
 
     const salt = await bcrypt.genSalt(12);
@@ -89,7 +85,15 @@ const register = async (req, res) => {
       email: email.toLowerCase().trim(),
       password: hashed,
       role: roleValide,
+      mustChangePassword: true,
     });
+
+    // Envoyer email de bienvenue avec les identifiants temporaires (best-effort)
+    try {
+      await sendWelcomeEmail(user.email, user.prenom, user.nom, user.email, password, roleValide);
+    } catch (mailErr) {
+      console.warn("[register] Email de bienvenue non envoyé :", mailErr.message);
+    }
 
     res.status(201).json({
       message: "Compte créé avec succès",
@@ -285,6 +289,12 @@ const updatePassword = async (req, res) => {
     user.password = await bcrypt.hash(nouveauPassword, salt);
     await user.save({ validateBeforeSave: false });
 
+    // Effacer le flag de première connexion si actif
+    if (user.mustChangePassword) {
+      user.mustChangePassword = false;
+      await user.save({ validateBeforeSave: false });
+    }
+
     // Révoquer tous les sessions actives — forcer la reconnexion sur tous les appareils
     await RefreshToken.revokeAllForUser(req.user._id, "password-change");
     res.clearCookie(REFRESH_COOKIE_NAME, { path: "/api/auth" });
@@ -382,6 +392,64 @@ const toggleUser = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// @desc    Supprimer un compte utilisateur
+// @route   DELETE /api/auth/users/:id
+// @access  Privé / admin
+// ─────────────────────────────────────────────────────────────────────────────
+const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable" });
+
+    if (user._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: "Vous ne pouvez pas supprimer votre propre compte" });
+    }
+
+    await RefreshToken.revokeAllForUser(user._id, "account-deleted");
+    await User.findByIdAndDelete(req.params.id);
+
+    res.json({ message: "Compte supprimé" });
+  } catch (err) {
+    res.status(500).json({ message: safeMsg(err) });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @desc    Réinitialiser le mot de passe d'un utilisateur (admin)
+// @route   POST /api/auth/users/:id/reset-password
+// @access  Privé / admin
+// ─────────────────────────────────────────────────────────────────────────────
+const adminResetPassword = async (req, res) => {
+  try {
+    const { nouveauPassword } = req.body;
+    if (!nouveauPassword || nouveauPassword.length < 8) {
+      return res.status(400).json({ message: "Le mot de passe doit contenir au moins 8 caractères" });
+    }
+
+    const user = await User.findById(req.params.id).select("+password");
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable" });
+
+    const salt = await bcrypt.genSalt(12);
+    user.password = await bcrypt.hash(nouveauPassword, salt);
+    user.mustChangePassword = true;
+    await user.save({ validateBeforeSave: false });
+
+    await RefreshToken.revokeAllForUser(user._id, "admin-reset-password");
+
+    // Renvoi email avec nouveaux identifiants
+    try {
+      await sendWelcomeEmail(user.email, user.prenom, user.nom, user.email, nouveauPassword, user.role);
+    } catch (mailErr) {
+      console.warn("[adminResetPassword] Email non envoyé :", mailErr.message);
+    }
+
+    res.json({ message: "Mot de passe réinitialisé et email envoyé" });
+  } catch (err) {
+    res.status(500).json({ message: safeMsg(err) });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -393,4 +461,6 @@ module.exports = {
   updateProfile,
   getAllUsers,
   toggleUser,
+  deleteUser,
+  adminResetPassword,
 };

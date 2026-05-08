@@ -33,15 +33,15 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const { data } = await authService.login({ email, password });
 
-    // 1. Sauvegarder dans localStorage
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
-
-    // 2. Mettre à jour le state React immédiatement
     setUser(data.user);
 
-    // 3. Naviguer vers dashboard
-    navigate("/dashboard");
+    if (data.user?.mustChangePassword) {
+      navigate("/force-change-password");
+    } else {
+      navigate("/dashboard");
+    }
   };
 
   const logout = () => {
@@ -51,8 +51,17 @@ export function AuthProvider({ children }) {
     navigate("/login");
   };
 
+  const clearMustChangePassword = () => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, mustChangePassword: false };
+      localStorage.setItem("user", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, clearMustChangePassword }}>
       {children}
     </AuthContext.Provider>
   );

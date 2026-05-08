@@ -310,6 +310,19 @@ export const prescriptionService = {
 
 
 // ════════════════════════════════════════════════════════════════════════════
+// UTILISATEURS (admin)
+// ════════════════════════════════════════════════════════════════════════════
+export const userService = {
+  getAll: (params = {}) => api.get("/auth/users", { params }),
+  create: (data) => api.post("/auth/register", data),
+  toggle: (id) => api.patch(`/auth/users/${id}/toggle`),
+  delete: (id) => api.delete(`/auth/users/${id}`),
+  resetPassword: (id, motDePasse) =>
+    api.post(`/auth/users/${id}/reset-password`, { motDePasse }),
+  updatePassword: (data) => api.patch("/auth/password", data),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
 // ALIASES rétrocompatibilité (anciens imports directs)
 // ════════════════════════════════════════════════════════════════════════════
 export const unitService = vehicleService;
