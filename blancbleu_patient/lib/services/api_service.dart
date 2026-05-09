@@ -1,13 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String _base = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://192.168.1.56:5000/api/patient',
-  );
+  static String get _base =>
+      dotenv.env['API_BASE_URL'] ?? 'http://localhost:5000/api/patient';
 
   static const _timeout    = Duration(seconds: 15);
   static const String _tokenKey   = 'bb_token';

@@ -1,3 +1,6 @@
+# Environment — ne jamais committer
+.env
+
 # Miscellaneous
 *.class
 *.log

@@ -1,7 +1,6 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class StripeConfig {
-  // Remplacer par votre clé publique Stripe (Dashboard → Développeurs → Clés API)
-  static const String publishableKey = String.fromEnvironment(
-    'STRIPE_PUBLISHABLE_KEY',
-    defaultValue: '***STRIPE_KEY_REMOVED***',
-  );
+  static String get publishableKey =>
+      dotenv.env['STRIPE_PUBLISHABLE_KEY'] ?? '';
 }
