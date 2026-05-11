@@ -199,19 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
               final item = _navItems[i];
               final active = _selectedIndex == i;
               return GestureDetector(
-                onTap: () {
-                  if (i == 1) {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const TransportsScreen()));
-                  } else if (i == 2) {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const FacturesScreen()));
-                  } else if (i == 3) {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const PrescriptionsScreen()));
-                  } else if (i == 4) {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
-                  } else {
-                    setState(() => _selectedIndex = i);
-                  }
-                },
+                onTap: () => setState(() => _selectedIndex = i),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -546,11 +534,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const NouveauTransportScreen()))
                   .then((_) => _loadDashboard());
             } else if (i == 1) {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const TransportsScreen()));
+              setState(() => _selectedIndex = 1);
             } else if (i == 2) {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const FacturesScreen()));
+              setState(() => _selectedIndex = 2);
             } else if (i == 3) {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+              setState(() => _selectedIndex = 4);
             }
           },
           child: AnimatedScale(
@@ -607,7 +595,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const Text('Derniers transports',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.onSurface)),
             TextButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TransportsScreen())),
+              onPressed: () => setState(() => _selectedIndex = 1),
               child: const Text('Tout voir', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w600)),
             ),
           ],
@@ -752,8 +740,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
-      appBar: _buildAppBar(),
-      body: _buildBody(),
+      appBar: _selectedIndex == 0 ? _buildAppBar() : null,
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          _buildBody(),
+          const TransportsScreen(),
+          const FacturesScreen(),
+          const PrescriptionsScreen(),
+          const ProfileScreen(),
+        ],
+      ),
       bottomNavigationBar: _buildBottomNav(),
     );
   }

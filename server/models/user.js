@@ -8,7 +8,6 @@ const userSchema = new mongoose.Schema(
     email: {
       type: String,
       required: true,
-      unique: true,
       lowercase: true,
       trim: true,
       match: [/^\S+@\S+\.\S+$/, "Email invalide"],
@@ -43,6 +42,14 @@ const userSchema = new mongoose.Schema(
     },
   },
   { timestamps: true },
+);
+
+// Compound unique index: same email can exist once per role
+// (e.g. patient + dispatcher can share an email — they are separate account types)
+// Partial index on company roles keeps email unique within staff accounts.
+userSchema.index(
+  { email: 1, role: 1 },
+  { unique: true, name: "email_role_unique" },
 );
 
 // Pas de hook pre('save') — hash géré manuellement dans les controllers

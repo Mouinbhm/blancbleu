@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../services/api_service.dart';
-import '../widgets/app_bottom_nav.dart';
 import 'nouvelle_prescription_screen.dart';
 
 class PrescriptionsScreen extends StatefulWidget {
@@ -79,7 +78,6 @@ class _PrescriptionsScreenState extends State<PrescriptionsScreen> {
         ],
       ),
       body: _buildBody(),
-      bottomNavigationBar: const AppBottomNav(activeIndex: 3),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final created = await Navigator.push<bool>(

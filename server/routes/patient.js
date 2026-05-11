@@ -176,9 +176,9 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 8 caractères' })
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase().trim() })
+    const existing = await User.findOne({ email: email.toLowerCase().trim(), role: 'patient' })
     if (existing) {
-      return res.status(409).json({ message: 'Cet email est déjà utilisé' })
+      return res.status(409).json({ message: 'Un compte patient existe déjà avec cet email' })
     }
 
     const salt = await bcrypt.genSalt(12)
@@ -234,7 +234,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Email et mot de passe requis' })
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password')
+    const user = await User.findOne({ email: email.toLowerCase(), role: 'patient' }).select('+password')
     if (!user) {
       // Timing normalization : même durée qu'un vrai bcrypt.compare
       await bcrypt.compare(password, '$2b$12$invalidhashfortimingnormalization')

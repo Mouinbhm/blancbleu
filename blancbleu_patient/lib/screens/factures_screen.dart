@@ -19,14 +19,6 @@ class _FacturesScreenState extends State<FacturesScreen> {
 
   static const _tabs = ['Toutes', 'En attente', 'Payees', 'Annulees'];
 
-  static const _navItems = [
-    _NavItem(icon: Icons.home_outlined,             filledIcon: Icons.home,             label: 'Accueil'),
-    _NavItem(icon: Icons.medical_services_outlined, filledIcon: Icons.medical_services, label: 'Transports'),
-    _NavItem(icon: Icons.receipt_long_outlined,     filledIcon: Icons.receipt_long,     label: 'Factures'),
-    _NavItem(icon: Icons.description_outlined,      filledIcon: Icons.description,      label: 'Ordonnances'),
-    _NavItem(icon: Icons.person_outline,            filledIcon: Icons.person,           label: 'Profil'),
-  ];
-
   static const _moisLong = [
     'janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin',
     'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre',
@@ -711,51 +703,6 @@ class _FacturesScreenState extends State<FacturesScreen> {
     );
   }
 
-  // ── Bottom Nav ─────────────────────────────────────────────────────────────
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, -4))],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(_navItems.length, (i) {
-              final item   = _navItems[i];
-              final active = i == 2;
-              return GestureDetector(
-                onTap: () { if (i != 2) Navigator.of(context).pop(); },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: active ? const Color(0xFFEFF6FF) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(active ? item.filledIcon : item.icon,
-                          color: active ? AppTheme.primary : Colors.grey, size: 24),
-                      const SizedBox(height: 2),
-                      Text(item.label,
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                              color: active ? AppTheme.primary : Colors.grey)),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
-
   // ── Empty state ────────────────────────────────────────────────────────────
   Widget _buildEmpty() {
     return Center(
@@ -862,7 +809,6 @@ class _FacturesScreenState extends State<FacturesScreen> {
                       ),
                   ],
                 ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 }
@@ -877,9 +823,3 @@ class _StatutStyle {
   const _StatutStyle(this.label, this.color, this.bg, this.icon);
 }
 
-class _NavItem {
-  final IconData icon;
-  final IconData filledIcon;
-  final String   label;
-  const _NavItem({required this.icon, required this.filledIcon, required this.label});
-}

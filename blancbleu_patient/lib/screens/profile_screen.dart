@@ -7,7 +7,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/theme.dart';
 import '../services/api_service.dart';
-import '../widgets/app_bottom_nav.dart';
 import 'edit_profile_screen.dart';
 import 'login_screen.dart';
 import 'notifications_screen.dart';
@@ -802,7 +801,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
-      bottomNavigationBar: const AppBottomNav(activeIndex: 4),
     );
   }
 }
