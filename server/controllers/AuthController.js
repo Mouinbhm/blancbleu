@@ -126,7 +126,7 @@ const login = async (req, res) => {
     }
 
     const user = await User.findOne({ email: email.toLowerCase() }).select(
-      "+password",
+      "+password +twoFactorEnabled",
     );
     if (!user) {
       // Délai constant pour éviter le timing attack
@@ -148,6 +148,16 @@ const login = async (req, res) => {
       return res
         .status(401)
         .json({ message: "Email ou mot de passe incorrect" });
+    }
+
+    // 2FA required — issue a short-lived temp token instead of full session
+    if (user.twoFactorEnabled) {
+      const tempToken = jwt.sign(
+        { id: user._id, requires2FA: true },
+        process.env.JWT_SECRET,
+        { expiresIn: "5m" },
+      );
+      return res.json({ requiresTwoFactor: true, tempToken });
     }
 
     const accessToken = generateAccessToken(user._id);

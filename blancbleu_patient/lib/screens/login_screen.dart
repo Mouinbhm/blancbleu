@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../services/api_service.dart';
+import 'forgot_password_screen.dart';
 import 'home_screen.dart';
 import 'signup_screen.dart';
 
@@ -385,6 +386,23 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: AppTheme.primary,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          Center(
+                            child: TextButton(
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const ForgotPasswordScreen(),
+                                ),
+                              ),
+                              child: const Text(
+                                'Mot de passe oublie ?',
+                                style: TextStyle(
+                                  color: AppTheme.secondary,
+                                  fontSize: 13,
                                 ),
                               ),
                             ),

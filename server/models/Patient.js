@@ -4,6 +4,7 @@
  * Un patient peut avoir plusieurs transports, prescriptions et factures.
  */
 const mongoose = require("mongoose");
+const { encrypt, decrypt } = require("../utils/encryption");
 
 const contactUrgenceSchema = new mongoose.Schema(
   {
@@ -69,6 +70,20 @@ patientSchema.index({ nom: 1, prenom: 1 });
 patientSchema.index({ numeroSecu: 1 }, { sparse: true });
 patientSchema.index({ telephone: 1 }, { sparse: true });
 patientSchema.index({ deletedAt: 1 });
+
+// ── Chiffrement du numéro de sécurité sociale (AES-256-GCM) ──────────────────
+patientSchema.pre("save", function (next) {
+  if (this.isModified("numeroSecu") && this.numeroSecu) {
+    this.numeroSecu = encrypt(this.numeroSecu);
+  }
+  next();
+});
+
+patientSchema.post("init", function (doc) {
+  if (doc.numeroSecu) {
+    doc.numeroSecu = decrypt(doc.numeroSecu);
+  }
+});
 
 // ── Numéro patient automatique : PAT-YYYYMMDD-XXXX ───────────────────────────
 // Utilise le MAX existant au lieu de countDocuments() pour éviter les doublons

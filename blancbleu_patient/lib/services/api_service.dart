@@ -269,6 +269,35 @@ class ApiService {
     return data;
   }
 
+  // ── Mot de passe oublié / réinitialisation ────────────────────────────────
+
+  static String get _authBase =>
+      _base.replaceFirst('/api/patient', '/api/auth');
+
+  static Future<void> forgotPassword(String email) async {
+    final res = await http.post(
+      Uri.parse('$_authBase/forgot-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
+    if (res.statusCode >= 400) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      throw Exception(data['message'] ?? 'Erreur serveur');
+    }
+  }
+
+  static Future<void> resetPassword(String token, String newPassword) async {
+    final res = await http.post(
+      Uri.parse('$_authBase/reset-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'token': token, 'password': newPassword}),
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
+    if (res.statusCode >= 400) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      throw Exception(data['message'] ?? 'Erreur serveur');
+    }
+  }
+
   // ── RGPD ───────────────────────────────────────────────────────────────────
 
   // GET /api/gdpr/export — droit à la portabilité (Art. 20)

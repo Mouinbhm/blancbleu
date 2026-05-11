@@ -21,6 +21,12 @@ const {
   verifyResetToken,
   resetPassword,
 } = require("../controllers/passwordController");
+const {
+  setup2FA,
+  confirm2FA,
+  verify2FA,
+  disable2FA,
+} = require("../controllers/twoFactorController");
 
 // ─── Routes publiques avec rate limiting ──────────────────────────────────────
 router.post("/login", authLimiter, login);
@@ -38,6 +44,12 @@ router.get("/me", protect, getMe);
 router.patch("/password", protect, updatePassword);
 router.patch("/profile", protect, updateProfile);
 router.post("/logout-all", protect, logoutAll);
+
+// ─── 2FA (TOTP) ───────────────────────────────────────────────────────────────
+router.post("/2fa/verify", verify2FA);
+router.post("/2fa/setup", protect, authorize("admin", "dispatcher", "superviseur"), setup2FA);
+router.post("/2fa/confirm", protect, confirm2FA);
+router.delete("/2fa", protect, disable2FA);
 
 // ─── Admin : création de compte ───────────────────────────────────────────────
 // Register est désormais protégé — seul un admin connecté peut créer des comptes

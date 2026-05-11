@@ -22,6 +22,10 @@ const userSchema = new mongoose.Schema(
     actif: { type: Boolean, default: true },
     mustChangePassword: { type: Boolean, default: false },
 
+    // ── 2FA (TOTP) ────────────────────────────────────────────────────────────
+    twoFactorSecret: { type: String, select: false },
+    twoFactorEnabled: { type: Boolean, default: false },
+
     // ── Champs patient ────────────────────────────────────────────────────────
     telephone:      { type: String, default: "" },
     dateNaissance:  { type: Date, default: null },
