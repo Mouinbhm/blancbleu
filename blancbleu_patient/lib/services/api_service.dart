@@ -6,8 +6,10 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
+  // API_BASE_URL must be set in .env (see .env.example).
+  // Fallback: Android emulator → 10.0.2.2, physical device → LAN IP, prod → https://
   static String get _base =>
-      dotenv.env['API_BASE_URL'] ?? 'http://localhost:5000/api/patient';
+      dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:5000/api/patient';
 
   static const _timeout    = Duration(seconds: 15);
   static const String _tokenKey   = 'bb_token';
