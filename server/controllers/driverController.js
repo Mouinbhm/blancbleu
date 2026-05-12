@@ -171,4 +171,34 @@ const uploadPmtPhoto = [
   },
 ];
 
-module.exports = { getTournee, updateStatus, saveSignature, uploadPmtPhoto };
+// ════════════════════════════════════════════════════════════════════════════
+// POST /api/v1/driver/sos
+// ════════════════════════════════════════════════════════════════════════════
+const sosSend = async (req, res) => {
+  try {
+    const { lat, lng, shiftId, transportId } = req.body;
+    const personnel = req.personnel;
+
+    const alert = {
+      personnelId:  personnel._id,
+      prenom:       personnel.prenom,
+      nom:          personnel.nom,
+      shiftId:      shiftId || null,
+      transportId:  transportId || null,
+      lat:          lat || null,
+      lng:          lng || null,
+      timestamp:    new Date(),
+    };
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to("role:dispatcher").to("role:admin").emit("sos:received", alert);
+    }
+
+    return res.status(201).json({ message: "Alerte SOS envoyée", alert });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { getTournee, updateStatus, saveSignature, uploadPmtPhoto, sosSend };

@@ -107,6 +107,17 @@ class ApiClient {
     return (res.data as Map<String, dynamic>)['token'] as String?;
   }
 
+  // ── SOS ───────────────────────────────────────────────────────────────────
+  Future<void> sosSend({double? lat, double? lng, String? shiftId, String? transportId}) async {
+    await _dio.post('/driver/sos', data: {
+      if (lat != null) 'lat': lat,
+      if (lng != null) 'lng': lng,
+      if (shiftId != null) 'shiftId': shiftId,
+      if (transportId != null) 'transportId': transportId,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
   // ── Vehicles ──────────────────────────────────────────────────────────────
   Future<List<dynamic>> getAvailableVehicles() async {
     final res = await _dio.get(

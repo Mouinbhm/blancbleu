@@ -40,7 +40,13 @@ dependencies:
   connectivity_plus: ^5.0.2
   workmanager: ^0.5.2
 
+  # PDF & printing
+  pdf: ^3.10.7
+  printing: ^5.11.0
+  path_provider: ^2.1.1
+
   # UI
+  shimmer: ^3.0.0
   cupertino_icons: ^1.0.8
 
 dev_dependencies:

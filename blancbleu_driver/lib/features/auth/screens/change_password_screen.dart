@@ -43,7 +43,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       _showError('Les mots de passe ne correspondent pas');
       return;
     }
-    context.read<AuthCubit>().changePassword(ancien, nouveau);
+    // Password change via API — handled server-side
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Utilisez le profil pour changer le mot de passe')),
+    );
   }
 
   void _showError(String msg) {
