@@ -130,9 +130,10 @@ if (process.env.NODE_ENV !== "production") {
 app.use("/api/patient", require("./routes/patient"));
 
 // ── Routes driver app ──────────────────────────────────────────────────────────
-app.use("/api/v1/driver",   require("./routes/driver.routes"));
-app.use("/api/v1/shifts",   require("./routes/shift.routes"));
-app.use("/api/v1/tracking", require("./routes/tracking.routes"));
+app.use("/api/v1/personnel/auth", require("./routes/personnelAuth.routes"));
+app.use("/api/v1/driver",         require("./routes/driver.routes"));
+app.use("/api/v1/shifts",         require("./routes/shift.routes"));
+app.use("/api/v1/tracking",       require("./routes/tracking.routes"));
 
 // ── Fichiers statiques (photos PMT) ───────────────────────────────────────────
 app.use("/uploads", require("express").static(require("path").join(__dirname, "uploads")));

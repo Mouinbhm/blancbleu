@@ -22,7 +22,7 @@ const incidentSchema = new mongoose.Schema(
 
 const driverShiftSchema = new mongoose.Schema(
   {
-    driverId:  { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    driverId:  { type: mongoose.Schema.Types.ObjectId, ref: "Personnel", required: true, index: true },
     vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: "Vehicle", required: true },
     startTime: { type: Date, default: Date.now },
     endTime:   { type: Date, default: null },

@@ -3,6 +3,7 @@
  * Transport sanitaire NON urgent
  */
 const mongoose = require("mongoose");
+const bcrypt   = require("bcryptjs");
 
 const certificationSchema = new mongoose.Schema(
   {
@@ -80,11 +81,22 @@ const personnelSchema = new mongoose.Schema(
     // ─── Divers RH ────────────────────────────────────────────────────────────
     notes:  { type: String, default: "" },
     actif:  { type: Boolean, default: true },
+
+    // ─── Authentification app chauffeur ───────────────────────────────────────
+    password:            { type: String, select: false },
+    forcePasswordChange: { type: Boolean, default: true },
+    lastLogin:           { type: Date, default: null },
+    fcmToken:            { type: String, default: null },
   },
   { timestamps: true },
 );
 
 personnelSchema.index({ statut: 1, role: 1 });
 personnelSchema.index({ nom: 1, prenom: 1 });
+personnelSchema.index({ email: 1 }, { unique: true, sparse: true });
+
+personnelSchema.methods.comparePassword = function (candidate) {
+  return bcrypt.compare(candidate, this.password);
+};
 
 module.exports = mongoose.model("Personnel", personnelSchema);

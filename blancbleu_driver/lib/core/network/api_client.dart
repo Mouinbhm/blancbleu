@@ -32,7 +32,7 @@ class ApiClient {
   // ── Auth ──────────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> login(String email, String password) async {
     final res = await _dio.post(
-      '${AppConstants.baseUrl}/api/auth/login',
+      '${AppConstants.baseUrl}/api/v1/personnel/auth/login',
       data: {'email': email, 'password': password},
     );
     return res.data as Map<String, dynamic>;
@@ -96,6 +96,15 @@ class ApiClient {
   // ── Tracking ──────────────────────────────────────────────────────────────
   Future<void> batchTracking(List<Map<String, dynamic>> points) async {
     await _dio.post('/tracking/batch', data: {'points': points});
+  }
+
+  // ── Change password ───────────────────────────────────────────────────────
+  Future<String?> changePassword(String currentPassword, String newPassword) async {
+    final res = await _dio.post(
+      '${AppConstants.baseUrl}/api/v1/personnel/auth/change-password',
+      data: {'currentPassword': currentPassword, 'newPassword': newPassword},
+    );
+    return (res.data as Map<String, dynamic>)['token'] as String?;
   }
 
   // ── Vehicles ──────────────────────────────────────────────────────────────

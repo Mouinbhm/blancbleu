@@ -3,7 +3,8 @@
  * Adapté transport sanitaire — utilise Vehicle au lieu de Unit
  */
 const Personnel = require("../models/Personnel");
-const Vehicle = require("../models/Vehicle"); // ← remplace Unit
+const Vehicle   = require("../models/Vehicle");
+const bcrypt    = require("bcryptjs");
 
 const getPersonnel = async (req, res) => {
   try {
@@ -35,10 +36,34 @@ const getPersonnelById = async (req, res) => {
   }
 };
 
+const _genTempPassword = () =>
+  "BlancBleu@" + String(Math.floor(1000 + Math.random() * 9000));
+
 const createPersonnel = async (req, res) => {
   try {
-    const membre = await Personnel.create(req.body);
-    res.status(201).json({ message: "Membre créé", membre });
+    const { email } = req.body;
+
+    if (email) {
+      const exists = await Personnel.findOne({ email: email.toLowerCase().trim() });
+      if (exists)
+        return res.status(409).json({ message: "Un membre avec cet email existe déjà" });
+    }
+
+    const tempPassword = _genTempPassword();
+    const hashed       = await bcrypt.hash(tempPassword, 12);
+
+    const membre = await Personnel.create({
+      ...req.body,
+      email:               email?.toLowerCase().trim(),
+      password:            hashed,
+      forcePasswordChange: true,
+    });
+
+    // TODO: sendWelcomeEmail(email, membre.prenom, tempPassword) when email service ready
+
+    const memberObj = membre.toObject();
+    delete memberObj.password;
+    res.status(201).json({ message: "Membre créé", membre: memberObj, tempPassword });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -46,7 +71,9 @@ const createPersonnel = async (req, res) => {
 
 const updatePersonnel = async (req, res) => {
   try {
-    const membre = await Personnel.findByIdAndUpdate(req.params.id, req.body, {
+    // Block auth-sensitive fields from general updates
+    const { password, email, forcePasswordChange, ...safe } = req.body;
+    const membre = await Personnel.findByIdAndUpdate(req.params.id, safe, {
       new: true,
       runValidators: true,
     }).populate("uniteAssignee", "nom immatriculation type");
@@ -54,6 +81,22 @@ const updatePersonnel = async (req, res) => {
     res.json({ message: "Membre mis à jour", membre });
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const membre = await Personnel.findById(req.params.id);
+    if (!membre) return res.status(404).json({ message: "Membre introuvable" });
+
+    const tempPassword = _genTempPassword();
+    membre.password            = await bcrypt.hash(tempPassword, 12);
+    membre.forcePasswordChange = true;
+    await membre.save({ validateBeforeSave: false });
+
+    res.json({ message: "Mot de passe réinitialisé", tempPassword });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -145,6 +188,7 @@ module.exports = {
   getPersonnelById,
   createPersonnel,
   updatePersonnel,
+  resetPassword,
   updateStatut,
   assignerUnite,
   deletePersonnel,

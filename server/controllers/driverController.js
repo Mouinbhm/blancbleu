@@ -1,25 +1,16 @@
 const Transport  = require("../models/Transport");
-const Personnel  = require("../models/Personnel");
 const multer     = require("multer");
 const path       = require("path");
 const fs         = require("fs");
-
-// ── Résoudre le Personnel lié à l'utilisateur connecté ───────────────────────
-async function _getPersonnel(userId) {
-  return Personnel.findOne({ userId });
-}
 
 // ════════════════════════════════════════════════════════════════════════════
 // GET /api/v1/driver/tournee?date=YYYY-MM-DD
 // ════════════════════════════════════════════════════════════════════════════
 const getTournee = async (req, res) => {
   try {
-    const personnel = await _getPersonnel(req.user._id);
-    if (!personnel) {
-      return res.status(404).json({ message: "Aucun profil personnel lié à ce compte" });
-    }
+    const personnel = req.personnel;
 
-    const dateStr = req.query.date || new Date().toISOString().split("T")[0];
+    const dateStr  = req.query.date || new Date().toISOString().split("T")[0];
     const dateDebut = new Date(dateStr);
     const dateFin   = new Date(dateStr);
     dateFin.setDate(dateFin.getDate() + 1);
@@ -49,13 +40,12 @@ const getTournee = async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // PATCH /api/v1/driver/transports/:id/status
-// Body: { status, note, timestamp }
 // ════════════════════════════════════════════════════════════════════════════
 const VALID_TRANSITIONS = {
-  ASSIGNED:             ["EN_ROUTE_TO_PICKUP"],
-  EN_ROUTE_TO_PICKUP:   ["ARRIVED_AT_PICKUP"],
-  ARRIVED_AT_PICKUP:    ["PATIENT_ON_BOARD", "NO_SHOW"],
-  PATIENT_ON_BOARD:     ["ARRIVED_AT_DESTINATION"],
+  ASSIGNED:               ["EN_ROUTE_TO_PICKUP"],
+  EN_ROUTE_TO_PICKUP:     ["ARRIVED_AT_PICKUP"],
+  ARRIVED_AT_PICKUP:      ["PATIENT_ON_BOARD", "NO_SHOW"],
+  PATIENT_ON_BOARD:       ["ARRIVED_AT_DESTINATION"],
   ARRIVED_AT_DESTINATION: ["COMPLETED"],
 };
 
@@ -64,8 +54,7 @@ const updateStatus = async (req, res) => {
     const { status, note = "", timestamp } = req.body;
     if (!status) return res.status(400).json({ message: "status requis" });
 
-    const personnel = await _getPersonnel(req.user._id);
-    if (!personnel) return res.status(404).json({ message: "Profil chauffeur introuvable" });
+    const personnel = req.personnel;
 
     const transport = await Transport.findOne({
       _id:      req.params.id,
@@ -82,8 +71,6 @@ const updateStatus = async (req, res) => {
     }
 
     const ts = timestamp ? new Date(timestamp) : new Date();
-
-    // Horodatages spécifiques
     const update = { statut: status };
     if (status === "EN_ROUTE_TO_PICKUP")      update.heureEnRoute = ts;
     if (status === "ARRIVED_AT_PICKUP")       update.heurePriseEnCharge = ts;
@@ -92,23 +79,19 @@ const updateStatus = async (req, res) => {
     if (status === "COMPLETED")               update.heureTerminee = ts;
 
     update.$push = {
-      statusHistory: { status, timestamp: ts, driverId: req.user._id, note },
+      statusHistory: { status, timestamp: ts, driverId: personnel._id, note },
     };
 
-    const updated = await Transport.findByIdAndUpdate(
-      req.params.id,
-      update,
-      { new: true }
-    );
+    const updated = await Transport.findByIdAndUpdate(req.params.id, update, { new: true });
 
-    // WebSocket → dispatchers
     const io = req.app.get("io");
     if (io) {
       io.to("role:dispatcher").to("role:admin").to("role:superviseur").emit("transport:status_updated", {
         transportId: transport._id,
         numero:      transport.numero,
         status,
-        driverId:    req.user._id,
+        driverId:    personnel._id,
+        driverNom:   `${personnel.prenom} ${personnel.nom}`,
         timestamp:   ts,
       });
     }
@@ -121,17 +104,17 @@ const updateStatus = async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/v1/driver/transports/:id/signature
-// Body: { patientSignatureBase64, driverSignatureBase64 }
 // ════════════════════════════════════════════════════════════════════════════
 const saveSignature = async (req, res) => {
   try {
     const { patientSignatureBase64, driverSignatureBase64 } = req.body;
-    if (!patientSignatureBase64 && !driverSignatureBase64) {
+    if (!patientSignatureBase64 && !driverSignatureBase64)
       return res.status(400).json({ message: "Au moins une signature requise" });
-    }
 
-    const personnel = await _getPersonnel(req.user._id);
-    const transport = await Transport.findOne({ _id: req.params.id, chauffeur: personnel?._id });
+    const transport = await Transport.findOne({
+      _id:      req.params.id,
+      chauffeur: req.personnel._id,
+    });
     if (!transport) return res.status(404).json({ message: "Transport introuvable" });
 
     const upd = { driverSignedAt: new Date() };
@@ -146,7 +129,7 @@ const saveSignature = async (req, res) => {
 };
 
 // ════════════════════════════════════════════════════════════════════════════
-// POST /api/v1/driver/transports/:id/pmt-photo   (multipart)
+// POST /api/v1/driver/transports/:id/pmt-photo
 // ════════════════════════════════════════════════════════════════════════════
 const uploadDir = path.join(__dirname, "../uploads/pmt");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -164,8 +147,10 @@ const uploadPmtPhoto = [
     try {
       if (!req.file) return res.status(400).json({ message: "Fichier photo requis (champ 'photo')" });
 
-      const personnel = await _getPersonnel(req.user._id);
-      const transport = await Transport.findOne({ _id: req.params.id, chauffeur: personnel?._id });
+      const transport = await Transport.findOne({
+        _id:      req.params.id,
+        chauffeur: req.personnel._id,
+      });
       if (!transport) return res.status(404).json({ message: "Transport introuvable" });
 
       const url = `/uploads/pmt/${req.file.filename}`;

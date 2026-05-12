@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const trackingPointSchema = new mongoose.Schema(
   {
-    driverId:    { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    driverId:    { type: mongoose.Schema.Types.ObjectId, ref: "Personnel", required: true },
     shiftId:     { type: mongoose.Schema.Types.ObjectId, ref: "DriverShift", required: true },
     transportId: { type: mongoose.Schema.Types.ObjectId, ref: "Transport", default: null },
     lat:         { type: Number, required: true },

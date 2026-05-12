@@ -6,6 +6,7 @@ const {
   getPersonnelById,
   createPersonnel,
   updatePersonnel,
+  resetPassword,
   updateStatut,
   assignerUnite,
   deletePersonnel,
@@ -29,6 +30,7 @@ router.patch(
   authorize("admin", "superviseur"),
   assignerUnite,
 );
+router.patch("/:id/reset-password", protect, authorize("admin", "superviseur"), resetPassword);
 router.delete("/:id", protect, authorize("admin"), deletePersonnel);
 
 module.exports = router;

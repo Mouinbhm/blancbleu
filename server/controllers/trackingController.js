@@ -10,11 +10,11 @@ const batchInsert = async (req, res) => {
       return res.status(400).json({ message: "points[] requis et non vide" });
     }
 
-    const shift = await DriverShift.findOne({ driverId: req.user._id, status: "ACTIVE" });
+    const shift = await DriverShift.findOne({ driverId: req.personnel._id, status: "ACTIVE" });
     if (!shift) return res.status(409).json({ message: "Aucun shift actif — impossible d'enregistrer la position" });
 
     const docs = points.map((p) => ({
-      driverId:    req.user._id,
+      driverId:    req.personnel._id,
       shiftId:     shift._id,
       transportId: p.transportId || null,
       lat:         p.lat,
@@ -26,13 +26,12 @@ const batchInsert = async (req, res) => {
 
     await TrackingPoint.insertMany(docs, { ordered: false });
 
-    // Broadcast dernière position aux dispatchers
     const last = docs[docs.length - 1];
     const io = req.app.get("io");
     if (io) {
       io.to("role:dispatcher").to("role:admin").to("role:superviseur").emit("driver:location_updated", {
-        driverId:  req.user._id,
-        driverNom: `${req.user.prenom} ${req.user.nom}`,
+        driverId:  req.personnel._id,
+        driverNom: `${req.personnel.prenom} ${req.personnel.nom}`,
         vehicleId: shift.vehicleId,
         lat:       last.lat,
         lng:       last.lng,
@@ -48,7 +47,6 @@ const batchInsert = async (req, res) => {
 };
 
 // GET /api/v1/tracking/live
-// Dernière position connue de tous les chauffeurs actifs
 const getLive = async (req, res) => {
   try {
     const activeShifts = await DriverShift.find({ status: "ACTIVE" })

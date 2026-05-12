@@ -81,7 +81,7 @@ const register = async (req, res) => {
       return res.status(409).json({ message: "Cet email est déjà utilisé" });
     }
 
-    const ROLES_VALIDES = ["dispatcher", "superviseur", "admin", "ambulancier", "comptable"];
+    const ROLES_VALIDES = ["dispatcher", "superviseur", "admin", "comptable"];
     const roleValide = ROLES_VALIDES.includes(role) ? role : "dispatcher";
 
     const salt = await bcrypt.genSalt(12);
@@ -166,6 +166,7 @@ const login = async (req, res) => {
 
     res.json({
       message: "Connexion réussie",
+      token: accessToken,
       user: userPayload(user),
     });
   } catch (err) {
@@ -324,6 +325,7 @@ const updatePassword = async (req, res) => {
 
     res.json({
       message: "Mot de passe mis à jour — toutes les autres sessions ont été révoquées",
+      token: accessToken,
     });
   } catch (err) {
     res.status(500).json({ message: safeMsg(err) });

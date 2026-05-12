@@ -107,6 +107,7 @@ function ModalMembre({ membre, onClose, onSaved }) {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur]   = useState(null);
+  const [tempPwd, setTempPwd] = useState(null);
 
   useEffect(() => {
     vehicleService
@@ -159,10 +160,16 @@ function ModalMembre({ membre, onClose, onSaved }) {
       };
       if (editing) {
         await personnelService.update(membre._id, payload);
+        onSaved();
       } else {
-        await personnelService.create(payload);
+        const res = await personnelService.create(payload);
+        const pwd = res.data?.tempPassword;
+        if (pwd) {
+          setTempPwd(pwd);
+        } else {
+          onSaved();
+        }
       }
-      onSaved();
     } catch (err) {
       setErreur(err.response?.data?.message || "Erreur lors de l'enregistrement.");
     } finally {
@@ -258,8 +265,33 @@ function ModalMembre({ membre, onClose, onSaved }) {
           </div>
         )}
 
+        {/* ── Temp password screen (shown after creation) ── */}
+        {tempPwd && (
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 gap-6">
+            <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center">
+              <span className="material-symbols-outlined text-emerald-600 text-3xl">check_circle</span>
+            </div>
+            <div className="text-center">
+              <p className="font-brand font-bold text-navy text-lg">Membre créé avec succès</p>
+              <p className="text-slate-500 text-sm mt-1">Communiquez ce mot de passe temporaire au nouvel employé.</p>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 w-full text-center">
+              <p className="text-xs font-mono font-bold text-amber-600 uppercase tracking-widest mb-2">Mot de passe temporaire</p>
+              <p className="text-2xl font-mono font-bold text-navy tracking-wider select-all">{tempPwd}</p>
+              <p className="text-xs text-amber-600 mt-2">L'employé devra le changer à la première connexion.</p>
+            </div>
+            <button
+              onClick={() => { setTempPwd(null); onSaved(); }}
+              className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-md shadow-primary/20"
+            >
+              <span className="material-symbols-outlined text-sm">done</span>
+              Fermer
+            </button>
+          </div>
+        )}
+
         {/* ── Scrollable content ── */}
-        <div className="overflow-y-auto flex-1 px-6 py-5">
+        {!tempPwd && <div className="overflow-y-auto flex-1 px-6 py-5">
 
           {/* ════ STEP 0 — Identité ════ */}
           {step === 0 && (
@@ -561,10 +593,10 @@ function ModalMembre({ membre, onClose, onSaved }) {
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Footer navigation ── */}
-        <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-between bg-slate-50/50 rounded-b-2xl">
+        {!tempPwd && <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-between bg-slate-50/50 rounded-b-2xl">
           <button
             type="button"
             onClick={step === 0 ? onClose : handlePrev}
@@ -602,7 +634,7 @@ function ModalMembre({ membre, onClose, onSaved }) {
               }
             </button>
           )}
-        </div>
+        </div>}
       </div>
     </div>
   );
@@ -611,7 +643,7 @@ function ModalMembre({ membre, onClose, onSaved }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // FICHE DÉTAIL — slide-over latéral
 // ══════════════════════════════════════════════════════════════════════════════
-function FicheDetail({ membre, onClose, onEdit }) {
+function FicheDetail({ membre, onClose, onEdit, onResetPassword }) {
   const { user } = useAuth();
   const anciennete = calculerAnciennete(membre.dateEmbauche);
   const cfg = STATUT_CFG[membre.statut] || STATUT_CFG.inactif;
@@ -746,7 +778,7 @@ function FicheDetail({ membre, onClose, onEdit }) {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-100 p-4">
+        <div className="border-t border-slate-100 p-4 flex flex-col gap-2">
           <button
             onClick={onEdit}
             className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-md shadow-primary/20"
@@ -754,6 +786,15 @@ function FicheDetail({ membre, onClose, onEdit }) {
             <span className="material-symbols-outlined text-sm">edit</span>
             Modifier ce membre
           </button>
+          {membre.email && (
+            <button
+              onClick={onResetPassword}
+              className="w-full flex items-center justify-center gap-2 py-2.5 border border-amber-300 text-amber-700 bg-amber-50 rounded-xl font-semibold text-sm hover:bg-amber-100 transition-all"
+            >
+              <span className="material-symbols-outlined text-sm">key</span>
+              Réinitialiser le mot de passe
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -803,6 +844,7 @@ export default function Personnel() {
   const [recherche, setRecherche]       = useState("");
   const [modal, setModal]           = useState(null); // null | { membre? }
   const [detail, setDetail]         = useState(null); // membre | null
+  const [resetPwd, setResetPwd]     = useState(null); // { nom, tempPassword } | null
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -830,6 +872,16 @@ export default function Personnel() {
       loadData();
     } catch (err) {
       alert(err.response?.data?.message || "Erreur.");
+    }
+  };
+
+  const handleResetPassword = async (membre) => {
+    if (!window.confirm(`Réinitialiser le mot de passe de ${membre.prenom} ${membre.nom} ?`)) return;
+    try {
+      const res = await personnelService.resetPassword(membre._id);
+      setResetPwd({ nom: `${membre.prenom} ${membre.nom}`, tempPassword: res.data.tempPassword });
+    } catch (err) {
+      alert(err.response?.data?.message || "Erreur lors de la réinitialisation.");
     }
   };
 
@@ -978,6 +1030,7 @@ export default function Personnel() {
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
                           <button onClick={() => setModal({ membre: p })} className="text-xs font-semibold text-primary hover:underline">Modifier</button>
+                          {p.email && <button onClick={() => handleResetPassword(p)} className="text-xs font-semibold text-amber-600 hover:underline">Réinit. mdp</button>}
                           <button onClick={() => handleDesactiver(p._id)} className="text-xs font-semibold text-red-500 hover:underline">Désactiver</button>
                         </div>
                       </td>
@@ -1004,7 +1057,34 @@ export default function Personnel() {
           membre={detail}
           onClose={() => setDetail(null)}
           onEdit={() => { setModal({ membre: detail }); setDetail(null); }}
+          onResetPassword={() => { handleResetPassword(detail); setDetail(null); }}
         />
+      )}
+
+      {resetPwd && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-8 flex flex-col items-center gap-5 text-center">
+            <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center">
+              <span className="material-symbols-outlined text-amber-600 text-3xl">key</span>
+            </div>
+            <div>
+              <p className="font-brand font-bold text-navy text-lg">Mot de passe réinitialisé</p>
+              <p className="text-slate-500 text-sm mt-1">{resetPwd.nom}</p>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 w-full">
+              <p className="text-xs font-mono font-bold text-amber-600 uppercase tracking-widest mb-2">Nouveau mot de passe temporaire</p>
+              <p className="text-2xl font-mono font-bold text-navy tracking-wider select-all">{resetPwd.tempPassword}</p>
+              <p className="text-xs text-amber-600 mt-2">L'employé devra le changer à la prochaine connexion.</p>
+            </div>
+            <button
+              onClick={() => setResetPwd(null)}
+              className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-md shadow-primary/20"
+            >
+              <span className="material-symbols-outlined text-sm">done</span>
+              Fermer
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -6,23 +6,22 @@ const startShift = async (req, res) => {
     const { vehicleId, checklist } = req.body;
     if (!vehicleId) return res.status(400).json({ message: "vehicleId requis" });
 
-    const existing = await DriverShift.findOne({ driverId: req.user._id, status: "ACTIVE" });
+    const existing = await DriverShift.findOne({ driverId: req.personnel._id, status: "ACTIVE" });
     if (existing) {
       return res.status(409).json({ message: "Un shift est déjà actif", shiftId: existing._id });
     }
 
     const shift = await DriverShift.create({
-      driverId:       req.user._id,
+      driverId:       req.personnel._id,
       vehicleId,
       startChecklist: checklist || {},
     });
 
-    // Notifier les dispatchers
     const io = req.app.get("io");
     if (io) {
       io.to("role:dispatcher").to("role:admin").emit("driver:shift_started", {
-        driverId:  req.user._id,
-        driverNom: `${req.user.prenom} ${req.user.nom}`,
+        driverId:  req.personnel._id,
+        driverNom: `${req.personnel.prenom} ${req.personnel.nom}`,
         vehicleId,
         shiftId:   shift._id,
         startTime: shift.startTime,
@@ -40,7 +39,7 @@ const endShift = async (req, res) => {
   try {
     const { totalKm = 0, notes = "" } = req.body;
 
-    const shift = await DriverShift.findOne({ driverId: req.user._id, status: "ACTIVE" });
+    const shift = await DriverShift.findOne({ driverId: req.personnel._id, status: "ACTIVE" });
     if (!shift) return res.status(404).json({ message: "Aucun shift actif" });
 
     shift.status  = "COMPLETED";
@@ -52,7 +51,7 @@ const endShift = async (req, res) => {
     const io = req.app.get("io");
     if (io) {
       io.to("role:dispatcher").to("role:admin").emit("driver:shift_ended", {
-        driverId: req.user._id,
+        driverId: req.personnel._id,
         shiftId:  shift._id,
         totalKm,
         endTime:  shift.endTime,
@@ -68,7 +67,7 @@ const endShift = async (req, res) => {
 // GET /api/v1/shifts/active
 const getActiveShift = async (req, res) => {
   try {
-    const shift = await DriverShift.findOne({ driverId: req.user._id, status: "ACTIVE" })
+    const shift = await DriverShift.findOne({ driverId: req.personnel._id, status: "ACTIVE" })
       .populate("vehicleId", "immatriculation type statut");
     return res.json({ shift: shift || null });
   } catch (err) {
@@ -82,7 +81,7 @@ const addIncident = async (req, res) => {
     const { description } = req.body;
     if (!description) return res.status(400).json({ message: "description requise" });
 
-    const shift = await DriverShift.findOne({ driverId: req.user._id, status: "ACTIVE" });
+    const shift = await DriverShift.findOne({ driverId: req.personnel._id, status: "ACTIVE" });
     if (!shift) return res.status(404).json({ message: "Aucun shift actif" });
 
     shift.incidents.push({ time: new Date(), description });

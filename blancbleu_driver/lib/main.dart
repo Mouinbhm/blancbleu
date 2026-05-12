@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'core/network/sync_service.dart';
 import 'features/auth/cubit/auth_cubit.dart';
 import 'features/tournee/cubit/tournee_cubit.dart';
@@ -10,6 +11,7 @@ import 'shared/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('fr_FR', null);
   runApp(const BlancBleuDriverApp());
 }
 

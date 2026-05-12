@@ -27,15 +27,36 @@ class AuthCubit extends Cubit<AuthState> {
     emit(AuthLoading());
     try {
       final data = await ApiClient.instance.login(email, password);
-      final token = data['token'] as String?;
-      final user  = data['user']  as Map<String, dynamic>?;
+      final token = data['token']     as String?;
+      final user  = data['personnel'] as Map<String, dynamic>?;
       if (token == null || user == null) {
         emit(const AuthError('Réponse serveur invalide'));
         return;
       }
       await _storage.write(key: AppConstants.tokenKey, value: token);
       await _storage.write(key: AppConstants.userKey,  value: jsonEncode(user));
-      emit(AuthSuccess(user: user, token: token));
+      if (user['forcePasswordChange'] == true) {
+        emit(AuthMustChangePassword(user: user, token: token));
+      } else {
+        emit(AuthSuccess(user: user, token: token));
+      }
+    } on Exception catch (e) {
+      emit(AuthError(e.toString().replaceFirst('Exception: ', '')));
+    }
+  }
+
+  Future<void> changePassword(String ancienPassword, String nouveauPassword) async {
+    emit(AuthLoading());
+    try {
+      final newToken = await ApiClient.instance.changePassword(ancienPassword, nouveauPassword);
+      final userJson = await _storage.read(key: AppConstants.userKey);
+      if (userJson == null) { emit(const AuthError('Session expirée')); return; }
+      final user = jsonDecode(userJson) as Map<String, dynamic>;
+      user['forcePasswordChange'] = false;
+      final tokenToUse = newToken ?? (await _storage.read(key: AppConstants.tokenKey))!;
+      await _storage.write(key: AppConstants.tokenKey, value: tokenToUse);
+      await _storage.write(key: AppConstants.userKey,  value: jsonEncode(user));
+      emit(AuthSuccess(user: user, token: tokenToUse));
     } on Exception catch (e) {
       emit(AuthError(e.toString().replaceFirst('Exception: ', '')));
     }
