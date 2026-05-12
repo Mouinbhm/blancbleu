@@ -150,6 +150,11 @@ const transportSchema = new mongoose.Schema(
       ref: "Personnel",
       default: null,
     },
+    shiftId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DriverShift",
+      default: null,
+    },
     scoreDispatch: { type: Number, default: null },
 
     // ── Horodatages ───────────────────────────────────────────────────────────
@@ -238,7 +243,7 @@ const transportSchema = new mongoose.Schema(
       {
         status:    { type: String },
         timestamp: { type: Date, default: Date.now },
-        driverId:  { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        driverId:  { type: mongoose.Schema.Types.ObjectId, ref: "Personnel", default: null },
         note:      { type: String, default: "" },
         _id: false,
       },

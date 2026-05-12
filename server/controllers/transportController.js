@@ -492,10 +492,10 @@ const planifier = async (req, res, next) => {
 };
 const assigner = async (req, res, next) => {
   try {
-    const { vehiculeId, chauffeurId, auto } = req.body;
+    const { shiftId, vehiculeId, chauffeurId, auto } = req.body;
     const r = await lifecycle.assignerVehicule(
       req.params.id,
-      { vehiculeId, chauffeurId, auto },
+      { shiftId, vehiculeId, chauffeurId, auto },
       req.user,
     );
     res.json(r);

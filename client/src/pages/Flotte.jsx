@@ -669,11 +669,11 @@ function ModalNouveauVehicule({ onClose, onCreated }) {
 }
 
 const FILTRES_STATUT = [
-  { value: "", label: "Tous" },
-  { value: "disponible", label: "Disponibles" },
-  { value: "en_mission", label: "En mission" },
-  { value: "maintenance", label: "Maintenance" },
-  { value: "hors_service", label: "Hors service" },
+  { value: "",            label: "Tous"         },
+  { value: "Disponible",  label: "Disponibles"  },
+  { value: "En service",  label: "En service"   },
+  { value: "Maintenance", label: "Maintenance"  },
+  { value: "Hors service",label: "Hors service" },
 ];
 
 const FILTRES_TYPE = [
@@ -727,8 +727,10 @@ export default function Flotte() {
   useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
-    const unsub = subscribe("unit:location_updated", () => loadData());
-    return unsub;
+    const u1 = subscribe("unit:location_updated", () => loadData());
+    const u2 = subscribe("shift:started", () => loadData());
+    const u3 = subscribe("shift:ended",   () => loadData());
+    return () => { u1(); u2(); u3(); };
   }, [subscribe, loadData]);
 
   const vehiclesFiltres = vehicles.filter((v) => {
@@ -737,9 +739,9 @@ export default function Flotte() {
     return true;
   });
 
-  const disponibles = vehicles.filter((v) => v.statut === "disponible").length;
-  const enMission = vehicles.filter((v) => v.statut === "en_mission").length;
-  const maintenance = vehicles.filter((v) => v.statut === "maintenance").length;
+  const disponibles = vehicles.filter((v) => v.statut === "Disponible").length;
+  const enMission   = vehicles.filter((v) => v.statut === "En service").length;
+  const maintenance = vehicles.filter((v) => v.statut === "Maintenance").length;
 
   return (
     <div className="p-7 fade-in">
@@ -775,10 +777,10 @@ export default function Flotte() {
             bg: "bg-green-50",
           },
           {
-            label: "En mission",
+            label: "En service",
             value: enMission,
-            color: "text-orange-600",
-            bg: "bg-orange-50",
+            color: "text-blue-600",
+            bg: "bg-blue-50",
           },
           {
             label: "Maintenance",

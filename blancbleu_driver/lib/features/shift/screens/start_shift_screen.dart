@@ -21,6 +21,7 @@ class _StartShiftScreenState extends State<StartShiftScreen> {
     'medicalKit':  false,
     'stretcher':   false,
     'cleanliness': false,
+    'documents':   false,
   };
 
   static const _checklistLabels = {
@@ -29,6 +30,7 @@ class _StartShiftScreenState extends State<StartShiftScreen> {
     'medicalKit':  'Kit médical complet',
     'stretcher':   'Brancard opérationnel',
     'cleanliness': 'Véhicule propre',
+    'documents':   'Documents à bord',
   };
 
   @override
@@ -39,7 +41,7 @@ class _StartShiftScreenState extends State<StartShiftScreen> {
 
   Future<void> _loadVehicles() async {
     try {
-      final data = await ApiClient.instance.getVehicles();
+      final data = await ApiClient.instance.getAvailableVehicles();
       if (mounted) setState(() { _vehicles = data; _loadingVehicles = false; });
     } catch (_) {
       if (mounted) setState(() => _loadingVehicles = false);
@@ -60,7 +62,13 @@ class _StartShiftScreenState extends State<StartShiftScreen> {
       appBar: AppBar(title: const Text('Démarrer le shift')),
       body: BlocListener<ShiftCubit, ShiftState>(
         listener: (context, state) {
-          if (state is ShiftActive) Navigator.pop(context);
+          if (state is ShiftActive) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Shift démarré — ${_vehiclePlate()}'),
+              backgroundColor: AppTheme.primary,
+            ));
+            Navigator.pop(context);
+          }
           if (state is ShiftError) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message), backgroundColor: AppTheme.error));
           }
@@ -70,22 +78,47 @@ class _StartShiftScreenState extends State<StartShiftScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Vehicle selector
               const Text('Véhicule', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.onSurface)),
               const SizedBox(height: 8),
-              _loadingVehicles
-                  ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
-                  : DropdownButtonFormField<String>(
-                      value: _vehicleId,
-                      hint: const Text('Sélectionner un véhicule'),
-                      decoration: const InputDecoration(),
-                      items: _vehicles.map<DropdownMenuItem<String>>((v) {
-                        final id   = v['_id']?.toString() ?? v['id']?.toString() ?? '';
-                        final label = '${v['immatriculation'] ?? ''} — ${v['type'] ?? ''}';
-                        return DropdownMenuItem(value: id, child: Text(label));
-                      }).toList(),
-                      onChanged: (val) => setState(() => _vehicleId = val),
-                    ),
+              if (_loadingVehicles)
+                const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+              else if (_vehicles.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    border: Border.all(color: const Color(0xFFFED7AA)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Color(0xFFF97316), size: 20),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Aucun véhicule disponible — contactez le dispatcher',
+                          style: TextStyle(fontSize: 13, color: Color(0xFF9A3412)),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                DropdownButtonFormField<String>(
+                  value: _vehicleId,
+                  hint: const Text('Sélectionner un véhicule disponible'),
+                  decoration: const InputDecoration(),
+                  items: _vehicles.map<DropdownMenuItem<String>>((v) {
+                    final id     = v['_id']?.toString() ?? v['id']?.toString() ?? '';
+                    final plate  = v['immatriculation']?.toString() ?? '';
+                    final brand  = v['marque']?.toString() ?? '';
+                    final model  = v['modele']?.toString() ?? '';
+                    final type   = v['type']?.toString() ?? '';
+                    final label  = [plate, if (brand.isNotEmpty) '$brand $model', type].join(' — ');
+                    return DropdownMenuItem(value: id, child: Text(label));
+                  }).toList(),
+                  onChanged: (val) => setState(() => _vehicleId = val),
+                ),
 
               const SizedBox(height: 24),
               const Text('Checklist pré-départ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.onSurface)),
@@ -102,7 +135,7 @@ class _StartShiftScreenState extends State<StartShiftScreen> {
               const SizedBox(height: 32),
               BlocBuilder<ShiftCubit, ShiftState>(
                 builder: (context, state) => ElevatedButton.icon(
-                  onPressed: state is ShiftLoading ? null : _start,
+                  onPressed: (_vehicles.isEmpty || state is ShiftLoading) ? null : _start,
                   icon: state is ShiftLoading
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : const Icon(Icons.play_arrow),
@@ -114,5 +147,13 @@ class _StartShiftScreenState extends State<StartShiftScreen> {
         ),
       ),
     );
+  }
+
+  String _vehiclePlate() {
+    final v = _vehicles.firstWhere(
+      (v) => (v['_id']?.toString() ?? '') == _vehicleId,
+      orElse: () => <String, dynamic>{},
+    );
+    return v['immatriculation']?.toString() ?? '';
   }
 }

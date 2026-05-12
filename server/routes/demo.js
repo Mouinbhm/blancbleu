@@ -22,32 +22,32 @@ const SYSTEM_USER = { email: "demo@blancbleu.fr", role: "admin" };
 const DEMO_VEHICULES = [
   {
     immatriculation: "VSL-DEMO-01", nom: "VSL Démo 01", type: "VSL",
-    statut: "disponible", capacitePassagers: 3,
+    statut: "Disponible", capacitePassagers: 3,
     position: { lat: 43.7102, lng: 7.262 }, basePosition: { lat: 43.7102, lng: 7.262 },
   },
   {
     immatriculation: "VSL-DEMO-02", nom: "VSL Démo 02", type: "VSL",
-    statut: "disponible", capacitePassagers: 3,
+    statut: "Disponible", capacitePassagers: 3,
     position: { lat: 43.7102, lng: 7.262 }, basePosition: { lat: 43.7102, lng: 7.262 },
   },
   {
     immatriculation: "VSL-DEMO-03", nom: "VSL Démo 03", type: "VSL",
-    statut: "disponible", capacitePassagers: 3,
+    statut: "Disponible", capacitePassagers: 3,
     position: { lat: 43.7102, lng: 7.262 }, basePosition: { lat: 43.7102, lng: 7.262 },
   },
   {
     immatriculation: "TPMR-DEMO-01", nom: "TPMR Démo 01", type: "TPMR",
-    statut: "disponible", capacitePassagers: 1, equipeFauteuil: true,
+    statut: "Disponible", capacitePassagers: 1, equipeFauteuil: true,
     position: { lat: 43.7102, lng: 7.262 }, basePosition: { lat: 43.7102, lng: 7.262 },
   },
   {
     immatriculation: "TPMR-DEMO-02", nom: "TPMR Démo 02", type: "TPMR",
-    statut: "disponible", capacitePassagers: 1, equipeFauteuil: true,
+    statut: "Disponible", capacitePassagers: 1, equipeFauteuil: true,
     position: { lat: 43.7102, lng: 7.262 }, basePosition: { lat: 43.7102, lng: 7.262 },
   },
   {
     immatriculation: "AMB-DEMO-01", nom: "Ambulance Démo 01", type: "AMBULANCE",
-    statut: "disponible", capacitePassagers: 2, equipeBrancard: true,
+    statut: "Disponible", capacitePassagers: 2, equipeBrancard: true,
     position: { lat: 43.7102, lng: 7.262 }, basePosition: { lat: 43.7102, lng: 7.262 },
   },
 ];
@@ -197,7 +197,7 @@ router.post("/seed", async (req, res) => {
     //    (évite qu'un re-seed échoue car un véhicule est encore en_mission)
     await Vehicle.updateMany(
       { immatriculation: { $regex: /DEMO/ } },
-      { $set: { statut: "disponible", transportEnCours: null } },
+      { $set: { statut: "Disponible", transportEnCours: null } },
     );
 
     // 3. Créer ou réutiliser les 6 véhicules démo (upsert par immatriculation)
@@ -292,7 +292,7 @@ router.post("/simulate/:id", async (req, res) => {
       : { lat: 43.7302, lng: 7.2770 };
 
     await Vehicle.findByIdAndUpdate(transport.vehicule._id, {
-      statut: "en_mission",
+      statut: "En service",
       "position.lat": startPos.lat,
       "position.lng": startPos.lng,
       "position.updatedAt": new Date(),

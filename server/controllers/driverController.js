@@ -1,5 +1,6 @@
-const Transport  = require("../models/Transport");
-const multer     = require("multer");
+const Transport   = require("../models/Transport");
+const DriverShift = require("../models/DriverShift");
+const multer      = require("multer");
 const path       = require("path");
 const fs         = require("fs");
 
@@ -9,16 +10,24 @@ const fs         = require("fs");
 const getTournee = async (req, res) => {
   try {
     const personnel = req.personnel;
+    const dateStr   = req.query.date || new Date().toISOString().split("T")[0];
 
-    const dateStr  = req.query.date || new Date().toISOString().split("T")[0];
-    const dateDebut = new Date(dateStr);
-    const dateFin   = new Date(dateStr);
-    dateFin.setDate(dateFin.getDate() + 1);
+    // Find the active (or last completed today) shift for this driver
+    const today = new Date(dateStr);
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const shift = await DriverShift.findOne({
+      personnelId: personnel._id,
+      date: { $gte: today, $lt: tomorrow },
+    }).sort({ startTime: -1 });
+
+    if (!shift) return res.json({ date: dateStr, transports: [], shift: null });
 
     const transports = await Transport.find({
-      chauffeur:     personnel._id,
-      dateTransport: { $gte: dateDebut, $lt: dateFin },
-      deletedAt:     null,
+      shiftId:   shift._id,
+      deletedAt: null,
     })
       .select([
         "numero", "statut", "typeTransport", "motif",
@@ -32,7 +41,7 @@ const getTournee = async (req, res) => {
       .populate("vehicule", "immatriculation type")
       .sort({ heureRDV: 1 });
 
-    return res.json({ date: dateStr, transports });
+    return res.json({ date: dateStr, transports, shift: { _id: shift._id, vehicleId: shift.vehicleId } });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

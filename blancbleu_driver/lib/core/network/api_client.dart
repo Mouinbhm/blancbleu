@@ -108,8 +108,13 @@ class ApiClient {
   }
 
   // ── Vehicles ──────────────────────────────────────────────────────────────
-  Future<List<dynamic>> getVehicles() async {
-    final res = await _dio.get('${AppConstants.baseUrl}/api/vehicles');
-    return (res.data as Map<String, dynamic>)['data'] as List<dynamic>? ?? [];
+  Future<List<dynamic>> getAvailableVehicles() async {
+    final res = await _dio.get(
+      '${AppConstants.baseUrl}/api/vehicles',
+      queryParameters: {'statut': 'Disponible'},
+    );
+    final body = res.data as Map<String, dynamic>;
+    final raw  = body['data'] ?? body['vehicles'] ?? [];
+    return (raw as List).cast<dynamic>();
   }
 }

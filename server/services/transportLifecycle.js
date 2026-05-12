@@ -57,7 +57,7 @@ async function _transition(transportId, nouveauStatut, metadata = {}) {
     if (vehiculeId) {
       try {
         await Vehicle.findByIdAndUpdate(vehiculeId, {
-          statut: "disponible",
+          statut: "Disponible",
           transportEnCours: null,
         });
         logger.info("Véhicule libéré (garde-fou lifecycle)", {
@@ -147,16 +147,28 @@ async function planifierTransport(transportId, utilisateur) {
 // ══════════════════════════════════════════════════════════════════════════════
 async function assignerVehicule(
   transportId,
-  { vehiculeId, chauffeurId, auto = false },
+  { shiftId, vehiculeId, chauffeurId, auto = false },
   utilisateur,
 ) {
+  const DriverShift = require("../models/DriverShift");
+
   const transport = await Transport.findById(transportId);
   if (!transport) throw new Error("Transport introuvable");
 
   let vehiculeIdFinal = vehiculeId;
   let chauffeurIdFinal = chauffeurId;
+  let shiftIdFinal = shiftId || null;
   let scoreDispatch = null;
   let justification = [];
+
+  // If shiftId provided, derive vehiculeId and chauffeurId from the shift
+  if (shiftId) {
+    const shift = await DriverShift.findById(shiftId);
+    if (!shift) throw new Error("Shift introuvable");
+    if (shift.status !== "ACTIVE") throw new Error("Le shift sélectionné n'est pas actif");
+    vehiculeIdFinal = shift.vehicleId;
+    chauffeurIdFinal = shift.personnelId;
+  }
 
   if (auto) {
     // Auto-dispatch intelligent
@@ -190,10 +202,15 @@ async function assignerVehicule(
         `Le personnel sélectionné a le rôle "${chauffeur.role}" — seuls Chauffeur et Ambulancier peuvent être assignés à un transport`,
       );
     }
-    if (chauffeur.statut !== "en-service") {
+    if (chauffeur.statut !== "En shift") {
       throw new Error(
-        `Ce chauffeur n'est pas en service (statut actuel : ${chauffeur.statut})`,
+        `Ce chauffeur n'est pas en shift (statut actuel : ${chauffeur.statut}) — un shift actif est requis pour l'assignation d'un transport`,
       );
+    }
+    // If no shiftId yet, look up the active shift for this chauffeur
+    if (!shiftIdFinal) {
+      const activeShift = await DriverShift.findOne({ personnelId: chauffeurIdFinal, status: "ACTIVE" });
+      if (activeShift) shiftIdFinal = activeShift._id;
     }
   }
 
@@ -201,12 +218,13 @@ async function assignerVehicule(
   await Transport.findByIdAndUpdate(transportId, {
     vehicule: vehiculeIdFinal,
     chauffeur: chauffeurIdFinal,
+    shiftId: shiftIdFinal,
     scoreDispatch,
   });
 
-  // Mettre le véhicule en mission
+  // Vehicle stays En service during the shift — just track the current transport
   await Vehicle.findByIdAndUpdate(vehiculeIdFinal, {
-    statut: "en_mission",
+    statut: "En service",
     transportEnCours: transportId,
   });
 
@@ -333,13 +351,13 @@ async function completerTransport(transportId, utilisateur) {
   // Libérer le véhicule
   if (transport.vehicule) {
     await Vehicle.findByIdAndUpdate(transport.vehicule, {
-      statut: "disponible",
+      statut: "Disponible",
       transportEnCours: null,
     });
     socketService.emitUnitStatusChanged?.({
       unite: { _id: transport.vehicule, nom: "" },
-      ancienStatut: "en_mission",
-      nouveauStatut: "disponible",
+      ancienStatut: "En service",
+      nouveauStatut: "Disponible",
     });
   }
 
@@ -501,7 +519,7 @@ async function marquerNoShow(transportId, raison, utilisateur) {
   // Libérer le véhicule
   if (updated.vehicule) {
     await Vehicle.findByIdAndUpdate(updated.vehicule, {
-      statut: "disponible",
+      statut: "Disponible",
       transportEnCours: null,
     });
   }
@@ -528,7 +546,7 @@ async function annulerTransport(transportId, raison, utilisateur) {
   // Libérer le véhicule si assigné
   if (updated.vehicule) {
     await Vehicle.findByIdAndUpdate(updated.vehicule, {
-      statut: "disponible",
+      statut: "Disponible",
       transportEnCours: null,
     });
   }
@@ -563,7 +581,7 @@ async function reprogrammerTransport(
   // Libérer le véhicule si assigné
   if (updated.vehicule) {
     await Vehicle.findByIdAndUpdate(updated.vehicule, {
-      statut: "disponible",
+      statut: "Disponible",
       transportEnCours: null,
     });
     await Transport.findByIdAndUpdate(transportId, {

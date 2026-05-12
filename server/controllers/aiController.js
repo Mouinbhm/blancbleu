@@ -159,9 +159,9 @@ const recommanderDispatch = async (req, res) => {
 
     // Récupérer véhicules et chauffeurs disponibles
     const [vehicules, chauffeurs] = await Promise.all([
-      Vehicle.find({ statut: "disponible" }),
+      Vehicle.find({ statut: "Disponible" }),
       Personnel.find({
-        statut: "en-service",
+        statut: "Disponible",
         role: { $in: ["Ambulancier", "Chauffeur"] },
       }),
     ]);
@@ -262,8 +262,8 @@ const recommanderDispatchManuel = async (req, res) => {
     }
 
     const [vehicules, chauffeurs] = await Promise.all([
-      Vehicle.find({ statut: "disponible" }),
-      Personnel.find({ statut: "en-service", role: { $in: ["Ambulancier", "Chauffeur"] } }),
+      Vehicle.find({ statut: "Disponible" }),
+      Personnel.find({ statut: "Disponible", role: { $in: ["Ambulancier", "Chauffeur"] } }),
     ]);
 
     if (vehicules.length === 0) {
@@ -334,7 +334,7 @@ const optimiserTournee = async (req, res) => {
 
     const [transports, vehicules] = await Promise.all([
       Transport.find(filtre),
-      Vehicle.find({ statut: "disponible" }),
+      Vehicle.find({ statut: "Disponible" }),
     ]);
 
     if (transports.length === 0) {

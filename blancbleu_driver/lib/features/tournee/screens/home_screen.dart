@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../cubit/tournee_cubit.dart';
 import '../widgets/transport_card.dart';
 import '../../shift/cubit/shift_cubit.dart';
-import '../../shift/screens/start_shift_screen.dart';
+import '../../shift/screens/shift_screen.dart';
 import '../../chat/screens/chat_screen.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../shared/widgets/offline_banner.dart';
@@ -50,46 +50,55 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _buildTournee(),
           const ChatScreen(),
+          const ShiftScreen(),
         ],
       ),
-      bottomNavigationBar: BlocBuilder<TourneeCubit, TourneeState>(
-        builder: (context, state) {
-          return NavigationBar(
-            selectedIndex: _navIndex,
-            onDestinationSelected: (i) => setState(() => _navIndex = i),
-            destinations: const [
-              NavigationDestination(icon: Icon(Icons.route_outlined), selectedIcon: Icon(Icons.route), label: 'Tournée'),
-              NavigationDestination(icon: Icon(Icons.chat_outlined), selectedIcon: Icon(Icons.chat), label: 'Messages'),
-            ],
-          );
-        },
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _navIndex,
+        onDestinationSelected: (i) => setState(() => _navIndex = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.route_outlined), selectedIcon: Icon(Icons.route), label: 'Tournée'),
+          NavigationDestination(icon: Icon(Icons.chat_outlined), selectedIcon: Icon(Icons.chat), label: 'Messages'),
+          NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge), label: 'Shift'),
+        ],
       ),
     );
   }
 
   Widget _buildTournee() {
-    return SafeArea(
-      child: Column(
-        children: [
-          _buildHeader(),
-          const OfflineBanner(),
-          Expanded(
-            child: BlocBuilder<TourneeCubit, TourneeState>(
-              builder: (context, state) {
-                if (state is TourneeLoading) {
-                  return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
-                }
-                if (state is TourneeError) {
-                  return _buildError(state.message);
-                }
-                if (state is TourneeLoaded) {
-                  return _buildList(state);
-                }
-                return const SizedBox();
-              },
+    return BlocListener<ShiftCubit, ShiftState>(
+      listener: (context, state) {
+        if (state is ShiftActive || state is ShiftEnded) {
+          context.read<TourneeCubit>().load(date: _selectedDate);
+        }
+      },
+      child: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            const OfflineBanner(),
+            Expanded(
+              child: BlocBuilder<TourneeCubit, TourneeState>(
+                builder: (context, tourneeState) {
+                  return BlocBuilder<ShiftCubit, ShiftState>(
+                    builder: (context, shiftState) {
+                      if (tourneeState is TourneeLoading) {
+                        return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+                      }
+                      if (tourneeState is TourneeError) {
+                        return _buildError(tourneeState.message);
+                      }
+                      if (tourneeState is TourneeLoaded) {
+                        return _buildList(tourneeState, shiftState);
+                      }
+                      return const SizedBox();
+                    },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -117,8 +126,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 BlocBuilder<ShiftCubit, ShiftState>(
                   builder: (context, state) {
                     if (state is ShiftActive) {
+                      final v = state.shift['vehicleId'];
+                      final plate = v is Map ? v['immatriculation']?.toString() ?? '' : '';
                       return Text(
-                        'Shift actif — ${(state.shift['vehicleId'] as Map?)?.entries.firstOrNull?.value ?? ''}',
+                        plate.isNotEmpty ? 'Shift actif — $plate' : 'Shift actif',
                         style: const TextStyle(fontSize: 11, color: AppTheme.primary),
                       );
                     }
@@ -155,8 +166,47 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildList(TourneeLoaded state) {
+  Widget _buildList(TourneeLoaded state, ShiftState shiftState) {
     if (state.transports.isEmpty) {
+      final now = DateTime.now();
+      final isToday = _selectedDate.year == now.year &&
+                      _selectedDate.month == now.month &&
+                      _selectedDate.day == now.day;
+
+      if (isToday && shiftState is ShiftIdle) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(16)),
+                  child: const Icon(Icons.schedule, size: 32, color: Color(0xFFF97316)),
+                ),
+                const SizedBox(height: 16),
+                const Text('Démarrez votre shift',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.onSurface)),
+                const SizedBox(height: 8),
+                const Text(
+                  'Vous devez démarrer votre shift pour voir vos transports assignés.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: AppTheme.secondary),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () => setState(() => _navIndex = 2),
+                  icon: const Icon(Icons.badge_outlined),
+                  label: const Text('Aller au Shift'),
+                ),
+                const SizedBox(height: 80),
+              ],
+            ),
+          ),
+        );
+      }
+
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -167,12 +217,14 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(Icons.route, size: 32, color: AppTheme.primary),
             ),
             const SizedBox(height: 16),
-            const Text('Aucun transport pour cette journée', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.onSurface)),
+            const Text('Aucun transport pour cette journée',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.onSurface)),
             const SizedBox(height: 80),
           ],
         ),
       );
     }
+
     return RefreshIndicator(
       color: AppTheme.primary,
       onRefresh: () => context.read<TourneeCubit>().load(date: _selectedDate, forceOnline: true),

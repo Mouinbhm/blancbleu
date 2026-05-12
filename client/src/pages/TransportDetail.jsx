@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import StatutBadge from "../components/transport/StatutBadge";
 import TransportMap from "../components/map/TransportMap";
-import { transportService, vehicleService, factureService } from "../services/api";
+import { transportService, vehicleService, factureService, shiftService } from "../services/api";
 import useSocket from "../hooks/useSocket";
 import { getSocket, getOrCreateSocket } from "../services/socketService";
 
@@ -317,6 +317,8 @@ export default function TransportDetail() {
   // Modal: null | 'assigner' | 'attente' | 'retour' | 'facturer' | 'reprogrammer'
   const [activeModal, setActiveModal] = useState(null);
   const [modalVehicle, setModalVehicle] = useState("");
+  const [modalShift, setModalShift]   = useState("");
+  const [activeShifts, setActiveShifts] = useState([]);
   const [modalDuree, setModalDuree] = useState("");
   const [modalFactureId, setModalFactureId] = useState("");
   const [modalReprogDate, setModalReprogDate] = useState("");
@@ -356,6 +358,13 @@ export default function TransportDetail() {
       setVehicles(Array.isArray(data) ? data : data?.data || data?.vehicles || []);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (activeModal !== "assigner") return;
+    shiftService.getToday()
+      .then(({ data }) => setActiveShifts(data?.shifts || []))
+      .catch(() => setActiveShifts([]));
+  }, [activeModal]);
 
   // ── Section 8: Socket.IO ────────────────────────────────────────────────────
 
@@ -435,8 +444,8 @@ export default function TransportDetail() {
   };
 
   const handleAssigner = () => {
-    if (!modalVehicle) return;
-    doAction("assigner", { vehiculeId: modalVehicle });
+    if (!modalShift) return;
+    doAction("assigner", { shiftId: modalShift });
   };
 
   const handleAttente = () => {
@@ -531,8 +540,8 @@ export default function TransportDetail() {
   const vehiculesCompatibles = vehicles
     .filter((v) => typesTries.includes(v.type))
     .sort((a, b) => {
-      if (a.statut === "disponible" && b.statut !== "disponible") return -1;
-      if (b.statut === "disponible" && a.statut !== "disponible") return 1;
+      if (a.statut === "Disponible" && b.statut !== "Disponible") return -1;
+      if (b.statut === "Disponible" && a.statut !== "Disponible") return 1;
       return typesTries.indexOf(a.type) - typesTries.indexOf(b.type);
     });
 
@@ -1110,39 +1119,36 @@ export default function TransportDetail() {
       {/* ── Modals ────────────────────────────────────────────────────────────── */}
 
       {activeModal === "assigner" && (
-        <Modal title="Assigner un véhicule" onClose={closeModal}>
+        <Modal title="Assigner à un shift" onClose={closeModal}>
           <p className="text-xs text-slate-500 mb-3">
-            Mobilité patient : <strong className="text-navy">{MOBILITE_LABELS[mobilitePatient] || mobilitePatient}</strong>
-            {" — "}types compatibles : <strong className="text-primary">{typesCompatibles.join(", ")}</strong>
+            Sélectionnez le shift actif auquel assigner ce transport.
+            Le chauffeur et le véhicule seront déduits automatiquement.
           </p>
-          <select
-            value={modalVehicle}
-            onChange={(e) => setModalVehicle(e.target.value)}
-            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm mb-3 outline-none focus:border-primary bg-white"
-          >
-            <option value="">Choisir un véhicule compatible…</option>
-            {vehiculesCompatibles.map((v) => (
-              <option
-                key={String(v._id || v.id)}
-                value={String(v._id || v.id)}
-                disabled={v.statut !== "disponible"}
-                style={{ color: v.statut === "disponible" ? "#059669" : "#94a3b8" }}
-              >
-                {v.statut === "disponible" ? "✅" : "🔴"}{" "}
-                {v.nom} — {v.immatriculation} ({v.type})
-                {v.statut !== "disponible" ? ` — ${v.statut}` : " — Disponible"}
-              </option>
-            ))}
-          </select>
-          {vehiculesCompatibles.length === 0 && (
-            <p className="text-sm text-red-500 mb-3">
-              ❌ Aucun véhicule compatible ({typesCompatibles.join(", ")}) enregistré dans la flotte.
-            </p>
-          )}
-          {vehiculesCompatibles.length > 0 && vehiculesCompatibles.every((v) => v.statut !== "disponible") && (
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-              ⚠️ Tous les véhicules compatibles sont actuellement en mission. Vous pouvez quand même forcer l'assignation.
-            </p>
+          {activeShifts.length === 0 ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 mb-3">
+              ⚠️ Aucun shift actif pour aujourd'hui. Un ambulancier doit d'abord démarrer son shift depuis l'application mobile.
+            </div>
+          ) : (
+            <select
+              value={modalShift}
+              onChange={(e) => setModalShift(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm mb-3 outline-none focus:border-primary bg-white"
+            >
+              <option value="">Choisir un shift actif…</option>
+              {activeShifts.map((s) => {
+                const driver  = s.personnelId;
+                const vehicle = s.vehicleId;
+                const name    = driver  ? `${driver.prenom} ${driver.nom}` : "—";
+                const plate   = vehicle ? vehicle.immatriculation : "—";
+                const type    = vehicle ? vehicle.type : "";
+                const count   = s.transportCount ?? 0;
+                return (
+                  <option key={String(s._id)} value={String(s._id)}>
+                    {name} — {plate} {type ? `(${type})` : ""} · {count} transport{count !== 1 ? "s" : ""}
+                  </option>
+                );
+              })}
+            </select>
           )}
           <div className="flex gap-3 mt-3">
             <button
@@ -1153,9 +1159,9 @@ export default function TransportDetail() {
             </button>
             <button
               onClick={handleAssigner}
-              disabled={!modalVehicle || actionLoading}
+              disabled={!modalShift || actionLoading || activeShifts.length === 0}
               className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
-                !modalVehicle || actionLoading
+                !modalShift || actionLoading || activeShifts.length === 0
                   ? "bg-slate-200 text-slate-400 cursor-not-allowed"
                   : "bg-primary text-white hover:bg-blue-700"
               }`}

@@ -63,9 +63,9 @@ router.get("/dashboard", protect, async (req, res) => {
         updatedAt: { $gte: depuis },
       }),
       Vehicle.countDocuments({ deletedAt: null }),
-      Vehicle.countDocuments({ deletedAt: null, statut: "disponible" }),
-      Vehicle.countDocuments({ deletedAt: null, statut: "en_mission" }),
-      Vehicle.countDocuments({ deletedAt: null, statut: "maintenance" }),
+      Vehicle.countDocuments({ deletedAt: null, statut: "Disponible" }),
+      Vehicle.countDocuments({ deletedAt: null, statut: "En service" }),
+      Vehicle.countDocuments({ deletedAt: null, statut: "Maintenance" }),
       Transport.aggregate([
         {
           $match: {

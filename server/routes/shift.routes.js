@@ -10,6 +10,7 @@ router.get("/active",    requirePersonnel, ctrl.getActiveShift);
 router.post("/incident", requirePersonnel, ctrl.addIncident);
 
 // Staff view — authenticated via User JWT (dispatchers, admin)
+router.get("/today", protect, authorize("dispatcher", "admin", "superviseur"), ctrl.getTodayShifts);
 router.get("/", protect, authorize("dispatcher", "admin", "superviseur"), ctrl.listShifts);
 
 module.exports = router;

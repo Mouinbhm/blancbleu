@@ -144,7 +144,7 @@ async function smartDispatch({
 
   // Charger les véhicules candidats
   const vehicules = await Vehicle.find({
-    statut: "disponible",
+    statut: "Disponible",
     type: { $in: typesCompatibles },
     deletedAt: null,
   }).populate("chauffeurAssigne", "nom prenom email tauxPonctualite");

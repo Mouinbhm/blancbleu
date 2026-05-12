@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import KpiCard from "../components/ui/KpiCard";
 import TransportCard from "../components/transport/TransportCard";
-import { analyticsService, vehicleService, transportService } from "../services/api";
+import { analyticsService, vehicleService, transportService, shiftService } from "../services/api";
 import useSocket from "../hooks/useSocket";
 import DemoControls from "../components/ui/DemoControls";
 
@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState(null);
   const [transportsActifs, setTransportsActifs] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+  const [activeShifts, setActiveShifts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [erreur, setErreur] = useState(null);
   const [prediction, setPrediction] = useState(null);
@@ -44,7 +45,7 @@ export default function Dashboard() {
   const loadData = useCallback(async () => {
     try {
       setErreur(null);
-      const [dashRes, vehiclesRes, transRes] = await Promise.all([
+      const [dashRes, vehiclesRes, transRes, shiftsRes] = await Promise.all([
         analyticsService.dashboard().catch(() => ({ data: null })),
         vehicleService.getAll().catch(() => ({ data: [] })),
         transportService.getAll({
@@ -56,9 +57,11 @@ export default function Dashboard() {
           ].join(","),
           limit: 10,
         }).catch(() => ({ data: { transports: [] } })),
+        shiftService.getToday().catch(() => ({ data: { shifts: [] } })),
       ]);
 
       setKpis(dashRes.data);
+      setActiveShifts(shiftsRes.data?.shifts || []);
       const vehData = vehiclesRes.data;
       setVehicles(Array.isArray(vehData) ? vehData : vehData?.vehicles || []);
       const tData = transRes.data;
@@ -99,11 +102,13 @@ export default function Dashboard() {
   useEffect(() => {
     const u1 = subscribe("transport:statut",        () => loadData());
     const u2 = subscribe("transport:statut_change", () => loadData());
-    return () => { u1(); u2(); };
+    const u3 = subscribe("shift:started",           () => loadData());
+    const u4 = subscribe("shift:ended",             () => loadData());
+    return () => { u1(); u2(); u3(); u4(); };
   }, [subscribe, loadData]);
 
-  const disponibles = vehicles.filter((v) => v.statut === "disponible").length;
-  const enMission = vehicles.filter((v) => v.statut === "en_mission").length;
+  const disponibles = vehicles.filter((v) => v.statut === "Disponible").length;
+  const enMission   = vehicles.filter((v) => v.statut === "En service").length;
   const sansVehicule = kpis?.transportsSansVehicule ?? 0;
 
   return (
@@ -177,6 +182,47 @@ export default function Dashboard() {
           trend={`/ ${vehicles.length} total`}
           trendType={disponibles > 0 ? "good" : "bad"}
         />
+      </div>
+
+      {/* Shifts actifs aujourd'hui */}
+      <div className="mb-7">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-brand font-bold text-navy text-base flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-lg">schedule</span>
+            Shifts actifs aujourd'hui
+            {activeShifts.length > 0 && (
+              <span className="ml-1 bg-primary text-white text-xs font-mono px-2 py-0.5 rounded-full">{activeShifts.length}</span>
+            )}
+          </h2>
+        </div>
+        {activeShifts.length === 0 ? (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-6 text-center text-slate-400 text-sm">
+            Aucun shift actif pour l'instant
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {activeShifts.map((s) => {
+              const driver  = s.personnelId;
+              const vehicle = s.vehicleId;
+              const count   = s.transportCount ?? 0;
+              const since   = s.startTime ? new Date(s.startTime).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "—";
+              return (
+                <div key={String(s._id)} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                    <p className="font-bold text-navy text-sm truncate">
+                      {driver ? `${driver.prenom} ${driver.nom}` : "—"}
+                    </p>
+                  </div>
+                  <p className="text-xs text-slate-500 font-mono mb-1">
+                    {vehicle ? `${vehicle.immatriculation} · ${vehicle.type}` : "—"}
+                  </p>
+                  <p className="text-xs text-slate-400">Depuis {since} · {count} transport{count !== 1 ? "s" : ""}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Alerte véhicules sans transport */}

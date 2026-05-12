@@ -163,10 +163,10 @@ const getStats = async (req, res) => {
     const [total, enService, conge, formation, maladie, parRole] =
       await Promise.all([
         Personnel.countDocuments({ actif: true }),
-        Personnel.countDocuments({ actif: true, statut: "en-service" }),
-        Personnel.countDocuments({ actif: true, statut: "conge" }),
-        Personnel.countDocuments({ actif: true, statut: "formation" }),
-        Personnel.countDocuments({ actif: true, statut: "maladie" }),
+        Personnel.countDocuments({ actif: true, statut: "Disponible" }),
+        Personnel.countDocuments({ actif: true, statut: "Congé" }),
+        Personnel.countDocuments({ actif: true, statut: "Formation" }),
+        Personnel.countDocuments({ actif: true, statut: "Maladie" }),
         Personnel.aggregate([
           { $match: { actif: true } },
           { $group: { _id: "$role", count: { $sum: 1 } } },

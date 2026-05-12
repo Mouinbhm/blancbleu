@@ -43,8 +43,15 @@ const personnelSchema = new mongoose.Schema(
     // ─── Statut opérationnel ──────────────────────────────────────────────────
     statut: {
       type: String,
-      enum: ["en-service", "conge", "formation", "maladie", "inactif"],
-      default: "en-service",
+      enum: ["Disponible", "En shift", "Congé", "Maladie", "Formation", "Inactif"],
+      default: "Disponible",
+    },
+
+    // ─── Shift en cours ───────────────────────────────────────────────────────
+    currentShiftId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DriverShift",
+      default: null,
     },
 
     // ─── Véhicule assigné ─────────────────────────────────────────────────────

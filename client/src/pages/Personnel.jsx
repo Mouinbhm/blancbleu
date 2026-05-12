@@ -5,17 +5,18 @@ import { useAuth } from "../context/AuthContext";
 
 // ── Constantes métier ─────────────────────────────────────────────────────────
 const ROLES    = ["Ambulancier", "Secouriste", "Infirmier", "Médecin", "Chauffeur", "Autre"];
-const STATUTS  = ["en-service", "conge", "formation", "maladie", "inactif"];
+const STATUTS  = ["Disponible", "En shift", "Congé", "Maladie", "Formation", "Inactif"];
 const CONTRATS = ["CDI", "CDD", "Intérim", "Stage", "Alternance"];
 const JOURS    = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const CERTIF_TYPES = ["DEA", "AFGSU1", "AFGSU2", "PSE1", "PSE2", "CATU", "SST", "Formation continue", "Autre"];
 
 const STATUT_CFG = {
-  "en-service": { label: "En service",  bg: "bg-green-100",   text: "text-green-700"  },
-  conge:        { label: "Congé",        bg: "bg-blue-100",    text: "text-blue-700"   },
-  formation:    { label: "Formation",    bg: "bg-indigo-100",  text: "text-indigo-700" },
-  maladie:      { label: "Maladie",      bg: "bg-red-100",     text: "text-red-700"    },
-  inactif:      { label: "Inactif",      bg: "bg-slate-100",   text: "text-slate-600"  },
+  "Disponible": { label: "Disponible", bg: "bg-green-100",   text: "text-green-700"  },
+  "En shift":   { label: "En shift",   bg: "bg-blue-100",    text: "text-blue-700"   },
+  "Congé":      { label: "Congé",      bg: "bg-sky-100",     text: "text-sky-700"    },
+  "Formation":  { label: "Formation",  bg: "bg-indigo-100",  text: "text-indigo-700" },
+  "Maladie":    { label: "Maladie",    bg: "bg-red-100",     text: "text-red-700"    },
+  "Inactif":    { label: "Inactif",    bg: "bg-slate-100",   text: "text-slate-600"  },
 };
 
 const CONTRAT_CFG = {
@@ -80,7 +81,7 @@ function initForm(m) {
       dateObtention:  toDateInput(c.dateObtention),
       dateExpiration: toDateInput(c.dateExpiration),
     })),
-    statut:          m?.statut         || "en-service",
+    statut:          m?.statut         || "Disponible",
     typeContrat:     m?.typeContrat    || "",
     dateEmbauche:    toDateInput(m?.dateEmbauche),
     salaireBrut:     m?.salaireBrut   ?? 0,
@@ -646,7 +647,7 @@ function ModalMembre({ membre, onClose, onSaved }) {
 function FicheDetail({ membre, onClose, onEdit, onResetPassword }) {
   const { user } = useAuth();
   const anciennete = calculerAnciennete(membre.dateEmbauche);
-  const cfg = STATUT_CFG[membre.statut] || STATUT_CFG.inactif;
+  const cfg = STATUT_CFG[membre.statut] || STATUT_CFG["Inactif"];
   const contratCfg = CONTRAT_CFG[membre.typeContrat] || null;
   const initials = `${membre.prenom?.[0] || "?"}${membre.nom?.[0] || ""}`.toUpperCase();
   const joursActifs = Object.entries(membre.disponibilites || {}).filter(([, v]) => v).map(([k]) => k.slice(0, 3));
@@ -682,6 +683,21 @@ function FicheDetail({ membre, onClose, onEdit, onResetPassword }) {
         </div>
 
         <div className="flex-1 p-5 space-y-5 text-sm">
+          {/* Shift actif */}
+          {membre.statut === "En shift" && membre.currentShiftId && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse inline-block" />
+                <span className="text-xs font-bold text-blue-700 uppercase tracking-widest">Shift en cours</span>
+              </div>
+              {typeof membre.currentShiftId === "object" && membre.currentShiftId?.vehicleId && (
+                <p className="text-sm text-blue-800">
+                  Véhicule : <strong>{membre.currentShiftId.vehicleId?.immatriculation || "—"}</strong>
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Coordonnées */}
           <Section title="Coordonnées" icon="contact_page">
             <Row icon="call" label={membre.telephone || "—"} />
@@ -978,7 +994,7 @@ export default function Personnel() {
                 </tr>
               ) : (
                 filtre.map((p) => {
-                  const cfg        = STATUT_CFG[p.statut] || STATUT_CFG.inactif;
+                  const cfg        = STATUT_CFG[p.statut] || STATUT_CFG["Inactif"];
                   const contratCfg = CONTRAT_CFG[p.typeContrat] || null;
                   const anc        = calculerAnciennete(p.dateEmbauche);
                   const certCount  = p.certifications?.length ?? 0;

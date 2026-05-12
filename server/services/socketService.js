@@ -350,7 +350,7 @@ async function _getStatsRapides() {
         }),
         Transport.countDocuments({ statut: "COMPLETED" }),
         Transport.countDocuments({ statut: { $in: ["CANCELLED", "NO_SHOW"] } }),
-        Vehicle.countDocuments({ statut: "disponible" }),
+        Vehicle.countDocuments({ statut: "Disponible" }),
       ]);
 
     // Répartition par motif

@@ -156,7 +156,7 @@ async function nettoyerVehiculesBloqués() {
 
   const STATUTS_TERMINES = ["COMPLETED", "CANCELLED", "NO_SHOW", "BILLED"];
   const vehiculesEnMission = await Vehicle.find({
-    statut: "en_mission",
+    statut: "En service",
     deletedAt: null,
   });
 
@@ -185,7 +185,7 @@ async function nettoyerVehiculesBloqués() {
 
     if (doitLiberer) {
       await Vehicle.findByIdAndUpdate(vehicule._id, {
-        statut: "disponible",
+        statut: "Disponible",
         transportEnCours: null,
       });
       logger.info("Véhicule débloqué automatiquement", {

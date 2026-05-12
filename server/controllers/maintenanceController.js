@@ -42,7 +42,7 @@ const createMaintenance = async (req, res) => {
 
     // Passer le véhicule en maintenance si statut en-cours
     if (m.statut === "en-cours") {
-      await Vehicle.findByIdAndUpdate(m.unite, { statut: "maintenance" });
+      await Vehicle.findByIdAndUpdate(m.unite, { statut: "Maintenance" });
     }
 
     const populated = await Maintenance.findById(m._id).populate(
@@ -94,11 +94,11 @@ const updateStatut = async (req, res) => {
       ["terminé", "annulé"].includes(statut) &&
       ["en-cours", "planifié"].includes(ancienStatut)
     ) {
-      await Vehicle.findByIdAndUpdate(m.unite, { statut: "disponible" });
+      await Vehicle.findByIdAndUpdate(m.unite, { statut: "Disponible" });
     }
     // Passer en maintenance si en-cours
     if (statut === "en-cours") {
-      await Vehicle.findByIdAndUpdate(m.unite, { statut: "maintenance" });
+      await Vehicle.findByIdAndUpdate(m.unite, { statut: "Maintenance" });
     }
 
     res.json({ message: "Statut mis à jour", maintenance: m });

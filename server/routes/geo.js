@@ -29,7 +29,7 @@ router.get("/vehicles/nearby", protect, async (req, res) => {
       return res.status(400).json({ message: "lat et lng requis" });
     }
 
-    const filtre = { statut: "disponible", deletedAt: null };
+    const filtre = { statut: "Disponible", deletedAt: null };
     if (typeTransport) filtre.type = typeTransport;
 
     const vehicles = await Vehicle.find(filtre);
@@ -68,7 +68,7 @@ router.get("/units/nearby", protect, async (req, res) => {
       return res.status(400).json({ message: "lat et lng requis" });
 
     const vehicles = await Vehicle.find({
-      statut: "disponible",
+      statut: "Disponible",
       deletedAt: null,
     });
     if (vehicles.length === 0)

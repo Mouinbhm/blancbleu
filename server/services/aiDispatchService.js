@@ -127,7 +127,7 @@ function dispatchLocal(transport, vehicules, chauffeurs) {
 async function getBestAssignment(transport) {
   // ── 1. Charger les véhicules disponibles ──────────────────────────────────
   const vehicules = await Vehicle.find({
-    statut: "disponible",
+    statut: "Disponible",
     deletedAt: null,
   }).lean();
 
@@ -137,7 +137,7 @@ async function getBestAssignment(transport) {
 
   // ── 2. Charger le personnel disponible ────────────────────────────────────
   const chauffeurs = await Personnel.find({
-    statut: "en-service",
+    statut: "Disponible",
     role: { $in: ["Ambulancier", "Chauffeur"] },
     deletedAt: null,
   }).lean();

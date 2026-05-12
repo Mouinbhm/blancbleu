@@ -47,9 +47,9 @@ router.get("/stats", protect, async (req, res, next) => {
   try {
     const [total, disponibles, enMission, maintenance] = await Promise.all([
       Vehicle.countDocuments({ deletedAt: null }),
-      Vehicle.countDocuments({ deletedAt: null, statut: "disponible" }),
-      Vehicle.countDocuments({ deletedAt: null, statut: "en_mission" }),
-      Vehicle.countDocuments({ deletedAt: null, statut: "maintenance" }),
+      Vehicle.countDocuments({ deletedAt: null, statut: "Disponible" }),
+      Vehicle.countDocuments({ deletedAt: null, statut: "En service" }),
+      Vehicle.countDocuments({ deletedAt: null, statut: "Maintenance" }),
     ]);
 
     const parType = await Vehicle.aggregate([
@@ -59,7 +59,7 @@ router.get("/stats", protect, async (req, res, next) => {
           _id: "$type",
           count: { $sum: 1 },
           disponibles: {
-            $sum: { $cond: [{ $eq: ["$statut", "disponible"] }, 1, 0] },
+            $sum: { $cond: [{ $eq: ["$statut", "Disponible"] }, 1, 0] },
           },
         },
       },
@@ -81,7 +81,7 @@ router.get(
   async (req, res, next) => {
     try {
       const vehiculesEnMission = await Vehicle.find({
-        statut: "en_mission",
+        statut: "En service",
         deletedAt: null,
       })
         .populate("transportEnCours", "numero statut dateTransport")
