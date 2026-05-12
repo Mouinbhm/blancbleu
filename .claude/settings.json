@@ -90,13 +90,24 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(xargs grep -l \"routing\\\\|optimize\")",
       "Bash(node scripts/geocode-existing-transports.js)",
-      "PowerShell(flutter --version 2>&1)"
+      "PowerShell(flutter --version 2>&1)",
+      "Bash(Test-Path \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\\\\blancbleu_driver\\\\lib\\\\main.dart\")",
+      "Bash(where java *)",
+      "Bash(cat \"/c/Users/MSI/.gradle/gradle.properties\" 2>/dev/null || echo \"file not found\")",
+      "Read(//c/Users/MSI/.gradle/**)",
+      "Bash(JAVA_HOME=\"C:/Program Files/Java/jdk-17\" flutter build apk --release --target-platform android-arm64)",
+      "Bash(flutter config *)",
+      "Read(//c/Users/MSI/AppData/Roaming/Flutter/**)",
+      "Read(//c/Users/MSI/**)",
+      "Bash(cp \"/c/Program Files/Eclipse Adoptium/jdk-21.0.5.11-hotspot/bin/java.exe\" \"/c/Program Files/Android/Android Studio/jbr/bin/java.exe\" && echo \"copied\" || echo \"copy failed\")",
+      "Bash(xargs grep -l \"BrowserRouter\\\\|createBrowserRouter\\\\|Routes\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\MSI\\.claude\\projects\\c--Users-MSI-OneDrive-Bureau-PFE-blancbleu\\memory",
       "c:\\Users\\MSI\\OneDrive\\Bureau\\PFE\\blancbleu\\ai-service",
       "c:\\Users\\MSI\\OneDrive\\Bureau\\PFE\\blancbleu\\blancbleu_patient\\ios",
-      "c:\\Users\\MSI\\OneDrive\\Bureau\\PFE\\blancbleu\\blancbleu_patient\\lib"
+      "c:\\Users\\MSI\\OneDrive\\Bureau\\PFE\\blancbleu\\blancbleu_patient\\lib",
+      "C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.5.11-hotspot\\bin"
     ]
   }
 }

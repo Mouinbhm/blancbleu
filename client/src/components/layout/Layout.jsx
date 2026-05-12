@@ -6,11 +6,13 @@ import { transportService } from "../../services/api";
 import useSocket from "../../hooks/useSocket";
 
 const NAV_OPERATIONS = [
-  { path: "/dashboard", icon: "dashboard", label: "Tableau de bord" },
-  { path: "/transports", icon: "directions_car", label: "Transports" },
-  { path: "/planning", icon: "calendar_month", label: "Planning" },
-  { path: "/patients", icon: "personal_injury", label: "Patients" },
-  { path: "/prescriptions", icon: "description", label: "Prescriptions" },
+  { path: "/dashboard",      icon: "dashboard",         label: "Tableau de bord"  },
+  { path: "/transports",     icon: "directions_car",    label: "Transports"       },
+  { path: "/planning",       icon: "calendar_month",    label: "Planning"         },
+  { path: "/suivi-en-direct",icon: "location_on",       label: "Suivi en direct"  },
+  { path: "/shifts",         icon: "schedule",          label: "Shifts"           },
+  { path: "/patients",       icon: "personal_injury",   label: "Patients"         },
+  { path: "/prescriptions",  icon: "description",       label: "Prescriptions"    },
 ];
 
 const NAV_GESTION = [
@@ -40,6 +42,8 @@ const pageTitles = {
   "/factures": "Comptabilité — Finances & Facturation",
   "/aide-ia": "Aide IA — Optimisation",
   "/utilisateurs": "Utilisateurs — Gestion des accès",
+  "/suivi-en-direct": "Suivi en direct — Positions GPS",
+  "/shifts": "Shifts — Activité des chauffeurs",
 };
 
 // ── Sonnerie de notification ────────────────────────────────────────────────

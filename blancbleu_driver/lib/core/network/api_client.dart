@@ -1,0 +1,106 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../utils/constants.dart';
+
+class ApiClient {
+  static ApiClient? _instance;
+  late final Dio _dio;
+  final _storage = const FlutterSecureStorage();
+
+  ApiClient._() {
+    _dio = Dio(BaseOptions(
+      baseUrl:        AppConstants.apiBase,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+      headers: {'Content-Type': 'application/json'},
+    ));
+
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final token = await _storage.read(key: AppConstants.tokenKey);
+        if (token != null) options.headers['Authorization'] = 'Bearer $token';
+        handler.next(options);
+      },
+      onError: (err, handler) {
+        handler.next(err);
+      },
+    ));
+  }
+
+  static ApiClient get instance => _instance ??= ApiClient._();
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  Future<Map<String, dynamic>> login(String email, String password) async {
+    final res = await _dio.post(
+      '${AppConstants.baseUrl}/api/auth/login',
+      data: {'email': email, 'password': password},
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
+  // ── Tournée ───────────────────────────────────────────────────────────────
+  Future<Map<String, dynamic>> getTournee(String date) async {
+    final res = await _dio.get('/driver/tournee', queryParameters: {'date': date});
+    return res.data as Map<String, dynamic>;
+  }
+
+  // ── Transport status ──────────────────────────────────────────────────────
+  Future<void> updateTransportStatus(String id, String status, {String note = ''}) async {
+    await _dio.patch('/driver/transports/$id/status', data: {
+      'status': status,
+      'note':   note,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
+  // ── Signature ─────────────────────────────────────────────────────────────
+  Future<void> saveSignature(String id, {String? patient, String? driver}) async {
+    await _dio.post('/driver/transports/$id/signature', data: {
+      if (patient != null) 'patientSignatureBase64': patient,
+      if (driver  != null) 'driverSignatureBase64':  driver,
+    });
+  }
+
+  // ── PMT photo ─────────────────────────────────────────────────────────────
+  Future<String> uploadPmtPhoto(String transportId, String filePath) async {
+    final formData = FormData.fromMap({
+      'photo': await MultipartFile.fromFile(filePath, filename: 'pmt.jpg'),
+    });
+    final res = await _dio.post(
+      '/driver/transports/$transportId/pmt-photo',
+      data: formData,
+      options: Options(contentType: 'multipart/form-data'),
+    );
+    return (res.data as Map<String, dynamic>)['url'] as String;
+  }
+
+  // ── Shift ─────────────────────────────────────────────────────────────────
+  Future<Map<String, dynamic>> startShift(String vehicleId, Map<String, bool> checklist) async {
+    final res = await _dio.post('/shifts/start', data: {'vehicleId': vehicleId, 'checklist': checklist});
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> endShift({int totalKm = 0, String notes = ''}) async {
+    await _dio.patch('/shifts/end', data: {'totalKm': totalKm, 'notes': notes});
+  }
+
+  Future<Map<String, dynamic>?> getActiveShift() async {
+    final res = await _dio.get('/shifts/active');
+    return (res.data as Map<String, dynamic>)['shift'] as Map<String, dynamic>?;
+  }
+
+  Future<void> addIncident(String description) async {
+    await _dio.post('/shifts/incident', data: {'description': description});
+  }
+
+  // ── Tracking ──────────────────────────────────────────────────────────────
+  Future<void> batchTracking(List<Map<String, dynamic>> points) async {
+    await _dio.post('/tracking/batch', data: {'points': points});
+  }
+
+  // ── Vehicles ──────────────────────────────────────────────────────────────
+  Future<List<dynamic>> getVehicles() async {
+    final res = await _dio.get('${AppConstants.baseUrl}/api/vehicles');
+    return (res.data as Map<String, dynamic>)['data'] as List<dynamic>? ?? [];
+  }
+}

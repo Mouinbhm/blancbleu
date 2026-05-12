@@ -1,0 +1,54 @@
+name: blancbleu_driver
+description: BlancBleu — Application chauffeur ambulancier
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_bloc: ^8.1.6
+  equatable: ^2.0.5
+
+  # DI
+  get_it: ^7.6.7
+
+  # Network
+  dio: ^5.3.2
+  web_socket_channel: ^2.4.0
+
+  # Local storage
+  sqflite: ^2.3.0
+  path: ^1.8.3
+  flutter_secure_storage: ^9.0.0
+
+  # Location & Maps
+  geolocator: ^10.1.0
+  url_launcher: ^6.2.5
+
+  # Documents
+  image_picker: ^1.0.7
+  signature: ^5.3.0
+  permission_handler: ^11.0.1
+
+  # Utils
+  intl: ^0.18.1
+  connectivity_plus: ^5.0.2
+  workmanager: ^0.5.2
+
+  # UI
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

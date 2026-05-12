@@ -22,6 +22,8 @@ import Factures from "./pages/Factures";
 import AideIA from "./pages/AideIA";
 import Utilisateurs from "./pages/Utilisateurs";
 import ForceChangePassword from "./pages/ForceChangePassword";
+import SuiviEnDirect from "./pages/SuiviEnDirect";
+import Shifts from "./pages/Shifts";
 
 function App() {
   return (
@@ -57,6 +59,8 @@ function App() {
             <Route path="/factures" element={<Factures />} />
             <Route path="/aide-ia" element={<AideIA />} />
             <Route path="/utilisateurs" element={<Utilisateurs />} />
+            <Route path="/suivi-en-direct" element={<SuiviEnDirect />} />
+            <Route path="/shifts" element={<Shifts />} />
           </Route>
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
