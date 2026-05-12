@@ -1,0 +1,100 @@
+const TrackingPoint = require("../models/TrackingPoint");
+const DriverShift   = require("../models/DriverShift");
+
+// POST /api/v1/tracking/batch
+// Body: { points: [{ lat, lng, speed, timestamp, accuracy, transportId? }] }
+const batchInsert = async (req, res) => {
+  try {
+    const { points } = req.body;
+    if (!Array.isArray(points) || points.length === 0) {
+      return res.status(400).json({ message: "points[] requis et non vide" });
+    }
+
+    const shift = await DriverShift.findOne({ driverId: req.user._id, status: "ACTIVE" });
+    if (!shift) return res.status(409).json({ message: "Aucun shift actif — impossible d'enregistrer la position" });
+
+    const docs = points.map((p) => ({
+      driverId:    req.user._id,
+      shiftId:     shift._id,
+      transportId: p.transportId || null,
+      lat:         p.lat,
+      lng:         p.lng,
+      speed:       p.speed || 0,
+      accuracy:    p.accuracy || null,
+      timestamp:   p.timestamp ? new Date(p.timestamp) : new Date(),
+    }));
+
+    await TrackingPoint.insertMany(docs, { ordered: false });
+
+    // Broadcast dernière position aux dispatchers
+    const last = docs[docs.length - 1];
+    const io = req.app.get("io");
+    if (io) {
+      io.to("role:dispatcher").to("role:admin").to("role:superviseur").emit("driver:location_updated", {
+        driverId:  req.user._id,
+        driverNom: `${req.user.prenom} ${req.user.nom}`,
+        vehicleId: shift.vehicleId,
+        lat:       last.lat,
+        lng:       last.lng,
+        speed:     last.speed,
+        timestamp: last.timestamp,
+      });
+    }
+
+    return res.json({ inserted: docs.length });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// GET /api/v1/tracking/live
+// Dernière position connue de tous les chauffeurs actifs
+const getLive = async (req, res) => {
+  try {
+    const activeShifts = await DriverShift.find({ status: "ACTIVE" })
+      .populate("driverId",  "nom prenom")
+      .populate("vehicleId", "immatriculation type");
+
+    const result = await Promise.all(
+      activeShifts.map(async (s) => {
+        const last = await TrackingPoint.findOne({ shiftId: s._id })
+          .sort({ timestamp: -1 })
+          .select("lat lng speed timestamp");
+        return {
+          driverId:   s.driverId?._id,
+          driverNom:  s.driverId ? `${s.driverId.prenom} ${s.driverId.nom}` : "—",
+          vehicleId:  s.vehicleId?._id,
+          immat:      s.vehicleId?.immatriculation,
+          shiftId:    s._id,
+          lastPos:    last || null,
+        };
+      })
+    );
+
+    return res.json({ drivers: result });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// GET /api/v1/tracking/history/:driverId?date=YYYY-MM-DD
+const getHistory = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const dateStr = req.query.date || new Date().toISOString().split("T")[0];
+    const from = new Date(dateStr);
+    const to   = new Date(dateStr);
+    to.setDate(to.getDate() + 1);
+
+    const points = await TrackingPoint.find({
+      driverId,
+      timestamp: { $gte: from, $lt: to },
+    }).sort({ timestamp: 1 });
+
+    return res.json({ driverId, date: dateStr, points });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { batchInsert, getLive, getHistory };

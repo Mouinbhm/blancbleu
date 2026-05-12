@@ -232,6 +232,24 @@ const transportSchema = new mongoose.Schema(
 
     // ── Origine de la demande ─────────────────────────────────────────────────
     origine: { type: String, default: "" },
+
+    // ── Driver app fields ─────────────────────────────────────────────────────
+    statusHistory: [
+      {
+        status:    { type: String },
+        timestamp: { type: Date, default: Date.now },
+        driverId:  { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        note:      { type: String, default: "" },
+        _id: false,
+      },
+    ],
+    driverSignedAt:          { type: Date, default: null },
+    patientSignatureBase64:  { type: String, default: null },
+    driverSignatureBase64:   { type: String, default: null },
+    pmtPhotoUrl:             { type: String, default: null },
+    estimatedArrival:        { type: Date, default: null },
+    actualPickupTime:        { type: Date, default: null },
+    actualDropoffTime:       { type: Date, default: null },
   },
   { timestamps: true },
 );

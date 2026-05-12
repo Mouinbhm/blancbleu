@@ -89,7 +89,8 @@
       "Bash(node scripts/migrate-email-index.js)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(xargs grep -l \"routing\\\\|optimize\")",
-      "Bash(node scripts/geocode-existing-transports.js)"
+      "Bash(node scripts/geocode-existing-transports.js)",
+      "PowerShell(flutter --version 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\MSI\\.claude\\projects\\c--Users-MSI-OneDrive-Bureau-PFE-blancbleu\\memory",

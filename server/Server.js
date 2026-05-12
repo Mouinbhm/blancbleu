@@ -95,6 +95,7 @@ io.use((socket, next) => {
 
 app.set("io", io);
 require("./services/socketService").init(io);
+require("./sockets/driverSocket").initDriverSocket(io);
 
 // ─── Swagger ──────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== "production") setupSwagger(app);
@@ -127,6 +128,14 @@ if (process.env.NODE_ENV !== "production") {
 
 // ── Routes mobile patient ─────────────────────────────────────────────────────
 app.use("/api/patient", require("./routes/patient"));
+
+// ── Routes driver app ──────────────────────────────────────────────────────────
+app.use("/api/v1/driver",   require("./routes/driver.routes"));
+app.use("/api/v1/shifts",   require("./routes/shift.routes"));
+app.use("/api/v1/tracking", require("./routes/tracking.routes"));
+
+// ── Fichiers statiques (photos PMT) ───────────────────────────────────────────
+app.use("/uploads", require("express").static(require("path").join(__dirname, "uploads")));
 
 // ─── Health ────────────────────────────────────────────────────────────────────
 app.get("/api/health", healthHandler);
