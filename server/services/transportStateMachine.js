@@ -29,6 +29,9 @@ const STATUTS = {
   CONFIRMED: "CONFIRMED",
   SCHEDULED: "SCHEDULED",
   ASSIGNED: "ASSIGNED",
+  // ── Acceptation / refus chauffeur (v1.2) ─────────────────────────────────
+  DRIVER_ACCEPTED: "DRIVER_ACCEPTED",
+  DRIVER_REJECTED: "DRIVER_REJECTED",
   EN_ROUTE_TO_PICKUP: "EN_ROUTE_TO_PICKUP",
   ARRIVED_AT_PICKUP: "ARRIVED_AT_PICKUP",
   PATIENT_ON_BOARD: "PATIENT_ON_BOARD",
@@ -37,96 +40,94 @@ const STATUTS = {
   WAITING_AT_DESTINATION: "WAITING_AT_DESTINATION", // attente sur place (optionnel)
   RETURN_TO_BASE: "RETURN_TO_BASE",                  // trajet retour chauffeur
   COMPLETED: "COMPLETED",
-  BILLED: "BILLED",                                  // clôture CPAM (terminal)
+  // ── Facturation étendue (v1.2) ────────────────────────────────────────────
+  BILLING_PENDING: "BILLING_PENDING",
+  BILLED: "BILLED",
+  PAID: "PAID",                                      // paiement reçu (terminal)
   // ── Statuts alternatifs ───────────────────────────────────────────────────
   CANCELLED: "CANCELLED",
   NO_SHOW: "NO_SHOW",
   RESCHEDULED: "RESCHEDULED",
+  FAILED: "FAILED",                                  // échec (terminal)
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TRANSITIONS AUTORISÉES
 // ══════════════════════════════════════════════════════════════════════════════
 const TRANSITIONS = {
-  REQUESTED: ["CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["SCHEDULED", "RESCHEDULED", "CANCELLED"],
-  SCHEDULED: ["ASSIGNED", "RESCHEDULED", "CANCELLED"],
-  ASSIGNED: ["EN_ROUTE_TO_PICKUP", "CANCELLED"],
-  EN_ROUTE_TO_PICKUP: ["ARRIVED_AT_PICKUP", "CANCELLED"],
-  ARRIVED_AT_PICKUP: ["PATIENT_ON_BOARD", "NO_SHOW"],
-  PATIENT_ON_BOARD: ["ARRIVED_AT_DESTINATION"],
-  // WAITING_AT_DESTINATION est optionnel : transition directe vers RETURN_TO_BASE
-  // ou COMPLETED toujours possible (rétrocompatibilité avec l'existant)
-  ARRIVED_AT_DESTINATION: ["WAITING_AT_DESTINATION", "RETURN_TO_BASE", "COMPLETED", "CANCELLED"],
-  WAITING_AT_DESTINATION: ["RETURN_TO_BASE", "CANCELLED"],
-  RETURN_TO_BASE: ["COMPLETED", "CANCELLED"],
-  // COMPLETED peut progresser vers BILLED (clôture financière superviseur)
-  COMPLETED: ["BILLED"],
-  BILLED: [],    // terminal — clôture CPAM définitive
-  CANCELLED: [], // terminal
-  NO_SHOW: ["RESCHEDULED"],
-  RESCHEDULED: ["CONFIRMED"],
+  REQUESTED:              ["CONFIRMED", "CANCELLED", "FAILED"],
+  CONFIRMED:              ["SCHEDULED", "RESCHEDULED", "CANCELLED", "FAILED"],
+  SCHEDULED:              ["ASSIGNED", "RESCHEDULED", "CANCELLED", "FAILED"],
+  ASSIGNED:               ["DRIVER_ACCEPTED", "DRIVER_REJECTED", "EN_ROUTE_TO_PICKUP", "CANCELLED", "FAILED"],
+  DRIVER_ACCEPTED:        ["EN_ROUTE_TO_PICKUP", "CANCELLED", "FAILED"],
+  DRIVER_REJECTED:        ["ASSIGNED", "RESCHEDULED", "CANCELLED"],
+  EN_ROUTE_TO_PICKUP:     ["ARRIVED_AT_PICKUP", "CANCELLED", "FAILED"],
+  ARRIVED_AT_PICKUP:      ["PATIENT_ON_BOARD", "NO_SHOW", "CANCELLED", "FAILED"],
+  PATIENT_ON_BOARD:       ["ARRIVED_AT_DESTINATION", "FAILED"],
+  // WAITING_AT_DESTINATION est optionnel : transition directe possible vers COMPLETED
+  ARRIVED_AT_DESTINATION: ["WAITING_AT_DESTINATION", "RETURN_TO_BASE", "COMPLETED", "CANCELLED", "FAILED"],
+  WAITING_AT_DESTINATION: ["RETURN_TO_BASE", "CANCELLED", "FAILED"],
+  RETURN_TO_BASE:         ["COMPLETED", "CANCELLED", "FAILED"],
+  // COMPLETED → BILLING_PENDING (flux étendu) ou directement BILLED (rétrocompat)
+  COMPLETED:              ["BILLING_PENDING", "BILLED"],
+  BILLING_PENDING:        ["BILLED"],
+  BILLED:                 ["PAID"],
+  PAID:                   [], // terminal — paiement reçu
+  CANCELLED:              [], // terminal
+  NO_SHOW:                ["RESCHEDULED"],
+  RESCHEDULED:            ["SCHEDULED", "CANCELLED"],
+  FAILED:                 [], // terminal — échec définitif
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LABELS LISIBLES
 // ══════════════════════════════════════════════════════════════════════════════
 const LABELS = {
-  REQUESTED: { fr: "Demande reçue", color: "slate", icon: "add_circle" },
-  CONFIRMED: { fr: "Confirmé", color: "blue", icon: "check_circle" },
-  SCHEDULED: { fr: "Planifié", color: "indigo", icon: "event" },
-  ASSIGNED: { fr: "Véhicule assigné", color: "purple", icon: "local_taxi" },
-  EN_ROUTE_TO_PICKUP: {
-    fr: "En route",
-    color: "orange",
-    icon: "directions_car",
-  },
-  ARRIVED_AT_PICKUP: {
-    fr: "Arrivé chez le patient",
-    color: "yellow",
-    icon: "location_on",
-  },
-  PATIENT_ON_BOARD: { fr: "Patient à bord", color: "cyan", icon: "person" },
-  ARRIVED_AT_DESTINATION: {
-    fr: "Arrivé à destination",
-    color: "teal",
-    icon: "local_hospital",
-  },
-  WAITING_AT_DESTINATION: {
-    fr: "Attente à destination",
-    color: "cyan",
-    icon: "hourglass_top",
-  },
-  RETURN_TO_BASE: {
-    fr: "Retour base",
-    color: "indigo",
-    icon: "home_work",
-  },
-  COMPLETED: { fr: "Transport terminé", color: "green", icon: "done_all" },
-  BILLED: { fr: "Facturé CPAM", color: "emerald", icon: "receipt_long" },
-  CANCELLED: { fr: "Annulé", color: "red", icon: "cancel" },
-  NO_SHOW: { fr: "Patient absent", color: "pink", icon: "person_off" },
-  RESCHEDULED: { fr: "Reprogrammé", color: "amber", icon: "event_repeat" },
+  REQUESTED:              { fr: "Demande reçue",        color: "slate",   icon: "add_circle" },
+  CONFIRMED:              { fr: "Confirmé",              color: "blue",    icon: "check_circle" },
+  SCHEDULED:              { fr: "Planifié",              color: "indigo",  icon: "event" },
+  ASSIGNED:               { fr: "Véhicule assigné",      color: "purple",  icon: "local_taxi" },
+  DRIVER_ACCEPTED:        { fr: "Chauffeur accepté",     color: "teal",    icon: "thumb_up" },
+  DRIVER_REJECTED:        { fr: "Chauffeur refusé",      color: "orange",  icon: "thumb_down" },
+  EN_ROUTE_TO_PICKUP:     { fr: "En route",              color: "orange",  icon: "directions_car" },
+  ARRIVED_AT_PICKUP:      { fr: "Arrivé chez le patient",color: "yellow",  icon: "location_on" },
+  PATIENT_ON_BOARD:       { fr: "Patient à bord",        color: "cyan",    icon: "person" },
+  ARRIVED_AT_DESTINATION: { fr: "Arrivé à destination",  color: "teal",    icon: "local_hospital" },
+  WAITING_AT_DESTINATION: { fr: "Attente à destination", color: "cyan",    icon: "hourglass_top" },
+  RETURN_TO_BASE:         { fr: "Retour base",            color: "indigo",  icon: "home_work" },
+  COMPLETED:              { fr: "Transport terminé",     color: "green",   icon: "done_all" },
+  BILLING_PENDING:        { fr: "Facturation en cours",  color: "sky",     icon: "pending_actions" },
+  BILLED:                 { fr: "Facturé CPAM",          color: "emerald", icon: "receipt_long" },
+  PAID:                   { fr: "Payé",                  color: "green",   icon: "payments" },
+  CANCELLED:              { fr: "Annulé",                color: "red",     icon: "cancel" },
+  NO_SHOW:                { fr: "Patient absent",        color: "pink",    icon: "person_off" },
+  RESCHEDULED:            { fr: "Reprogrammé",           color: "amber",   icon: "event_repeat" },
+  FAILED:                 { fr: "Échec",                 color: "red",     icon: "error" },
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // HORODATAGES PAR STATUT
 // ══════════════════════════════════════════════════════════════════════════════
 const TIMESTAMPS = {
-  CONFIRMED: "heureConfirmation",
-  SCHEDULED: "heurePlanification",
-  ASSIGNED: "heureAssignation",
-  EN_ROUTE_TO_PICKUP: "heureEnRoute",
-  ARRIVED_AT_PICKUP: "heurePriseEnCharge",
-  PATIENT_ON_BOARD: "heurePriseEnCharge",
+  CONFIRMED:              "heureConfirmation",
+  SCHEDULED:              "heurePlanification",
+  ASSIGNED:               "heureAssignation",
+  DRIVER_ACCEPTED:        "heureAcceptationChauffeur",
+  DRIVER_REJECTED:        "heureRefusChauffeur",
+  EN_ROUTE_TO_PICKUP:     "heureEnRoute",
+  ARRIVED_AT_PICKUP:      "heurePriseEnCharge",
+  PATIENT_ON_BOARD:       "heurePriseEnCharge",
   ARRIVED_AT_DESTINATION: "heureArriveeDestination",
-  WAITING_AT_DESTINATION: "heureDebutAttente",  // début de l'attente sur place
-  RETURN_TO_BASE: "heureDepartRetour",           // départ retour vers la base
-  COMPLETED: "heureTerminee",
-  BILLED: "heureFacturation",                    // clôture financière
-  CANCELLED: "heureAnnulation",
-  NO_SHOW: "heureAnnulation",
-  RESCHEDULED: "heureReprogrammation",
+  WAITING_AT_DESTINATION: "heureDebutAttente",
+  RETURN_TO_BASE:         "heureDepartRetour",
+  COMPLETED:              "heureTerminee",
+  BILLING_PENDING:        "heureBillingPending",
+  BILLED:                 "heureFacturation",
+  PAID:                   "heurePaiement",
+  CANCELLED:              "heureAnnulation",
+  NO_SHOW:                "heureAnnulation",
+  RESCHEDULED:            "heureReprogrammation",
+  FAILED:                 "heureEchec",
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -176,9 +177,20 @@ const VALIDATEURS = {
     return errors;
   },
 
-  // Clôture financière — guard assoupli : la facture est auto-créée par le
-  // contrôleur si absente ; on n'exige plus qu'elle soit déjà liée ici.
-  COMPLETED_BILLED: (_transport) => [],
+  // Clôture financière — guard assoupli
+  COMPLETED_BILLED:        (_transport) => [],
+  COMPLETED_BILLING_PENDING: (_transport) => [],
+  BILLING_PENDING_BILLED:  (_transport) => [],
+  BILLED_PAID:             (_transport) => [],
+
+  // Acceptation / refus chauffeur
+  ASSIGNED_DRIVER_ACCEPTED: () => [],
+  ASSIGNED_DRIVER_REJECTED: () => [],
+  DRIVER_ACCEPTED_EN_ROUTE_TO_PICKUP: () => [],
+  DRIVER_REJECTED_ASSIGNED: () => [],
+
+  // Échec : toujours autorisé depuis les états non terminaux
+  "*_FAILED": () => [],
 
   // Reprogrammation : raison obligatoire
   "*_RESCHEDULED": (transport) => {
@@ -219,6 +231,7 @@ class TransportStateMachine {
       raisonAnnulation,
       raisonNoShow,
       raisonReprogrammation,
+      raisonEchec,
       nouvelleDate,
       dureeAttenteMinutes, // durée estimée de l'attente à destination (minutes)
       factureId,           // référence facture pour la clôture BILLED
@@ -283,6 +296,9 @@ class TransportStateMachine {
         update.raisonReprogrammation = raisonReprogrammation || notes || "";
         if (nouvelleDate) update.nouvelleDate = nouvelleDate;
         break;
+      case "FAILED":
+        update.raisonEchec = raisonEchec || raisonAnnulation || notes || "Échec du transport";
+        break;
     }
 
     // 6. Entrée journal
@@ -297,6 +313,30 @@ class TransportStateMachine {
     return { update, entreeJournal };
   }
 
+  // ── Nouvelles fonctions centralisées (v1.2) ─────────────────────────────────
+
+  static canTransition(fromStatus, toStatus) {
+    return this.peutTransitionner(fromStatus, toStatus);
+  }
+
+  static assertCanTransition(fromStatus, toStatus) {
+    if (!this.canTransition(fromStatus, toStatus)) {
+      throw new Error(
+        `Transition invalide : ${fromStatus} → ${toStatus}. ` +
+        `Autorisées : ${(TRANSITIONS[fromStatus] || []).join(", ")}`,
+      );
+    }
+  }
+
+  static getNextAllowedStatuses(currentStatus) {
+    return (TRANSITIONS[currentStatus] || []).map((s) => ({
+      statut: s,
+      label:  LABELS[s]?.fr,
+      icon:   LABELS[s]?.icon,
+      color:  LABELS[s]?.color,
+    }));
+  }
+
   static transitionsPossibles(statut) {
     return (TRANSITIONS[statut] || []).map((s) => ({
       statut: s,
@@ -307,32 +347,30 @@ class TransportStateMachine {
   }
 
   static progression(statut) {
-    // Flux nominal complet incluant les nouveaux statuts v1.1.
-    // WAITING_AT_DESTINATION est optionnel dans le flux réel, mais inclus
-    // dans l'échelle de progression pour cohérence visuelle.
     const ordre = [
       "REQUESTED",              // 0%
-      "CONFIRMED",              // 9%
-      "SCHEDULED",              // 18%
-      "ASSIGNED",               // 27%
-      "EN_ROUTE_TO_PICKUP",     // 36%
-      "ARRIVED_AT_PICKUP",      // 45%
-      "PATIENT_ON_BOARD",       // 55%
-      "ARRIVED_AT_DESTINATION", // 64%
-      "WAITING_AT_DESTINATION", // 73%
-      "RETURN_TO_BASE",         // 82%
-      "COMPLETED",              // 91%
-      "BILLED",                 // 100%
+      "CONFIRMED",              // 7%
+      "SCHEDULED",              // 14%
+      "ASSIGNED",               // 21%
+      "DRIVER_ACCEPTED",        // 28%
+      "EN_ROUTE_TO_PICKUP",     // 35%
+      "ARRIVED_AT_PICKUP",      // 43%
+      "PATIENT_ON_BOARD",       // 50%
+      "ARRIVED_AT_DESTINATION", // 57%
+      "WAITING_AT_DESTINATION", // 64%
+      "RETURN_TO_BASE",         // 71%
+      "COMPLETED",              // 78%
+      "BILLING_PENDING",        // 85%
+      "BILLED",                 // 92%
+      "PAID",                   // 100%
     ];
     const idx = ordre.indexOf(statut);
-    if (idx === -1) return null; // CANCELLED, NO_SHOW, RESCHEDULED → null
+    if (idx === -1) return null; // CANCELLED, NO_SHOW, RESCHEDULED, FAILED, DRIVER_REJECTED → null
     return Math.round((idx / (ordre.length - 1)) * 100);
   }
 
   static estTerminal(statut) {
-    // COMPLETED n'est plus terminal : il peut progresser vers BILLED.
-    // BILLED est le seul terminal du flux nominal (clôture CPAM définitive).
-    return ["BILLED", "CANCELLED", "NO_SHOW"].includes(statut);
+    return ["PAID", "CANCELLED", "NO_SHOW", "FAILED"].includes(statut);
   }
 }
 

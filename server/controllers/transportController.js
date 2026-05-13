@@ -624,6 +624,44 @@ const demarrerRetour = async (req, res, next) => {
   }
 };
 
+const accepterDriver = async (req, res, next) => {
+  try {
+    const r = await lifecycle.accepterDriver(req.params.id, req.user);
+    res.json(r);
+  } catch (e) { _handleErr(res, next, e); }
+};
+
+const refuserDriver = async (req, res, next) => {
+  try {
+    const r = await lifecycle.refuserDriver(req.params.id, req.body.raison, req.user);
+    res.json(r);
+  } catch (e) { _handleErr(res, next, e); }
+};
+
+const billingPending = async (req, res, next) => {
+  try {
+    const r = await lifecycle.marquerBillingPending(req.params.id, req.user);
+    res.json(r);
+  } catch (e) { _handleErr(res, next, e); }
+};
+
+const paid = async (req, res, next) => {
+  if (!["superviseur", "admin"].includes(req.user?.role)) {
+    return res.status(403).json({ message: "Marquage payé réservé aux superviseurs et administrateurs" });
+  }
+  try {
+    const r = await lifecycle.marquerPaid(req.params.id, req.user);
+    res.json(r);
+  } catch (e) { _handleErr(res, next, e); }
+};
+
+const fail = async (req, res, next) => {
+  try {
+    const r = await lifecycle.marquerFailed(req.params.id, req.body.raison, req.user);
+    res.json(r);
+  } catch (e) { _handleErr(res, next, e); }
+};
+
 const facturer = async (req, res, next) => {
   if (!["superviseur", "admin"].includes(req.user?.role)) {
     return res.status(403).json({ message: "Clôture CPAM réservée aux superviseurs et administrateurs" });
@@ -791,6 +829,8 @@ module.exports = {
   confirmer,
   planifier,
   assigner,
+  accepterDriver,
+  refuserDriver,
   enRoute,
   arriveePatient,
   patientABord,
@@ -801,5 +841,8 @@ module.exports = {
   reprogrammer,
   demarrerAttente,
   demarrerRetour,
+  billingPending,
+  paid,
+  fail,
   facturer,
 };

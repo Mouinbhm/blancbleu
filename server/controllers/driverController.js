@@ -74,7 +74,9 @@ const getTournee = async (req, res) => {
 // PATCH /api/v1/driver/transports/:id/status
 // ════════════════════════════════════════════════════════════════════════════
 const VALID_TRANSITIONS = {
-  ASSIGNED:               ["EN_ROUTE_TO_PICKUP"],
+  ASSIGNED:               ["DRIVER_ACCEPTED", "DRIVER_REJECTED", "EN_ROUTE_TO_PICKUP"],
+  DRIVER_ACCEPTED:        ["EN_ROUTE_TO_PICKUP"],
+  DRIVER_REJECTED:        [],
   EN_ROUTE_TO_PICKUP:     ["ARRIVED_AT_PICKUP"],
   ARRIVED_AT_PICKUP:      ["PATIENT_ON_BOARD", "NO_SHOW"],
   PATIENT_ON_BOARD:       ["ARRIVED_AT_DESTINATION"],
@@ -104,6 +106,8 @@ const updateStatus = async (req, res) => {
 
     const ts = timestamp ? new Date(timestamp) : new Date();
     const update = { statut: status };
+    if (status === "DRIVER_ACCEPTED")         update.heureAcceptationChauffeur = ts;
+    if (status === "DRIVER_REJECTED")         update.heureRefusChauffeur = ts;
     if (status === "EN_ROUTE_TO_PICKUP")      update.heureEnRoute = ts;
     if (status === "ARRIVED_AT_PICKUP")       update.heurePriseEnCharge = ts;
     if (status === "PATIENT_ON_BOARD")        update.actualPickupTime = ts;

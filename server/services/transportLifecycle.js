@@ -52,7 +52,7 @@ async function _transition(transportId, nouveauStatut, metadata = {}) {
   // Garantit que le véhicule est libéré dès que la transition est persistée,
   // même si la fonction appelante (completerTransport, annulerTransport…) échoue
   // après ce point. Idempotent : re-libérer un véhicule déjà disponible est sans effet.
-  if (["COMPLETED", "CANCELLED", "NO_SHOW"].includes(nouveauStatut)) {
+  if (["COMPLETED", "CANCELLED", "NO_SHOW", "PAID", "FAILED"].includes(nouveauStatut)) {
     const vehiculeId = transport.vehicule?._id ?? transport.vehicule;
     if (vehiculeId) {
       try {
@@ -615,11 +615,16 @@ async function cloturerFacturation(transportId, factureId, utilisateur) {
   if (!transport) throw new Error("Transport introuvable");
 
   // Associer la facture sur le document avant la transition
-  // (le validateur COMPLETED_BILLED inspecte transport.facture)
   if (factureId) {
     transport.facture = factureId;
-    transport._factureIdTemp = factureId; // flag pour le validateur in-memory
+    transport._factureIdTemp = factureId;
     await transport.save();
+  }
+
+  // Accepte COMPLETED → BILLED (rétrocompat) ou BILLING_PENDING → BILLED (flux étendu)
+  const { TransportStateMachine: TSM } = require("./transportStateMachine");
+  if (!TSM.canTransition(transport.statut, "BILLED")) {
+    throw new Error(`Transition invalide : ${transport.statut} → BILLED. Autorisées : ${(require("./transportStateMachine").TRANSITIONS[transport.statut] || []).join(", ")}`);
   }
 
   const updated = await _transition(transportId, "BILLED", {
@@ -651,6 +656,92 @@ async function cloturerFacturation(transportId, factureId, utilisateur) {
   return { transport: updated };
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// 13. ACCEPTER LA MISSION (chauffeur) — ASSIGNED → DRIVER_ACCEPTED
+// ══════════════════════════════════════════════════════════════════════════════
+async function accepterDriver(transportId, utilisateur) {
+  const transport = await _transition(transportId, "DRIVER_ACCEPTED", {
+    utilisateur: utilisateur.email,
+    notes: "Mission acceptée par le chauffeur",
+  });
+  logger.info("Mission acceptée", { numero: transport.numero });
+  return { transport };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 14. REFUSER LA MISSION (chauffeur) — ASSIGNED → DRIVER_REJECTED
+// ══════════════════════════════════════════════════════════════════════════════
+async function refuserDriver(transportId, raison, utilisateur) {
+  const transport = await _transition(transportId, "DRIVER_REJECTED", {
+    utilisateur: utilisateur.email,
+    notes: raison || "Mission refusée par le chauffeur",
+  });
+  // Libérer le véhicule pour réassignation
+  if (transport.vehicule) {
+    await Vehicle.findByIdAndUpdate(transport.vehicule, {
+      statut: "Disponible",
+      transportEnCours: null,
+    });
+  }
+  logger.info("Mission refusée", { numero: transport.numero, raison });
+  return { transport };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 15. FACTURATION EN COURS — COMPLETED → BILLING_PENDING
+// ══════════════════════════════════════════════════════════════════════════════
+async function marquerBillingPending(transportId, utilisateur) {
+  const transport = await _transition(transportId, "BILLING_PENDING", {
+    utilisateur: utilisateur.email,
+    notes: "Facturation en cours de traitement",
+  });
+  logger.info("Billing pending", { numero: transport.numero });
+  return { transport };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 16. MARQUER PAYÉ — BILLED → PAID
+// ══════════════════════════════════════════════════════════════════════════════
+async function marquerPaid(transportId, utilisateur) {
+  const transport = await _transition(transportId, "PAID", {
+    utilisateur: utilisateur.email,
+    notes: "Paiement reçu",
+  });
+
+  await log({
+    action: "STATUT_CHANGED",
+    origine: "HUMAIN",
+    utilisateur,
+    ressource: { type: "Transport", id: transport._id, reference: transport.numero },
+    details: { avant: { statut: "BILLED" }, apres: { statut: "PAID" }, message: `Transport ${transport.numero} payé` },
+  });
+
+  logger.info("Transport marqué payé", { numero: transport.numero });
+  return { transport };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 17. MARQUER ÉCHOUÉ — tout statut non terminal → FAILED
+// ══════════════════════════════════════════════════════════════════════════════
+async function marquerFailed(transportId, raison, utilisateur) {
+  const transport = await _transition(transportId, "FAILED", {
+    utilisateur: utilisateur.email,
+    raisonEchec: raison || "Échec du transport",
+    notes: raison || "Échec du transport",
+  });
+
+  // Libérer le véhicule si encore assigné
+  if (transport.vehicule) {
+    await Vehicle.findByIdAndUpdate(transport.vehicule, {
+      statut: "Disponible",
+      transportEnCours: null,
+    });
+  }
+
+  logger.info("Transport en échec", { numero: transport.numero, raison });
+  return { transport };
+}
+
 module.exports = {
   confirmerTransport,
   planifierTransport,
@@ -666,4 +757,9 @@ module.exports = {
   marquerNoShow,
   annulerTransport,
   reprogrammerTransport,
+  accepterDriver,
+  refuserDriver,
+  marquerBillingPending,
+  marquerPaid,
+  marquerFailed,
 };

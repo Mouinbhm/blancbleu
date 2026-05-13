@@ -14,10 +14,22 @@ const STATUTS = [
   { value: "CONFIRMED", label: "Confirmé" },
   { value: "SCHEDULED", label: "Planifié" },
   { value: "ASSIGNED", label: "Assigné" },
+  { value: "DRIVER_ACCEPTED", label: "Chauffeur accepté" },
+  { value: "DRIVER_REJECTED", label: "Chauffeur refusé" },
   { value: "EN_ROUTE_TO_PICKUP", label: "En route" },
+  { value: "ARRIVED_AT_PICKUP", label: "Sur place" },
   { value: "PATIENT_ON_BOARD", label: "Patient à bord" },
+  { value: "ARRIVED_AT_DESTINATION", label: "Arrivé destination" },
+  { value: "WAITING_AT_DESTINATION", label: "Attente sur place" },
+  { value: "RETURN_TO_BASE", label: "Retour base" },
   { value: "COMPLETED", label: "Terminé" },
+  { value: "BILLING_PENDING", label: "Facturation en cours" },
+  { value: "BILLED", label: "Facturé CPAM" },
+  { value: "PAID", label: "Payé" },
   { value: "CANCELLED", label: "Annulé" },
+  { value: "NO_SHOW", label: "Non présenté" },
+  { value: "RESCHEDULED", label: "Reprogrammé" },
+  { value: "FAILED", label: "Échec" },
 ];
 
 const MOTIFS = [

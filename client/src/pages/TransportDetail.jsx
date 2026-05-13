@@ -11,35 +11,42 @@ import { getSocket, getOrCreateSocket } from "../services/socketService";
 
 const ORDRE_STATUTS = [
   "REQUESTED", "CONFIRMED", "SCHEDULED", "ASSIGNED",
-  "EN_ROUTE_TO_PICKUP", "ARRIVED_AT_PICKUP", "PATIENT_ON_BOARD",
+  "DRIVER_ACCEPTED", "EN_ROUTE_TO_PICKUP", "ARRIVED_AT_PICKUP", "PATIENT_ON_BOARD",
   "ARRIVED_AT_DESTINATION", "WAITING_AT_DESTINATION", "RETURN_TO_BASE",
-  "COMPLETED", "BILLED",
+  "COMPLETED", "BILLING_PENDING", "BILLED", "PAID",
 ];
 
 const LABEL_COURT = {
   REQUESTED: "Demandé", CONFIRMED: "Confirmé", SCHEDULED: "Planifié",
-  ASSIGNED: "Assigné", EN_ROUTE_TO_PICKUP: "En route",
-  ARRIVED_AT_PICKUP: "Arrivé", PATIENT_ON_BOARD: "À bord",
-  ARRIVED_AT_DESTINATION: "Destination", WAITING_AT_DESTINATION: "Attente",
-  RETURN_TO_BASE: "Retour", COMPLETED: "Terminé", BILLED: "Facturé",
+  ASSIGNED: "Assigné", DRIVER_ACCEPTED: "Accepté", DRIVER_REJECTED: "Refusé",
+  EN_ROUTE_TO_PICKUP: "En route", ARRIVED_AT_PICKUP: "Arrivé",
+  PATIENT_ON_BOARD: "À bord", ARRIVED_AT_DESTINATION: "Destination",
+  WAITING_AT_DESTINATION: "Attente", RETURN_TO_BASE: "Retour",
+  COMPLETED: "Terminé", BILLING_PENDING: "Facturation", BILLED: "Facturé", PAID: "Payé",
+  FAILED: "Échec",
 };
 
 const LABEL_TIMELINE = {
-  REQUESTED: "Demande reçue",
-  CONFIRMED: "Transport confirmé",
-  SCHEDULED: "Transport planifié",
-  ASSIGNED: "Véhicule assigné",
-  EN_ROUTE_TO_PICKUP: "En route vers le patient",
-  ARRIVED_AT_PICKUP: "Arrivé chez le patient",
-  PATIENT_ON_BOARD: "Patient pris en charge",
+  REQUESTED:              "Demande reçue",
+  CONFIRMED:              "Transport confirmé",
+  SCHEDULED:              "Transport planifié",
+  ASSIGNED:               "Véhicule assigné",
+  DRIVER_ACCEPTED:        "Mission acceptée par le chauffeur",
+  DRIVER_REJECTED:        "Mission refusée par le chauffeur",
+  EN_ROUTE_TO_PICKUP:     "En route vers le patient",
+  ARRIVED_AT_PICKUP:      "Arrivé chez le patient",
+  PATIENT_ON_BOARD:       "Patient pris en charge",
   ARRIVED_AT_DESTINATION: "Arrivé à destination",
   WAITING_AT_DESTINATION: "En attente à destination",
-  RETURN_TO_BASE: "Retour base en cours",
-  COMPLETED: "Transport terminé",
-  BILLED: "Facturé CPAM",
-  CANCELLED: "Transport annulé",
-  NO_SHOW: "Patient absent",
-  RESCHEDULED: "Reprogrammé",
+  RETURN_TO_BASE:         "Retour base en cours",
+  COMPLETED:              "Transport terminé",
+  BILLING_PENDING:        "Facturation en cours",
+  BILLED:                 "Facturé CPAM",
+  PAID:                   "Paiement reçu",
+  CANCELLED:              "Transport annulé",
+  NO_SHOW:                "Patient absent",
+  RESCHEDULED:            "Reprogrammé",
+  FAILED:                 "Échec du transport",
 };
 
 const MOBILITE_LABELS = {
@@ -75,10 +82,16 @@ const BTN = {
 };
 
 const ACTIONS_PAR_STATUT = {
-  REQUESTED: [{ label: "Confirmer la demande", fn: "confirmer", color: "blue", icon: "check_circle" }],
-  CONFIRMED: [{ label: "Planifier", fn: "planifier", color: "indigo", icon: "calendar_month" }],
-  SCHEDULED: [{ label: "Reprogrammer", color: "indigo", icon: "event_repeat", modal: "reprogrammer" }],
-  ASSIGNED:             [{ label: "En route",               fn: "enRoute",            color: "orange", icon: "directions_car",  terrain: true }],
+  REQUESTED:  [{ label: "Confirmer la demande", fn: "confirmer", color: "blue", icon: "check_circle" }],
+  CONFIRMED:  [{ label: "Planifier", fn: "planifier", color: "indigo", icon: "calendar_month" }],
+  SCHEDULED:  [{ label: "Reprogrammer", color: "indigo", icon: "event_repeat", modal: "reprogrammer" }],
+  ASSIGNED: [
+    { label: "Accepter",   fn: "accepterDriver", color: "teal",   icon: "thumb_up",      terrain: true },
+    { label: "Refuser",    fn: "refuserDriver",  color: "orange", icon: "thumb_down",    terrain: true },
+    { label: "En route",   fn: "enRoute",        color: "orange", icon: "directions_car", terrain: true },
+  ],
+  DRIVER_ACCEPTED:      [{ label: "En route", fn: "enRoute", color: "orange", icon: "directions_car", terrain: true }],
+  DRIVER_REJECTED:      [{ label: "Reprogrammer", color: "indigo", icon: "event_repeat", modal: "reprogrammer" }],
   EN_ROUTE_TO_PICKUP:   [{ label: "Arrivé chez le patient", fn: "arriveePatient",     color: "yellow", icon: "location_on",     terrain: true }],
   ARRIVED_AT_PICKUP:    [{ label: "Patient à bord",         fn: "patientABord",       color: "cyan",   icon: "personal_injury", terrain: true }],
   PATIENT_ON_BOARD:     [{ label: "Arrivé à destination",   fn: "arriveeDestination", color: "teal",   icon: "flag",            terrain: true }],
@@ -90,8 +103,13 @@ const ACTIONS_PAR_STATUT = {
   WAITING_AT_DESTINATION: [
     { label: "Retour base", color: "slate", icon: "home", modal: "retour", terrain: true },
   ],
-  RETURN_TO_BASE: [{ label: "Terminer le transport", fn: "completer", color: "green", icon: "check_circle", terrain: true }],
-  COMPLETED: [{ label: "Clôturer (CPAM)", color: "purple", icon: "receipt_long", modal: "facturer" }],
+  RETURN_TO_BASE:  [{ label: "Terminer le transport", fn: "completer", color: "green", icon: "check_circle", terrain: true }],
+  COMPLETED: [
+    { label: "Facturation en cours", fn: "billingPending", color: "indigo", icon: "pending_actions" },
+    { label: "Clôturer (CPAM)",      color: "purple",      icon: "receipt_long", modal: "facturer" },
+  ],
+  BILLING_PENDING: [{ label: "Clôturer (CPAM)", color: "purple", icon: "receipt_long", modal: "facturer" }],
+  BILLED: [{ label: "Marquer payé", fn: "paid", color: "green", icon: "payments" }],
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -443,6 +461,18 @@ export default function TransportDetail() {
     await doAction("annuler", raison);
   };
 
+  const handleRefuserDriver = async () => {
+    const raison = window.prompt("Raison du refus (optionnel) :");
+    if (raison === null) return;
+    await doAction("refuserDriver", raison || undefined);
+  };
+
+  const handleFail = async () => {
+    const raison = window.prompt("Raison de l'échec :");
+    if (raison === null) return;
+    await doAction("fail", raison);
+  };
+
   const handleAssigner = () => {
     if (!modalShift) return;
     doAction("assigner", { shiftId: modalShift });
@@ -514,11 +544,12 @@ export default function TransportDetail() {
     ? _dateT.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
     : null;
 
-  const peutAnnuler = !["BILLED", "CANCELLED", "NO_SHOW"].includes(transport.statut);
+  const peutAnnuler = !["BILLED", "PAID", "CANCELLED", "NO_SHOW", "FAILED"].includes(transport.statut);
+  const peutEchouer = !["BILLED", "PAID", "CANCELLED", "NO_SHOW", "FAILED", "COMPLETED", "BILLING_PENDING"].includes(transport.statut);
   // Assigner est bloqué si la date est entièrement dépassée — reprogrammer d'abord
   const peutAssigner = ["CONFIRMED", "SCHEDULED"].includes(transport.statut) && !dateDepassee;
   const actionsStatut = ACTIONS_PAR_STATUT[transport.statut] || [];
-  const hasActions = actionsStatut.length > 0 || peutAnnuler || peutAssigner;
+  const hasActions = actionsStatut.length > 0 || peutAnnuler || peutEchouer || peutAssigner;
 
   const age = calcAge(transport.patient?.dateNaissance);
   const vehiclePos = vehiclePosition || (transport.vehicule?.position?.lat ? transport.vehicule.position : null);
@@ -1084,7 +1115,11 @@ export default function TransportDetail() {
               ) : (
                 <div key={i} className="flex flex-col items-center">
                   <button
-                    onClick={bloque ? undefined : () => doAction(a.fn)}
+                    onClick={bloque ? undefined : () => {
+                      if (a.fn === "refuserDriver") return handleRefuserDriver();
+                      if (a.fn === "fail") return handleFail();
+                      doAction(a.fn);
+                    }}
                     disabled={actionLoading || bloque}
                     title={bloque ? `Disponible le ${dateTransportFormatee}` : undefined}
                     className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors ${
@@ -1102,6 +1137,16 @@ export default function TransportDetail() {
                 </div>
               );
             })}
+            {peutEchouer && (
+              <button
+                onClick={handleFail}
+                disabled={actionLoading}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-300 bg-red-50 text-red-800 hover:bg-red-100 font-semibold text-sm transition-colors disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-base">error</span>
+                Échec
+              </button>
+            )}
             {peutAnnuler && (
               <button
                 onClick={handleAnnuler}

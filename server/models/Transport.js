@@ -161,13 +161,21 @@ const transportSchema = new mongoose.Schema(
     heureConfirmation: { type: Date },
     heurePlanification: { type: Date },
     heureAssignation: { type: Date },
+    // ── Horodatages v1.2 — acceptation/refus chauffeur ────────────────────
+    heureAcceptationChauffeur: { type: Date },
+    heureRefusChauffeur: { type: Date },
+    // ─────────────────────────────────────────────────────────────────────
     heureEnRoute: { type: Date },
     heurePriseEnCharge: { type: Date },
     heureArriveeDestination: { type: Date },
-    // ── Nouveaux horodatages v1.1 ─────────────────────────────────────────
+    // ── Horodatages v1.1 ─────────────────────────────────────────────────
     heureDebutAttente: { type: Date },    // WAITING_AT_DESTINATION
     heureDepartRetour: { type: Date },    // RETURN_TO_BASE
     heureFacturation: { type: Date },     // BILLED
+    // ── Horodatages v1.2 — facturation étendue ────────────────────────────
+    heureBillingPending: { type: Date },
+    heurePaiement: { type: Date },        // PAID
+    heureEchec: { type: Date },           // FAILED
     // ─────────────────────────────────────────────────────────────────────
     heureTerminee: { type: Date },
     heureAnnulation: { type: Date },
@@ -223,10 +231,11 @@ const transportSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ── Annulation / NO_SHOW ──────────────────────────────────────────────────
+    // ── Annulation / NO_SHOW / FAILED ─────────────────────────────────────────
     raisonAnnulation: { type: String, default: "" },
     raisonNoShow: { type: String, default: "" },
     raisonReprogrammation: { type: String, default: "" },
+    raisonEchec: { type: String, default: "" },
     nouvelleDate: { type: Date, default: null },
 
     // ── Journal ───────────────────────────────────────────────────────────────
@@ -299,19 +308,18 @@ transportSchema.virtual("label").get(function () {
   return LABELS[this.statut]?.fr || this.statut;
 });
 transportSchema.virtual("progression").get(function () {
-  // Miroir exact de TransportStateMachine.progression() — mis à jour en v1.1
+  // Miroir exact de TransportStateMachine.progression() — mis à jour en v1.2
   const ordre = [
     "REQUESTED", "CONFIRMED", "SCHEDULED", "ASSIGNED",
-    "EN_ROUTE_TO_PICKUP", "ARRIVED_AT_PICKUP", "PATIENT_ON_BOARD",
-    "ARRIVED_AT_DESTINATION", "WAITING_AT_DESTINATION", "RETURN_TO_BASE",
-    "COMPLETED", "BILLED",
+    "DRIVER_ACCEPTED", "EN_ROUTE_TO_PICKUP", "ARRIVED_AT_PICKUP",
+    "PATIENT_ON_BOARD", "ARRIVED_AT_DESTINATION", "WAITING_AT_DESTINATION",
+    "RETURN_TO_BASE", "COMPLETED", "BILLING_PENDING", "BILLED", "PAID",
   ];
   const idx = ordre.indexOf(this.statut);
   return idx === -1 ? null : Math.round((idx / (ordre.length - 1)) * 100);
 });
 transportSchema.virtual("estTermine").get(function () {
-  // Inclut COMPLETED (opérationnellement terminé) et BILLED (financièrement clos)
-  return ["COMPLETED", "BILLED", "CANCELLED", "NO_SHOW"].includes(this.statut);
+  return ["COMPLETED", "BILLING_PENDING", "BILLED", "PAID", "CANCELLED", "NO_SHOW", "FAILED"].includes(this.statut);
 });
 transportSchema.set("toJSON", { virtuals: true });
 transportSchema.set("toObject", { virtuals: true });
