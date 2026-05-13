@@ -6,6 +6,7 @@ import '../../navigation/navigation_helper.dart';
 import '../../documents/screens/signature_screen.dart';
 import '../../documents/screens/pmt_photo_screen.dart';
 import '../../shift/cubit/shift_cubit.dart';
+import '../../tournee/cubit/tournee_cubit.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/location/location_service.dart';
 import '../../../shared/theme/app_theme.dart';
@@ -217,6 +218,7 @@ class _TransportDetailScreenState extends State<TransportDetailScreen> {
   }
 
   Widget _buildBody(BuildContext context, Map patient) {
+    final id = (widget.transport['_id'] ?? widget.transport['id'] ?? '') as String;
     return BlocConsumer<StatusCubit, StatusState>(
       listener: (context, state) {
         if (state is StatusOfflineQueued) {
@@ -224,12 +226,17 @@ class _TransportDetailScreenState extends State<TransportDetailScreen> {
             content: Text('Hors ligne — sera synchronisé à la reconnexion'),
             backgroundColor: AppTheme.warning,
           ));
+          // Keep TourneeCubit in sync even for offline queued updates
+          context.read<TourneeCubit>().updateTransportStatus(id, state.status);
         }
         if (state is StatusUpdated) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Statut mis à jour ✓'),
             backgroundColor: AppTheme.success,
           ));
+          // Sync TourneeCubit so the transport card shows the new status
+          // immediately when the user navigates back — no server re-fetch needed.
+          context.read<TourneeCubit>().updateTransportStatus(id, state.status);
         }
       },
       builder: (context, state) {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../transport/screens/transport_detail_screen.dart';
+import '../cubit/tournee_cubit.dart';
 import '../../../shared/theme/app_theme.dart';
 
 class TransportCard extends StatelessWidget {
@@ -33,10 +35,18 @@ class TransportCard extends StatelessWidget {
     final patientNom = '${patient['prenom'] ?? ''} ${patient['nom'] ?? ''}'.trim();
 
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => TransportDetailScreen(transport: transport)),
-      ),
+      onTap: () {
+        final tourneeCubit = context.read<TourneeCubit>();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BlocProvider.value(
+              value: tourneeCubit,
+              child: TransportDetailScreen(transport: transport),
+            ),
+          ),
+        );
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
