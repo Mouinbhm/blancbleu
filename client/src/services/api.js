@@ -122,6 +122,25 @@ export const transportService = {
   noShow: (id, raison) => api.patch(`/transports/${id}/no-show`, { raison }),
   annuler: (id, raison) => api.patch(`/transports/${id}/cancel`, { raison }),
   reprogrammer: (id, data) => api.patch(`/transports/${id}/reschedule`, data),
+  // PART A — Timeline
+  getTimeline: (id) => api.get(`/transports/${id}/timeline`),
+  // PART B — Signature
+  addSignature: (id, data) => api.post(`/transports/${id}/signature`, data),
+  addSignatureFile: (id, formData) => api.post(`/transports/${id}/signature`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  }),
+  // PART C — PMT
+  uploadPmt: (id, formData) => api.post(`/transports/${id}/pmt`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  }),
+  getPmt: (id) => api.get(`/transports/${id}/pmt`),
+  deletePmt: (id, docId) => api.delete(`/transports/${id}/pmt/${docId}`),
+  // PART D — PDF
+  exportPdf: (id) => api.get(`/transports/${id}/pdf`, { responseType: "blob" }),
+  // PART E — Notifications
+  getNotifications: (params) => api.get("/transports/notifications", { params }),
+  markNotificationRead: (notifId) => api.patch(`/transports/notifications/${notifId}/read`),
+  markAllNotificationsRead: () => api.patch("/transports/notifications/read-all"),
 };
 
 // ════════════════════════════════════════════════════════════════════════════

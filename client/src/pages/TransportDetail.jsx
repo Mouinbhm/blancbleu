@@ -1,5 +1,5 @@
 // Fichier : client/src/pages/TransportDetail.jsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import StatutBadge from "../components/transport/StatutBadge";
 import TransportMap from "../components/map/TransportMap";
@@ -332,6 +332,22 @@ export default function TransportDetail() {
   // Linked entities
   const [linkedFacture, setLinkedFacture] = useState(null);
 
+  // PART A — Timeline enrichie (statusLog)
+  const [statusLog, setStatusLog] = useState([]);
+
+  // PART B — Signature
+  const [signerName, setSignerName] = useState("");
+  const [sigLoading, setSigLoading] = useState(false);
+  const sigFileRef = useRef(null);
+
+  // PART C — PMT
+  const [pmtDocs, setPmtDocs] = useState([]);
+  const [pmtLoading, setPmtLoading] = useState(false);
+  const pmtFileRef = useRef(null);
+
+  // PART D — PDF
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   // Modal: null | 'assigner' | 'attente' | 'retour' | 'facturer' | 'reprogrammer'
   const [activeModal, setActiveModal] = useState(null);
   const [modalVehicle, setModalVehicle] = useState("");
@@ -369,6 +385,20 @@ export default function TransportDetail() {
         setLinkedFacture(f || null);
       })
       .catch(() => {});
+
+    // PART A — charger la timeline enrichie
+    if (transport._id) {
+      transportService.getTimeline(transport._id)
+        .then(({ data }) => setStatusLog(data?.timeline || []))
+        .catch(() => {});
+    }
+
+    // PART C — charger les documents PMT
+    if (transport._id) {
+      transportService.getPmt(transport._id)
+        .then(({ data }) => setPmtDocs(data?.documents || []))
+        .catch(() => {});
+    }
   }, [transport]);
 
   useEffect(() => {
@@ -489,6 +519,77 @@ export default function TransportDetail() {
   const handleFacturer = () => {
     if (!modalFactureId.trim()) return;
     doAction("facturer", modalFactureId.trim());
+  };
+
+  // PART B — Signature
+  const handleAddSignature = async () => {
+    if (!signerName.trim()) { showToast("Le nom du signataire est requis", "error"); return; }
+    setSigLoading(true);
+    try {
+      const file = sigFileRef.current?.files?.[0];
+      if (file) {
+        const fd = new FormData();
+        fd.append("signature", file);
+        fd.append("signedByName", signerName);
+        await transportService.addSignatureFile(id, fd);
+      } else {
+        await transportService.addSignature(id, { signedByName: signerName });
+      }
+      await loadTransport();
+      setSignerName("");
+      if (sigFileRef.current) sigFileRef.current.value = "";
+      showToast("Signature enregistrée avec succès");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Erreur lors de l'enregistrement de la signature", "error");
+    } finally { setSigLoading(false); }
+  };
+
+  // PART C — PMT
+  const handleUploadPmt = async () => {
+    const file = pmtFileRef.current?.files?.[0];
+    if (!file) { showToast("Sélectionnez un fichier PMT", "error"); return; }
+    setPmtLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("triggerOcr", "true");
+      await transportService.uploadPmt(id, fd);
+      if (pmtFileRef.current) pmtFileRef.current.value = "";
+      const { data } = await transportService.getPmt(id);
+      setPmtDocs(data?.documents || []);
+      showToast("PMT ajoutée avec succès");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Erreur lors de l'upload PMT", "error");
+    } finally { setPmtLoading(false); }
+  };
+
+  const handleDeletePmt = async (docId) => {
+    if (!window.confirm("Supprimer ce document PMT ?")) return;
+    try {
+      await transportService.deletePmt(id, docId);
+      setPmtDocs((prev) => prev.filter((d) => d._id !== docId));
+      showToast("Document PMT supprimé");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Erreur lors de la suppression", "error");
+    }
+  };
+
+  // PART D — PDF export
+  const handleExportPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const response = await transportService.exportPdf(id);
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url  = window.URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `mission_${transport.numero}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      showToast("PDF généré");
+    } catch {
+      showToast("Impossible de générer le PDF", "error");
+    } finally { setPdfLoading(false); }
   };
 
   const handleReprogrammer = async () => {
@@ -623,6 +724,15 @@ export default function TransportDetail() {
               </p>
             </div>
           </div>
+          <button
+            onClick={handleExportPdf}
+            disabled={pdfLoading}
+            title="Télécharger la fiche mission PDF"
+            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold transition-colors disabled:opacity-50 self-start"
+          >
+            <span className="material-symbols-outlined text-base text-red-500">picture_as_pdf</span>
+            {pdfLoading ? "…" : "PDF"}
+          </button>
         </div>
         <ProgressBar statut={transport.statut} />
 
@@ -1003,6 +1113,133 @@ export default function TransportDetail() {
               </div>
             </SectionCard>
           )}
+
+          {/* ── PART B: Preuve de prise en charge ───────────────────────────────── */}
+          {(["ARRIVED_AT_DESTINATION","COMPLETED","BILLING_PENDING","BILLED","PAID"].includes(transport.statut) || transport.proofOfCare?.signed) && (
+            <SectionCard title="Preuve de prise en charge" icon="draw">
+              {transport.proofOfCare?.signed ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-full">
+                      <span className="material-symbols-outlined text-xs">verified</span>
+                      Signé
+                    </span>
+                    <span className="text-xs text-slate-400">{fmtDatetime(transport.proofOfCare.signedAt)}</span>
+                  </div>
+                  <InfoRow icon="person" label="Signataire" value={transport.proofOfCare.signedByName || "—"} />
+                  {transport.proofOfCare.signatureImageUrl && (
+                    <div className="mt-3">
+                      <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1">Signature</p>
+                      <img
+                        src={transport.proofOfCare.signatureImageUrl}
+                        alt="Signature"
+                        className="max-h-20 border border-slate-200 rounded-lg bg-white p-1"
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs text-slate-500 mb-3">Enregistrez la signature du patient ou de son représentant.</p>
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={signerName}
+                      onChange={(e) => setSignerName(e.target.value)}
+                      placeholder="Nom du signataire *"
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary"
+                    />
+                    <div>
+                      <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1">Image de signature (optionnel)</p>
+                      <input
+                        ref={sigFileRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg"
+                        className="text-xs text-slate-600 file:mr-2 file:text-xs file:rounded-lg file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:font-semibold hover:file:bg-slate-200"
+                      />
+                    </div>
+                    <button
+                      onClick={handleAddSignature}
+                      disabled={sigLoading || !signerName.trim()}
+                      className="w-full py-2.5 rounded-xl bg-teal-600 text-white text-sm font-bold hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-base">draw</span>
+                      {sigLoading ? "Enregistrement…" : "Enregistrer la signature"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+          )}
+
+          {/* ── PART C: Documents PMT ───────────────────────────────────────────── */}
+          <SectionCard title="Documents PMT" icon="upload_file">
+            <div className="mb-3 flex items-center gap-2">
+              <input
+                ref={pmtFileRef}
+                type="file"
+                accept=".pdf,image/jpeg,image/jpg,image/png"
+                className="flex-1 min-w-0 text-xs text-slate-600 file:mr-2 file:text-xs file:rounded-lg file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:font-semibold hover:file:bg-slate-200"
+              />
+              <button
+                onClick={handleUploadPmt}
+                disabled={pmtLoading}
+                className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-sm">upload</span>
+                {pmtLoading ? "…" : "Ajouter"}
+              </button>
+            </div>
+            {pmtDocs.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-3">Aucun document PMT associé</p>
+            ) : (
+              <div className="space-y-2">
+                {pmtDocs.map((doc) => (
+                  <div key={doc._id} className="flex items-center justify-between gap-2 border border-slate-100 rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="material-symbols-outlined text-slate-400 text-base flex-shrink-0">description</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-navy truncate">{doc.fileName}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <p className="text-[10px] text-slate-400">{fmtDatetime(doc.uploadedAt)}</p>
+                          {doc.ocrStatus && doc.ocrStatus !== "skipped" && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                              doc.ocrStatus === "done"       ? "bg-emerald-100 text-emerald-700" :
+                              doc.ocrStatus === "processing" ? "bg-blue-100 text-blue-700" :
+                              doc.ocrStatus === "error"      ? "bg-red-100 text-red-700" :
+                              "bg-slate-100 text-slate-500"
+                            }`}>
+                              OCR {doc.ocrStatus === "done" ? "✓" : doc.ocrStatus === "error" ? "✗" : "…"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {doc.fileUrl && (
+                        <a
+                          href={doc.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center hover:bg-blue-100"
+                          title="Voir le document"
+                        >
+                          <span className="material-symbols-outlined text-primary text-sm">open_in_new</span>
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleDeletePmt(doc._id)}
+                        className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center hover:bg-red-100"
+                        title="Supprimer"
+                      >
+                        <span className="material-symbols-outlined text-red-600 text-sm">delete</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
         </div>
 
         {/* ── RIGHT: Timeline + notes ──────────────────────────────────────────── */}
@@ -1012,6 +1249,36 @@ export default function TransportDetail() {
           <SectionCard title="Suivi du transport" icon="timeline">
             <Timeline transport={transport} />
           </SectionCard>
+
+          {/* ── PART A: Historique détaillé (statusLog) ─────────────────────────── */}
+          {statusLog.length > 0 && (
+            <SectionCard title="Historique détaillé" icon="history">
+              <div>
+                {statusLog.slice().reverse().map((entry, i) => (
+                  <div key={entry._id || i} className="flex gap-3 py-2.5 border-b border-slate-50 last:border-0">
+                    <div className="w-2 h-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-xs font-semibold text-navy">
+                          {LABEL_TIMELINE[entry.to] || entry.to}
+                        </p>
+                        <p className="text-[10px] text-slate-400 flex-shrink-0">{fmtDatetime(entry.changedAt)}</p>
+                      </div>
+                      {(entry.changedByRole || entry.changedBy) && (
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {entry.changedByRole || "système"}
+                          {entry.changedBy?.nom ? ` · ${entry.changedBy.nom} ${entry.changedBy.prenom || ""}` : ""}
+                        </p>
+                      )}
+                      {entry.reason && (
+                        <p className="text-[10px] text-slate-400 italic mt-0.5">{entry.reason}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          )}
 
           {/* Notes */}
           {transport.notes && (

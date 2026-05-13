@@ -102,7 +102,9 @@
       "Bash(cp \"/c/Program Files/Eclipse Adoptium/jdk-21.0.5.11-hotspot/bin/java.exe\" \"/c/Program Files/Android/Android Studio/jbr/bin/java.exe\" && echo \"copied\" || echo \"copy failed\")",
       "Bash(xargs grep -l \"BrowserRouter\\\\|createBrowserRouter\\\\|Routes\")",
       "Bash(node fix-transport.js)",
-      "Bash(Test-Path \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\\\\server\\\\services\\\\transportStateMachine.js\")"
+      "Bash(Test-Path \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\\\\server\\\\services\\\\transportStateMachine.js\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\\\\server\\\\services\" -File)",
+      "Bash(Select-Object -ExpandProperty Name)"
     ],
     "additionalDirectories": [
       "c:\\Users\\MSI\\.claude\\projects\\c--Users-MSI-OneDrive-Bureau-PFE-blancbleu\\memory",

@@ -20,6 +20,33 @@ const journalSchema = new mongoose.Schema(
   { _id: false },
 );
 
+// Historique riche des changements de statut (PART A)
+const statusLogEntrySchema = new mongoose.Schema(
+  {
+    from:          { type: String, default: null },
+    to:            { type: String, required: true },
+    changedBy:     { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    changedByRole: { type: String, default: "système" },
+    changedAt:     { type: Date, default: Date.now },
+    reason:        { type: String, default: "" },
+    metadata:      { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { _id: true },
+);
+
+// Document PMT attaché au transport (PART C)
+const pmtDocumentSchema = new mongoose.Schema(
+  {
+    fileUrl:       { type: String, required: true },
+    fileName:      { type: String, default: "" },
+    uploadedAt:    { type: Date, default: Date.now },
+    uploadedBy:    { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    ocrStatus:     { type: String, enum: ["pending", "processing", "done", "error", "skipped"], default: "pending" },
+    extractedData: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { _id: true },
+);
+
 const adresseSchema = new mongoose.Schema(
   {
     nom: { type: String, default: "" },
@@ -264,6 +291,24 @@ const transportSchema = new mongoose.Schema(
     estimatedArrival:        { type: Date, default: null },
     actualPickupTime:        { type: Date, default: null },
     actualDropoffTime:       { type: Date, default: null },
+
+    // ── PART A : Historique riche des statuts ─────────────────────────────────
+    statusLog: [statusLogEntrySchema],
+
+    // ── PART B : Preuve de prise en charge / Signature patient ────────────────
+    proofOfCare: {
+      signed:             { type: Boolean, default: false },
+      signedAt:           { type: Date, default: null },
+      signedByName:       { type: String, default: "" },
+      signatureImageUrl:  { type: String, default: "" },  // chemin fichier
+      signatureBase64:    { type: String, default: "" },  // fallback base64 (max 2 MB)
+      driverId:           { type: mongoose.Schema.Types.ObjectId, ref: "Personnel", default: null },
+      patientId:          { type: mongoose.Schema.Types.ObjectId, ref: "Patient",   default: null },
+      consentText:        { type: String, default: "Je certifie avoir été transporté conformément à ma demande." },
+    },
+
+    // ── PART C : Documents PMT attachés ──────────────────────────────────────
+    pmtDocuments: [pmtDocumentSchema],
   },
   { timestamps: true },
 );

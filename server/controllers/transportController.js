@@ -4,15 +4,20 @@
  */
 
 const mongoose = require("mongoose");
+const path      = require("path");
 const Transport = require("../models/Transport");
-const Vehicle = require("../models/Vehicle");
-const Patient = require("../models/Patient");
+const Notification = require("../models/Notification");
+const Vehicle   = require("../models/Vehicle");
+const Patient   = require("../models/Patient");
 const lifecycle = require("../services/transportLifecycle");
 const { audit } = require("../services/auditService");
 const { TransportStateMachine } = require("../services/transportStateMachine");
 const recurrenceService = require("../services/recurrenceService");
-const tarifService = require("../services/tarifService");
+const tarifService      = require("../services/tarifService");
 const { geocodeTransport } = require("../utils/geocodeUtils");
+const { generateMissionPdf } = require("../services/missionPdfService");
+const transportNotif    = require("../services/transportNotificationService");
+const { fileUrl: resolveFileUrl } = require("../middleware/upload");
 
 const logger = (() => {
   try { return require("../utils/logger"); } catch { return console; }
@@ -817,6 +822,178 @@ function _handleErr(res, next, e) {
   return next(e);
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// PART A — GET /api/transports/:id/timeline
+// ══════════════════════════════════════════════════════════════════════════════
+const getTimeline = async (req, res, next) => {
+  try {
+    const timeline = await lifecycle.getTransportTimeline(req.params.id);
+    res.json({ success: true, timeline });
+  } catch (e) { _handleErr(res, next, e); }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PART B — POST /api/transports/:id/signature
+// ══════════════════════════════════════════════════════════════════════════════
+const addSignature = async (req, res, next) => {
+  try {
+    const { signedByName, signatureBase64, consentText } = req.body;
+
+    if (!signedByName?.trim()) {
+      return res.status(400).json({ success: false, message: "Le nom du signataire est requis", code: "MISSING_SIGNER_NAME" });
+    }
+
+    // Si un fichier a été uploadé via multer, l'utiliser en priorité
+    let signatureImageUrl = "";
+    if (req.file) {
+      signatureImageUrl = resolveFileUrl(req, `signatures/${req.file.filename}`);
+    }
+
+    const { transport } = await lifecycle.addSignature(
+      req.params.id,
+      { signedByName, signatureBase64: signatureBase64 || "", signatureImageUrl, consentText },
+      req.user,
+    );
+
+    // Notification best-effort
+    transportNotif.notifySignatureAdded(transport).catch(() => {});
+
+    res.json({ success: true, message: "Signature enregistrée avec succès", proofOfCare: transport.proofOfCare });
+  } catch (e) {
+    if (e.message?.includes("Signature impossible") || e.message?.includes("déjà une signature"))
+      return res.status(422).json({ success: false, message: e.message, code: "SIGNATURE_NOT_ALLOWED" });
+    if (e.message?.includes("taille maximale"))
+      return res.status(413).json({ success: false, message: e.message, code: "FILE_TOO_LARGE" });
+    _handleErr(res, next, e);
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PART C — POST /api/transports/:id/pmt
+// ══════════════════════════════════════════════════════════════════════════════
+const uploadPmt = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Fichier requis (champ 'file')", code: "MISSING_FILE" });
+    }
+
+    const relPath = `pmt/${req.file.filename}`;
+    const url     = resolveFileUrl(req, relPath);
+    const triggerOcr = req.body.triggerOcr === "true" || req.body.triggerOcr === true;
+
+    const { transport } = await lifecycle.uploadPmtDocument(req.params.id, {
+      fileUrl:    url,
+      fileName:   req.file.originalname,
+      uploadedBy: req.user._id,
+      triggerOcr,
+    });
+
+    transportNotif.notifyPmtUploaded(transport, req.file.originalname).catch(() => {});
+
+    const addedDoc = transport.pmtDocuments[transport.pmtDocuments.length - 1];
+    res.status(201).json({ success: true, message: "PMT ajoutée avec succès", document: addedDoc });
+  } catch (e) { _handleErr(res, next, e); }
+};
+
+// GET /api/transports/:id/pmt
+const getPmt = async (req, res, next) => {
+  try {
+    const transport = await Transport.findById(req.params.id).select("pmtDocuments numero");
+    if (!transport) return res.status(404).json({ success: false, message: "Transport introuvable" });
+    res.json({ success: true, documents: transport.pmtDocuments || [] });
+  } catch (e) { _handleErr(res, next, e); }
+};
+
+// DELETE /api/transports/:id/pmt/:docId
+const deletePmt = async (req, res, next) => {
+  try {
+    await lifecycle.deletePmtDocument(req.params.id, req.params.docId, req.user);
+    res.json({ success: true, message: "Document PMT supprimé" });
+  } catch (e) {
+    if (e.message?.includes("introuvable"))
+      return res.status(404).json({ success: false, message: e.message });
+    _handleErr(res, next, e);
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PART D — GET /api/transports/:id/pdf
+// ══════════════════════════════════════════════════════════════════════════════
+const exportPdf = async (req, res, next) => {
+  try {
+    // Contrôle d'accès : admin, dispatcher, superviseur, ou chauffeur assigné
+    const transport = await Transport.findById(req.params.id).select("chauffeur patientId");
+    if (!transport) return res.status(404).json({ success: false, message: "Transport introuvable" });
+
+    const user   = req.user;
+    const isStaff = ["admin", "dispatcher", "superviseur"].includes(user.role);
+    const isDriver = transport.chauffeur?.toString() === user._id?.toString();
+    const isPatient = transport.patientId?.toString() === user._id?.toString();
+
+    if (!isStaff && !isDriver && !isPatient) {
+      return res.status(403).json({ success: false, message: "Accès non autorisé à ce document", code: "FORBIDDEN" });
+    }
+
+    const pdfBuffer = await generateMissionPdf(req.params.id);
+    const numero    = transport.numero || req.params.id;
+
+    res.set({
+      "Content-Type":        "application/pdf",
+      "Content-Disposition": `attachment; filename="mission_${numero}.pdf"`,
+      "Content-Length":      pdfBuffer.length,
+    });
+    res.send(pdfBuffer);
+  } catch (e) { _handleErr(res, next, e); }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PART E — GET /api/transports/notifications
+// ══════════════════════════════════════════════════════════════════════════════
+const getNotifications = async (req, res, next) => {
+  try {
+    const user   = req.user;
+    const limit  = Math.min(50, parseInt(req.query.limit) || 20);
+    const onlyUnread = req.query.unread === "true";
+
+    const query = {
+      $or: [
+        { recipientId:   user._id   },
+        { recipientRole: user.role  },
+      ],
+    };
+    if (onlyUnread) query.read = false;
+
+    const notifications = await Notification.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    const unreadCount = await Notification.countDocuments({ ...query, read: false });
+
+    res.json({ success: true, notifications, unreadCount });
+  } catch (e) { _handleErr(res, next, e); }
+};
+
+// PATCH /api/transports/notifications/:id/read
+const markNotificationRead = async (req, res, next) => {
+  try {
+    await Notification.findByIdAndUpdate(req.params.id, { read: true, readAt: new Date() });
+    res.json({ success: true, message: "Notification marquée comme lue" });
+  } catch (e) { _handleErr(res, next, e); }
+};
+
+// PATCH /api/transports/notifications/read-all
+const markAllNotificationsRead = async (req, res, next) => {
+  try {
+    const user = req.user;
+    await Notification.updateMany(
+      { $or: [{ recipientId: user._id }, { recipientRole: user.role }], read: false },
+      { $set: { read: true, readAt: new Date() } },
+    );
+    res.json({ success: true, message: "Toutes les notifications marquées comme lues" });
+  } catch (e) { _handleErr(res, next, e); }
+};
+
 module.exports = {
   getTransports,
   getStats,
@@ -845,4 +1022,18 @@ module.exports = {
   paid,
   fail,
   facturer,
+  // PART A
+  getTimeline,
+  // PART B
+  addSignature,
+  // PART C
+  uploadPmt,
+  getPmt,
+  deletePmt,
+  // PART D
+  exportPdf,
+  // PART E
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
 };
