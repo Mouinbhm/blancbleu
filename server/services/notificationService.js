@@ -1,265 +1,346 @@
 /**
- * BlancBleu — Service de Notifications
+ * BlancBleu — Service central de Notifications
  *
- * Envoie des notifications email automatiques pour les événements critiques :
- *   - Intervention P1 créée
- *   - Plan NOVI déclenché (≥5 victimes)
- *   - Carburant critique (≤10%)
- *   - Escalade EMERGENCY non résolue après N minutes
+ * Combine persistance MongoDB + émission Socket.IO temps réel.
+ * Un utilisateur hors-ligne retrouve ses notifications après reconnexion.
  *
- * Utilise nodemailer (déjà dans les dépendances)
- * Throttling intégré — pas plus d'1 email / 5 min par type d'événement
+ * ANCIENNE RESPONSABILITÉ (emails P1/NOVI) → conservée dans emailAlertService.js
+ * Ce fichier est désormais le hub central de toutes les notifications in-app.
  */
 
-const nodemailer = require("nodemailer");
-const logger = require("../utils/logger");
+const Notification  = require("../models/Notification");
+const socketService = require("./socketService");
+const logger = (() => { try { return require("../utils/logger"); } catch { return console; } })();
 
-// ─── Configuration transporter ────────────────────────────────────────────────
-let _transporter = null;
+// ══════════════════════════════════════════════════════════════════════════════
+// FONCTION CENTRALE : createNotification
+// ══════════════════════════════════════════════════════════════════════════════
 
-function getTransporter() {
-  if (_transporter) return _transporter;
+/**
+ * Crée une notification persistante et tente une émission Socket.IO temps réel.
+ * deliveredRealtime = true si l'utilisateur est connecté au moment de l'émission.
+ */
+async function createNotification(data) {
+  const {
+    recipientId,
+    recipientRole,
+    recipientType,
+    senderId,
+    senderRole,
+    type,
+    title,
+    message,
+    entityType,
+    entityId,
+    transportId,
+    patientId,
+    vehicleId,
+    invoiceId,
+    priority = "NORMAL",
+    channel  = "IN_APP",
+    metadata = {},
+  } = data;
 
-  if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER) {
-    logger.warn(
-      "Notifications email désactivées — EMAIL_HOST ou EMAIL_USER manquant",
-    );
-    return null;
-  }
+  let deliveredRealtime = false;
+  const io = socketService.getIO?.();
 
-  _transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: parseInt(process.env.EMAIL_PORT) || 587,
-    secure: process.env.EMAIL_PORT === "465",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+  const notifPayload = {
+    type,
+    title,
+    message,
+    entityType,
+    entityId,
+    transportId,
+    patientId,
+    vehicleId,
+    invoiceId,
+    priority,
+    metadata,
+    createdAt: new Date(),
+  };
 
-  return _transporter;
-}
-
-// ─── Throttling — éviter le spam email ───────────────────────────────────────
-const _throttleMap = new Map();
-const THROTTLE_TTL = 5 * 60 * 1000; // 5 minutes
-
-function _isThrottled(key) {
-  const last = _throttleMap.get(key);
-  if (!last) return false;
-  return Date.now() - last < THROTTLE_TTL;
-}
-
-function _markSent(key) {
-  _throttleMap.set(key, Date.now());
-}
-
-// ─── Destinataires superviseurs ────────────────────────────────────────────────
-function getDestinatairesSuperviseurs() {
-  const emails = process.env.SUPERVISEUR_EMAILS || process.env.ADMIN_EMAIL;
-  if (!emails) return [];
-  return emails
-    .split(",")
-    .map((e) => e.trim())
-    .filter(Boolean);
-}
-
-// ─── Envoi générique ──────────────────────────────────────────────────────────
-async function envoyerEmail({ to, subject, html }) {
-  const transporter = getTransporter();
-  if (!transporter) return false;
-
-  if (!to || to.length === 0) {
-    logger.warn("Notification ignorée — aucun destinataire configuré");
-    return false;
+  // Tenter l'émission temps réel avant la persistance
+  if (io) {
+    if (recipientId) {
+      io.to(`user:${recipientId}`).emit("notification:new", notifPayload);
+      deliveredRealtime = true;
+    }
+    if (recipientRole) {
+      io.to(`role:${recipientRole}`).emit("notification:new", notifPayload);
+      deliveredRealtime = true;
+    }
   }
 
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || "BlancBleu <noreply@blancbleu.fr>",
-      to: Array.isArray(to) ? to.join(",") : to,
-      subject,
-      html,
+    const notif = await Notification.create({
+      recipientId:       recipientId  || null,
+      recipientRole:     recipientRole || null,
+      recipientType:     recipientType || null,
+      senderId:          senderId      || null,
+      senderRole:        senderRole    || null,
+      type,
+      title,
+      message:           message || "",
+      entityType:        entityType || null,
+      entityId:          entityId   || null,
+      transportId:       transportId || null,
+      patientId:         patientId   || null,
+      vehicleId:         vehicleId   || null,
+      invoiceId:         invoiceId   || null,
+      priority,
+      channel,
+      deliveredRealtime,
+      deliveredAt:       deliveredRealtime ? new Date() : null,
+      metadata,
     });
-    logger.info("Email notification envoyé", { subject, to });
-    return true;
+    return notif;
   } catch (err) {
-    logger.error("Erreur envoi notification", { err: err.message, subject });
-    return false;
+    logger.warn("[NotifService] Persistance échouée", { err: err.message, type });
+    return null;
   }
 }
 
-// ─── Template HTML commun ─────────────────────────────────────────────────────
-function templateEmail(titre, couleur, contenu, actions = []) {
-  const actionBtns = actions
-    .map(
-      (a) =>
-        `<a href="${a.url}" style="display:inline-block;margin:4px 8px 4px 0;padding:8px 16px;background:${couleur};color:#fff;text-decoration:none;border-radius:6px;font-size:13px">${a.label}</a>`,
-    )
-    .join("");
-
-  return `
-    <!DOCTYPE html><html><head><meta charset="utf-8"></head>
-    <body style="font-family:sans-serif;background:#f5f5f5;margin:0;padding:20px">
-      <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)">
-        <div style="background:${couleur};padding:20px 24px">
-          <div style="color:#fff;font-size:11px;font-weight:600;letter-spacing:.05em;opacity:.8">BLANCBLEU — ALERTE</div>
-          <div style="color:#fff;font-size:20px;font-weight:600;margin-top:4px">${titre}</div>
-        </div>
-        <div style="padding:24px">
-          ${contenu}
-          ${actionBtns ? `<div style="margin-top:20px">${actionBtns}</div>` : ""}
-        </div>
-        <div style="background:#f9f9f9;padding:12px 24px;border-top:1px solid #eee;font-size:11px;color:#999">
-          BlancBleu — ${new Date().toLocaleString("fr-FR")} · Email automatique, ne pas répondre.
-        </div>
-      </div>
-    </body></html>
-  `;
+// ── Émettre le compteur non-lu à un utilisateur ───────────────────────────────
+async function _emitUnreadCount(userId) {
+  if (!userId) return;
+  try {
+    const count = await Notification.countDocuments({
+      recipientId: userId,
+      read: false,
+      archived: false,
+    });
+    socketService.emitToUser?.(userId, "notification:unread_count", { count });
+  } catch { /* silencieux */ }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// NOTIFICATIONS SPÉCIFIQUES
+// HELPERS : notifier par cible
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function notifyUser(userId, notificationData) {
+  return createNotification({ ...notificationData, recipientId: userId });
+}
+
+async function notifyRole(role, notificationData) {
+  return createNotification({ ...notificationData, recipientRole: role });
+}
+
+async function notifyAdmins(notificationData) {
+  return createNotification({ ...notificationData, recipientRole: "admin" });
+}
+
+async function notifyDispatchers(notificationData) {
+  return createNotification({ ...notificationData, recipientRole: "dispatcher" });
+}
+
+async function notifyPatient(patientId, notificationData) {
+  return createNotification({
+    ...notificationData,
+    recipientId:   patientId,
+    recipientType: "patient",
+    patientId,
+  });
+}
+
+async function notifyDriver(driverId, notificationData) {
+  // Les chauffeurs sont dans Personnel, pas User — on cible la room driver:{driverId}
+  const io = socketService.getIO?.();
+  if (io) {
+    io.to(`driver:${driverId}`).emit("notification:new", {
+      ...notificationData,
+      createdAt: new Date(),
+    });
+  }
+  // Persistance avec recipientId = driverId (même si c'est un Personnel id)
+  return createNotification({
+    ...notificationData,
+    recipientId:   driverId,
+    recipientType: "personnel",
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LECTURE / GESTION
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Notification intervention P1 critique
+ * Récupère les notifications d'un utilisateur avec filtres.
  */
-async function notifierInterventionP1(intervention) {
-  const key = `p1-${intervention._id}`;
-  if (_isThrottled(key)) return;
+async function getUserNotifications(user, filters = {}) {
+  const { read, type, priority, page = 1, limit = 20 } = filters;
 
-  const appUrl = process.env.CLIENT_URL || "http://localhost:3000";
-  const html = templateEmail(
-    "Intervention P1 — Urgence critique",
-    "#dc2626",
-    `
-      <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <tr><td style="padding:6px 0;color:#666;width:140px">Numéro</td><td style="padding:6px 0;font-weight:600">${intervention.numero}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Type</td><td style="padding:6px 0">${intervention.typeIncident}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Adresse</td><td style="padding:6px 0">${intervention.adresse}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Patient</td><td style="padding:6px 0">${intervention.patient?.etat || "inconnu"} · ${intervention.patient?.nbVictimes || 1} victime(s)</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Heure</td><td style="padding:6px 0">${new Date(intervention.heureCreation).toLocaleTimeString("fr-FR")}</td></tr>
-      </table>
-      <div style="margin-top:16px;padding:12px;background:#fef2f2;border-left:3px solid #dc2626;border-radius:0 4px 4px 0;font-size:13px;color:#991b1b">
-        Déploiement SMUR prioritaire requis — intervention IMMÉDIATE
-      </div>
-    `,
-    [{ label: "Voir l'intervention", url: `${appUrl}/interventions` }],
-  );
+  const query = { archived: false };
 
-  const sent = await envoyerEmail({
-    to: getDestinatairesSuperviseurs(),
-    subject: `🚨 P1 — ${intervention.typeIncident} — ${intervention.adresse}`,
-    html,
-  });
+  if (user.role === "admin" || user.role === "superviseur") {
+    query.$or = [
+      { recipientId: user._id },
+      { recipientRole: user.role },
+      { recipientRole: "admin" },
+    ];
+  } else if (user.role === "dispatcher") {
+    query.$or = [
+      { recipientId: user._id },
+      { recipientRole: "dispatcher" },
+      { recipientRole: "admin" },
+    ];
+  } else if (user.role === "patient") {
+    query.recipientId = user._id;
+  } else {
+    // comptable, autres
+    query.$or = [
+      { recipientId: user._id },
+      { recipientRole: user.role },
+    ];
+  }
 
-  if (sent) _markSent(key);
+  if (read !== undefined) query.read = read === "true" || read === true;
+  if (type) query.type = type;
+  if (priority) query.priority = priority;
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const [notifications, total] = await Promise.all([
+    Notification.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean(),
+    Notification.countDocuments(query),
+  ]);
+
+  return {
+    notifications,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / parseInt(limit)),
+    },
+  };
 }
 
 /**
- * Notification plan NOVI (≥5 victimes)
+ * Nombre de notifications non lues pour un utilisateur.
  */
-async function notifierPlanNOVI(intervention, nbVictimes) {
-  const key = `novi-${intervention._id}`;
-  if (_isThrottled(key)) return;
+async function getUnreadCount(user) {
+  const query = { read: false, archived: false };
 
-  const unitesRequises = Math.ceil(nbVictimes / 3);
-  const appUrl = process.env.CLIENT_URL || "http://localhost:3000";
+  if (user.role === "admin" || user.role === "superviseur") {
+    query.$or = [
+      { recipientId: user._id },
+      { recipientRole: { $in: ["admin", user.role] } },
+    ];
+  } else if (user.role === "dispatcher") {
+    query.$or = [
+      { recipientId: user._id },
+      { recipientRole: { $in: ["dispatcher", "admin"] } },
+    ];
+  } else {
+    query.$or = [
+      { recipientId: user._id },
+      { recipientRole: user.role },
+    ];
+  }
 
-  const html = templateEmail(
-    `Plan NOVI — ${nbVictimes} victimes`,
-    "#7c3aed",
-    `
-      <div style="font-size:14px;margin-bottom:16px">
-        Un incident à victimes multiples nécessite l'activation du plan NOVI.
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <tr><td style="padding:6px 0;color:#666;width:140px">Numéro</td><td style="padding:6px 0;font-weight:600">${intervention.numero}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Victimes</td><td style="padding:6px 0;font-weight:600;color:#dc2626">${nbVictimes} victimes</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Adresse</td><td style="padding:6px 0">${intervention.adresse}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Unités requises</td><td style="padding:6px 0">${unitesRequises} unités minimum</td></tr>
-      </table>
-      <div style="margin-top:16px;padding:12px;background:#f5f3ff;border-left:3px solid #7c3aed;border-radius:0 4px 4px 0;font-size:13px;color:#5b21b6">
-        Actions requises : Mobiliser ${unitesRequises} unités · Prévenir CHU · Activer plan rouge
-      </div>
-    `,
-    [{ label: "Gérer l'intervention", url: `${appUrl}/interventions` }],
-  );
-
-  const sent = await envoyerEmail({
-    to: getDestinatairesSuperviseurs(),
-    subject: `🚨 PLAN NOVI — ${nbVictimes} victimes — ${intervention.adresse}`,
-    html,
-  });
-
-  if (sent) _markSent(key);
+  return Notification.countDocuments(query);
 }
 
 /**
- * Notification carburant critique
+ * Marquer une notification comme lue.
  */
-async function notifierCarburantCritique(unite) {
-  const key = `fuel-${unite._id}`;
-  if (_isThrottled(key)) return;
+async function markAsRead(notificationId, user) {
+  const notif = await Notification.findById(notificationId);
+  if (!notif) throw new Error("Notification introuvable");
 
-  const niveau = unite.carburant <= 10 ? "CRITIQUE" : "BAS";
-  const couleur = unite.carburant <= 10 ? "#dc2626" : "#d97706";
+  const isOwner = (notif.recipientId && String(notif.recipientId) === String(user._id))
+    || notif.recipientRole === user.role
+    || ["admin", "superviseur"].includes(user.role);
 
-  const html = templateEmail(
-    `Carburant ${niveau} — ${unite.nom}`,
-    couleur,
-    `
-      <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <tr><td style="padding:6px 0;color:#666;width:140px">Unité</td><td style="padding:6px 0;font-weight:600">${unite.nom}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Type</td><td style="padding:6px 0">${unite.type}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Carburant</td><td style="padding:6px 0;font-weight:600;color:${couleur}">${unite.carburant.toFixed(1)}%</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Kilométrage</td><td style="padding:6px 0">${unite.kilometrage} km</td></tr>
-      </table>
-    `,
-  );
+  if (!isOwner) throw new Error("Accès refusé");
 
-  const sent = await envoyerEmail({
-    to: getDestinatairesSuperviseurs(),
-    subject: `⛽ Carburant ${niveau} — ${unite.nom} (${unite.carburant.toFixed(1)}%)`,
-    html,
-  });
+  notif.read   = true;
+  notif.readAt = new Date();
+  await notif.save();
 
-  if (sent) _markSent(key);
+  setImmediate(() => _emitUnreadCount(user._id));
+  return notif;
 }
 
 /**
- * Notification escalade EMERGENCY sans réponse
+ * Marquer toutes les notifications d'un utilisateur comme lues.
  */
-async function notifierEscaladeUrgence(intervention, alerte) {
-  const key = `escalade-${intervention._id}-${alerte.code}`;
-  if (_isThrottled(key)) return;
+async function markAllAsRead(user) {
+  const query = { read: false, archived: false };
 
-  const html = templateEmail(
-    `Escalade URGENCE — ${alerte.code}`,
-    "#ea580c",
-    `
-      <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <tr><td style="padding:6px 0;color:#666;width:140px">Intervention</td><td style="padding:6px 0;font-weight:600">${intervention.numero}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Priorité</td><td style="padding:6px 0">${intervention.priorite}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Alerte</td><td style="padding:6px 0">${alerte.message}</td></tr>
-        <tr><td style="padding:6px 0;color:#666">Action requise</td><td style="padding:6px 0;color:#dc2626;font-weight:600">${alerte.action}</td></tr>
-      </table>
-    `,
-  );
+  if (user.role === "admin" || user.role === "superviseur") {
+    query.$or = [
+      { recipientId: user._id },
+      { recipientRole: { $in: ["admin", user.role] } },
+    ];
+  } else if (user.role === "dispatcher") {
+    query.$or = [
+      { recipientId: user._id },
+      { recipientRole: { $in: ["dispatcher", "admin"] } },
+    ];
+  } else {
+    query.$or = [
+      { recipientId: user._id },
+      { recipientRole: user.role },
+    ];
+  }
 
-  const sent = await envoyerEmail({
-    to: getDestinatairesSuperviseurs(),
-    subject: `⚠️ Escalade — ${alerte.code} — ${intervention.numero}`,
-    html,
+  const result = await Notification.updateMany(query, {
+    $set: { read: true, readAt: new Date() },
   });
 
-  if (sent) _markSent(key);
+  setImmediate(() => _emitUnreadCount(user._id));
+  return result.modifiedCount;
+}
+
+/**
+ * Archiver une notification.
+ */
+async function archiveNotification(notificationId, user) {
+  const notif = await Notification.findById(notificationId);
+  if (!notif) throw new Error("Notification introuvable");
+
+  const isOwner = (notif.recipientId && String(notif.recipientId) === String(user._id))
+    || notif.recipientRole === user.role
+    || ["admin", "superviseur"].includes(user.role);
+
+  if (!isOwner) throw new Error("Accès refusé");
+
+  notif.archived   = true;
+  notif.archivedAt = new Date();
+  await notif.save();
+  return notif;
+}
+
+/**
+ * Supprimer une notification (admin uniquement ou propriétaire).
+ */
+async function deleteNotification(notificationId, user) {
+  const notif = await Notification.findById(notificationId);
+  if (!notif) throw new Error("Notification introuvable");
+
+  const canDelete = user.role === "admin"
+    || (notif.recipientId && String(notif.recipientId) === String(user._id));
+
+  if (!canDelete) throw new Error("Accès refusé");
+  await notif.deleteOne();
 }
 
 module.exports = {
-  notifierInterventionP1,
-  notifierPlanNOVI,
-  notifierCarburantCritique,
-  notifierEscaladeUrgence,
+  createNotification,
+  notifyUser,
+  notifyRole,
+  notifyAdmins,
+  notifyDispatchers,
+  notifyPatient,
+  notifyDriver,
+  markAsRead,
+  markAllAsRead,
+  getUserNotifications,
+  getUnreadCount,
+  archiveNotification,
+  deleteNotification,
 };

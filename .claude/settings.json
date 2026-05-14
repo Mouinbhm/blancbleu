@@ -105,7 +105,8 @@
       "Bash(Test-Path \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\\\\server\\\\services\\\\transportStateMachine.js\")",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\\\\server\\\\services\" -File)",
       "Bash(Select-Object -ExpandProperty Name)",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\" -Directory)"
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\" -Directory)",
+      "Bash(dir \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\MSI\\.claude\\projects\\c--Users-MSI-OneDrive-Bureau-PFE-blancbleu\\memory",

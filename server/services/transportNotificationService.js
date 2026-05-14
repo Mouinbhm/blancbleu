@@ -201,9 +201,133 @@ async function notifyPmtUploaded(transport, fileName) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// NOUVEAU : Chauffeur assigné
+// ══════════════════════════════════════════════════════════════════════════════
+async function notifyDriverAssigned(transport, driverId) {
+  const patient = [transport.patient?.nom, transport.patient?.prenom].filter(Boolean).join(" ");
+
+  // Notifier le chauffeur (via room driver:{id})
+  const io = socketService.getIO?.();
+  const driverPayload = {
+    type:         "DRIVER_ASSIGNED",
+    title:        "Nouvelle mission assignée",
+    message:      `Mission pour ${patient} — Transport ${transport.numero}`,
+    transportId:  transport._id,
+    transportNum: transport.numero,
+    icon:         "🚑",
+    priority:     "HIGH",
+    createdAt:    new Date(),
+  };
+  if (io && driverId) {
+    io.to(`driver:${driverId}`).emit("notification:new", driverPayload);
+  }
+  await _persist({ recipientId: driverId, type: "DRIVER_ASSIGNED", title: driverPayload.title, message: driverPayload.message, transportId: transport._id });
+
+  // Notifier le patient
+  if (transport.patientId) {
+    const patientPayload = {
+      type:        "TRANSPORT_ASSIGNED",
+      title:       "Transport assigné",
+      message:     `Votre transport ${transport.numero} a été assigné à un chauffeur.`,
+      transportId: transport._id,
+      icon:        "🚐",
+      priority:    "NORMAL",
+      createdAt:   new Date(),
+    };
+    if (io) io.to(`patient:${transport.patientId}`).emit("notification:new", patientPayload);
+    await _persist({ recipientId: transport.patientId, type: "TRANSPORT_ASSIGNED", title: patientPayload.title, message: patientPayload.message, transportId: transport._id });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NOUVEAU : Facture prête
+// ══════════════════════════════════════════════════════════════════════════════
+async function notifyInvoiceReady(facture, patientId) {
+  const type    = "INVOICE_READY";
+  const title   = "Facture disponible";
+  const message = `Votre facture ${facture.numero || facture._id} est disponible. Montant : ${facture.montantTotal ?? facture.montant ?? '—'} €`;
+
+  const io = socketService.getIO?.();
+
+  // Patient
+  if (patientId) {
+    if (io) io.to(`patient:${patientId}`).emit("notification:new", { type, title, message, invoiceId: facture._id, icon: "🧾", priority: "NORMAL", createdAt: new Date() });
+    await _persist({ recipientId: patientId, type, title, message, metadata: { invoiceId: facture._id } });
+  }
+
+  // Admin / comptable
+  if (io) {
+    const adminPayload = { type, title: "Nouvelle facture créée", message: `Facture ${facture.numero || facture._id} prête`, icon: "🧾", priority: "NORMAL", createdAt: new Date() };
+    io.to("role:admin").emit("notification:new", adminPayload);
+    io.to("role:comptable").emit("notification:new", adminPayload);
+  }
+  await Promise.all([
+    _persist({ recipientRole: "admin",     type, title: "Nouvelle facture créée", message: `Facture ${facture.numero || facture._id} prête`, metadata: { invoiceId: facture._id } }),
+    _persist({ recipientRole: "comptable", type, title: "Nouvelle facture créée", message: `Facture ${facture.numero || facture._id} prête`, metadata: { invoiceId: facture._id } }),
+  ]);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NOUVEAU : Alerte retard
+// ══════════════════════════════════════════════════════════════════════════════
+async function notifyDelayAlert(transport, retardMinutes) {
+  const type    = "DELAY_ALERT";
+  const title   = "Alerte retard";
+  const message = `Transport ${transport.numero} en retard de ${retardMinutes} minute(s).`;
+
+  const io = socketService.getIO?.();
+  const payload = { type, title, message, transportId: transport._id, icon: "⚠️", priority: "HIGH", createdAt: new Date() };
+
+  if (io) {
+    io.to("role:admin").to("role:dispatcher").emit("notification:new", payload);
+    if (transport.patientId) io.to(`patient:${transport.patientId}`).emit("notification:new", payload);
+  }
+
+  await Promise.all([
+    _persist({ recipientRole: "admin",      type, title, message, transportId: transport._id, metadata: { retardMinutes } }),
+    _persist({ recipientRole: "dispatcher", type, title, message, transportId: transport._id, metadata: { retardMinutes } }),
+    transport.patientId
+      ? _persist({ recipientId: transport.patientId, type, title, message, transportId: transport._id, metadata: { retardMinutes } })
+      : Promise.resolve(),
+  ]);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NOUVEAU : Résultat paiement
+// ══════════════════════════════════════════════════════════════════════════════
+async function notifyPaymentResult(facture, patientId, succeeded) {
+  const type    = succeeded ? "PAYMENT_SUCCEEDED" : "PAYMENT_FAILED";
+  const title   = succeeded ? "Paiement confirmé" : "Paiement échoué";
+  const message = succeeded
+    ? `Votre paiement de ${facture.montantTotal ?? facture.montant ?? '—'} € a été confirmé.`
+    : `Votre paiement a échoué. Veuillez réessayer ou contacter le support.`;
+
+  const io = socketService.getIO?.();
+
+  if (patientId) {
+    const payload = { type, title, message, invoiceId: facture._id, icon: succeeded ? "💰" : "❌", priority: succeeded ? "NORMAL" : "HIGH", createdAt: new Date() };
+    if (io) io.to(`patient:${patientId}`).emit("notification:new", payload);
+    await _persist({ recipientId: patientId, type, title, message, metadata: { invoiceId: facture._id, succeeded } });
+  }
+
+  // Admin / comptable
+  const adminMsg = succeeded
+    ? `Paiement reçu — Facture ${facture.numero || facture._id}`
+    : `Paiement échoué — Facture ${facture.numero || facture._id}`;
+  await Promise.all([
+    _persist({ recipientRole: "admin",     type, title: adminMsg, message: adminMsg, metadata: { invoiceId: facture._id } }),
+    _persist({ recipientRole: "comptable", type, title: adminMsg, message: adminMsg, metadata: { invoiceId: facture._id } }),
+  ]);
+}
+
 module.exports = {
   notifyStatusChanged,
   notifyTransportCreated,
+  notifyDriverAssigned,
+  notifyInvoiceReady,
+  notifyDelayAlert,
+  notifyPaymentResult,
   notifySignatureAdded,
   notifyPmtUploaded,
 };

@@ -29,6 +29,7 @@ import Utilisateurs from "./pages/Utilisateurs";
 import ForceChangePassword from "./pages/ForceChangePassword";
 import SuiviEnDirect from "./pages/SuiviEnDirect";
 import Shifts from "./pages/Shifts";
+import Notifications from "./pages/Notifications";
 
 function App() {
   return (
@@ -71,6 +72,7 @@ function App() {
             <Route path="/utilisateurs" element={<Utilisateurs />} />
             <Route path="/suivi-en-direct" element={<SuiviEnDirect />} />
             <Route path="/shifts" element={<Shifts />} />
+            <Route path="/notifications" element={<Notifications />} />
           </Route>
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

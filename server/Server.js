@@ -127,6 +127,7 @@ app.use("/api/payments", require("./routes/payments"));
 app.use("/api/comptabilite", require("./routes/comptabilite"));
 app.use("/api/analytics", require("./routes/analytics"));
 app.use("/api/planning", require("./routes/planning"));
+app.use("/api/notifications", require("./routes/notifications"));
 if (process.env.NODE_ENV !== "production") {
   app.use("/api/demo", require("./routes/demo"));
 }
@@ -171,6 +172,7 @@ module.exports = app;
 // ── Nettoyage des véhicules bloqués ──────────────────────────────────────────
 // Délégué à vehicleCleanupService pour séparation des responsabilités.
 const { nettoyerVehiculesBloqués } = require("./services/vehicleCleanupService");
+const { runCleanup: notifCleanup } = require("./services/notificationCleanupService");
 
 // ── Migration one-shot : normalise les valeurs de statut ──────────────────────
 async function migrateStatuts() {
@@ -230,6 +232,13 @@ if (require.main === module) {
           }),
         );
       }, 60 * 60 * 1000);
+
+      // Nettoyage notifications 1x/jour
+      setInterval(() => {
+        notifCleanup().catch((err) =>
+          logger.warn("Nettoyage notifications échoué", { err: err.message }),
+        );
+      }, 24 * 60 * 60 * 1000);
 
       server.listen(PORT, () => {
         logger.info(`BlancBleu Transport démarré`, { port: PORT });

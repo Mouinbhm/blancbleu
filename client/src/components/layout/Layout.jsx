@@ -2,8 +2,8 @@
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { transportService } from "../../services/api";
 import useSocket from "../../hooks/useSocket";
+import useNotifications from "../../hooks/useNotifications";
 import DispatcherChat from "./DispatcherChat";
 import api from "../../services/api";
 
@@ -18,6 +18,7 @@ const NAV_OPERATIONS = [
 ];
 
 const NAV_GESTION = [
+  { path: "/notifications", icon: "notifications", label: "Notifications" },
   { path: "/flotte", icon: "airport_shuttle", label: "Flotte" },
   { path: "/personnel", icon: "badge", label: "Personnel" },
   { path: "/equipements", icon: "medical_services", label: "Équipements" },
@@ -44,8 +45,9 @@ const pageTitles = {
   "/factures": "Comptabilité — Finances & Facturation",
   "/aide-ia": "Aide IA — Optimisation",
   "/utilisateurs": "Utilisateurs — Gestion des accès",
-  "/suivi-en-direct": "Suivi en direct — Positions GPS",
-  "/shifts": "Shifts — Activité des chauffeurs",
+  "/suivi-en-direct":  "Suivi en direct — Positions GPS",
+  "/shifts":           "Shifts — Activité des chauffeurs",
+  "/notifications":    "Notifications — Historique et alertes",
 };
 
 // ── Sonnerie de notification ────────────────────────────────────────────────
@@ -84,6 +86,14 @@ export default function Layout() {
   const notifRef = useRef(null);
 
   const { connected, subscribe } = useSocket();
+  const {
+    unreadCount: notifUnreadCount,
+    notifications: notifList,
+    toasts: notifToasts,
+    markAsRead: markNotifAsRead,
+    markAllAsRead: markAllNotifsAsRead,
+    dismissToast: dismissNotifToast,
+  } = useNotifications();
 
   const removeToast = (id) =>
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -155,39 +165,20 @@ export default function Layout() {
     return () => { unsub(); unsub2(); };
   }, [subscribe]);
 
-  // ── Chargement notifications initiales ───────────────────────────────────
+  // ── Sync : notifications persistées → état local du dropdown ────────────
   useEffect(() => {
-    let cancelled = false;
-
-    const loadNotifs = async () => {
-      try {
-        const { data } = await transportService.getAll({
-          statut: "REQUESTED",
-          limit: 10,
-        });
-        if (cancelled) return;
-        const enAttente = data.transports || data.data || [];
-        const list = enAttente.map((t) => ({
-          id: String(t._id),
-          title: `${t.motif} — ${t.patient?.nom || "Patient"}`,
-          sub: `En attente de confirmation · ${t.typeTransport}`,
-          path: `/transports/${String(t._id)}`,
-          time: new Date(t.createdAt),
-        }));
-        setNotifs(list.slice(0, 8));
-        setNotifCount(list.length);
-      } catch {
-        /* silencieux */
-      }
-    };
-
-    loadNotifs();
-    const iv = setInterval(loadNotifs, 60000);
-    return () => {
-      cancelled = true;
-      clearInterval(iv);
-    };
-  }, []);
+    const list = notifList.slice(0, 8).map((n) => ({
+      id:    String(n._id),
+      title: n.title,
+      sub:   n.message,
+      path:  n.transportId ? `/transports/${n.transportId}` : "/notifications",
+      time:  new Date(n.createdAt),
+      read:  n.read,
+      _id:   n._id,
+    }));
+    setNotifs(list);
+    setNotifCount(notifUnreadCount);
+  }, [notifList, notifUnreadCount]);
 
   // ── Fermer notifs si clic en dehors ──────────────────────────────────────
   useEffect(() => {
@@ -451,20 +442,27 @@ export default function Layout() {
               {notifOpen && (
                 <div className="absolute right-0 top-11 w-80 bg-white rounded-xl shadow-xl border border-slate-200 z-50">
                   <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                    <p className="font-brand font-bold text-navy text-sm">
-                      Notifications
-                    </p>
-                    {notifCount > 0 && (
-                      <span className="bg-danger text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                        {notifCount} en attente
-                      </span>
-                    )}
+                    <p className="font-brand font-bold text-navy text-sm">Notifications</p>
+                    <div className="flex items-center gap-2">
+                      {notifCount > 0 && (
+                        <span className="bg-danger text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                          {notifCount} non lues
+                        </span>
+                      )}
+                      {notifCount > 0 && (
+                        <button
+                          onClick={() => { markAllNotifsAsRead(); }}
+                          className="text-xs text-primary hover:underline"
+                          title="Tout marquer comme lu"
+                        >
+                          Tout lire
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {notifs.length === 0 ? (
                     <div className="px-4 py-8 text-center text-slate-400 text-xs">
-                      <span className="material-symbols-outlined text-3xl block mb-2">
-                        notifications_none
-                      </span>
+                      <span className="material-symbols-outlined text-3xl block mb-2">notifications_none</span>
                       Aucune notification
                     </div>
                   ) : (
@@ -472,32 +470,31 @@ export default function Layout() {
                       <div
                         key={n.id}
                         onClick={() => {
+                          if (!n.read && n._id) markNotifAsRead(n._id);
                           navigate(n.path);
                           setNotifOpen(false);
-                          setNotifCount(0);
                         }}
-                        className="px-4 py-3 border-b border-slate-50 hover:bg-surface cursor-pointer transition-colors"
+                        className={`px-4 py-3 border-b border-slate-50 hover:bg-surface cursor-pointer transition-colors ${!n.read ? "bg-blue-50/40" : ""}`}
                       >
-                        <p className="text-xs font-bold text-navy">{n.title}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{n.sub}</p>
-                        <p className="text-xs text-slate-300 mt-0.5">
-                          {n.time.toLocaleTimeString("fr-FR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
+                        <div className="flex items-start gap-2">
+                          {!n.read && <span className="mt-1.5 w-1.5 h-1.5 bg-primary rounded-full flex-shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-bold text-navy truncate ${!n.read ? "text-primary" : ""}`}>{n.title}</p>
+                            <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.sub}</p>
+                            <p className="text-xs text-slate-300 mt-0.5">
+                              {n.time.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     ))
                   )}
-                  <div className="p-3 border-t border-slate-100">
+                  <div className="p-3 border-t border-slate-100 flex gap-2">
                     <button
-                      onClick={() => {
-                        navigate("/transports");
-                        setNotifOpen(false);
-                      }}
-                      className="w-full text-xs font-bold text-primary text-center hover:underline"
+                      onClick={() => { navigate("/notifications"); setNotifOpen(false); }}
+                      className="flex-1 text-xs font-bold text-primary text-center hover:underline"
                     >
-                      Voir tous les transports →
+                      Voir toutes les notifications →
                     </button>
                   </div>
                 </div>
@@ -569,6 +566,31 @@ export default function Layout() {
               className="h-0.5 bg-primary"
               style={{ animation: "shrinkWidth 6s linear forwards" }}
             />
+          </div>
+        ))}
+      </div>
+
+      {/* ═══════════════ TOASTS NOTIFICATIONS ═══════════════ */}
+      <div className="fixed top-20 right-4 z-[9998] flex flex-col gap-2 pointer-events-none">
+        {notifToasts.map((toast) => (
+          <div
+            key={toast.id}
+            className="pointer-events-auto w-80 bg-white rounded-xl shadow-xl border border-slate-200 border-l-4 border-l-indigo-500 overflow-hidden"
+            style={{ animation: "slideInRight 0.3s ease-out" }}
+          >
+            <div className="flex items-start gap-3 p-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-indigo-500" style={{ fontSize: "16px" }}>notifications</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-navy leading-tight truncate">{toast.notif?.title || "Nouvelle notification"}</p>
+                <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{toast.notif?.message || ""}</p>
+              </div>
+              <button onClick={() => dismissNotifToast(toast.id)} className="text-slate-300 hover:text-slate-500">
+                <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>close</span>
+              </button>
+            </div>
+            <div className="h-0.5 bg-indigo-500" style={{ animation: "shrinkWidth 7s linear forwards" }} />
           </div>
         ))}
       </div>

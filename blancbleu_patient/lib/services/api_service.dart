@@ -307,6 +307,50 @@ class ApiService {
     return data;
   }
 
+  // ── Notifications persistées ───────────────────────────────────────────────
+
+  static String get _notifBase =>
+      _base.replaceFirst('/api/patient', '/api/notifications');
+
+  /// Récupère la liste de notifications (filtres optionnels : page, limit, read).
+  static Future<Map<String, dynamic>> getNotifications({
+    int page = 1,
+    int limit = 20,
+    bool? read,
+  }) async {
+    var url = '$_notifBase?page=$page&limit=$limit';
+    if (read != null) url += '&read=$read';
+    final res = await http.get(Uri.parse(url), headers: await _headers())
+        .timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
+    return _parse(res);
+  }
+
+  /// Nombre de notifications non lues.
+  static Future<int> getUnreadNotificationCount() async {
+    final res = await http.get(
+      Uri.parse('$_notifBase/unread-count'),
+      headers: await _headers(),
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
+    final data = _parse(res);
+    return (data['count'] as num?)?.toInt() ?? 0;
+  }
+
+  /// Marquer une notification comme lue.
+  static Future<void> markNotificationAsRead(String notifId) async {
+    await http.patch(
+      Uri.parse('$_notifBase/$notifId/read'),
+      headers: await _headers(),
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
+  }
+
+  /// Marquer toutes les notifications comme lues.
+  static Future<void> markAllNotificationsAsRead() async {
+    await http.patch(
+      Uri.parse('$_notifBase/read-all'),
+      headers: await _headers(),
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
+  }
+
   // ── FCM Push notifications ─────────────────────────────────────────────────
 
   static Future<void> registerFcmToken(String token) async {

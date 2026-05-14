@@ -139,10 +139,6 @@ export const transportService = {
   deletePmt: (id, docId) => api.delete(`/transports/${id}/pmt/${docId}`),
   // PART D — PDF
   exportPdf: (id) => api.get(`/transports/${id}/pdf`, { responseType: "blob" }),
-  // PART E — Notifications
-  getNotifications: (params) => api.get("/transports/notifications", { params }),
-  markNotificationRead: (notifId) => api.patch(`/transports/notifications/${notifId}/read`),
-  markAllNotificationsRead: () => api.patch("/transports/notifications/read-all"),
 };
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -446,6 +442,18 @@ export const userService = {
   resetPassword: (id, motDePasse) =>
     api.post(`/auth/users/${id}/reset-password`, { motDePasse }),
   updatePassword: (data) => api.patch("/auth/password", data),
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ════════════════════════════════════════════════════════════════════════════
+export const notificationService = {
+  getAll:         (params = {}) => api.get("/notifications",                { params }),
+  getUnreadCount: ()            => api.get("/notifications/unread-count"),
+  markAsRead:     (id)          => api.patch(`/notifications/${id}/read`),
+  markAllAsRead:  ()            => api.patch("/notifications/read-all"),
+  archive:        (id)          => api.patch(`/notifications/${id}/archive`),
+  delete:         (id)          => api.delete(`/notifications/${id}`),
 };
 
 // ════════════════════════════════════════════════════════════════════════════

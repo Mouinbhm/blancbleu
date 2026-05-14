@@ -10,6 +10,7 @@ import '../../chat/screens/chat_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../../shared/theme/app_theme.dart';
 import '../../../shared/widgets/offline_banner.dart';
+import '../../../core/network/api_client.dart';
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -22,12 +23,106 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   DateTime _selectedDate = DateTime.now();
   int _navIndex = 0;
+  int _notifUnread = 0;
 
   @override
   void initState() {
     super.initState();
     context.read<TourneeCubit>().load(date: _selectedDate);
     context.read<ShiftCubit>().checkActive();
+    _fetchUnreadNotifications();
+  }
+
+  Future<void> _fetchUnreadNotifications() async {
+    try {
+      final res = await ApiClient.instance.getNotificationsUnreadCount();
+      if (mounted) setState(() => _notifUnread = res);
+    } catch (_) { /* non-bloquant */ }
+  }
+
+  Future<void> _showNotificationsSheet() async {
+    final notifs = await ApiClient.instance.getNotifications();
+    if (!mounted) return;
+    if (notifs.isNotEmpty) setState(() => _notifUnread = 0);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        minChildSize: 0.3,
+        builder: (ctx, ctrl) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(children: [
+            const SizedBox(height: 8),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 12),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Notifications', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const Divider(height: 20),
+            Expanded(
+              child: notifs.isEmpty
+                  ? const Center(child: Text('Aucune notification', style: TextStyle(color: Colors.grey)))
+                  : ListView.separated(
+                      controller: ctrl,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: notifs.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, i) {
+                        final n     = notifs[i];
+                        final isRead = n['read'] as bool? ?? true;
+                        return GestureDetector(
+                          onTap: () {
+                            if (!isRead) ApiClient.instance.markNotificationRead(n['_id'] as String? ?? '');
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isRead ? const Color(0xFFF9FAFB) : const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: isRead ? const Color(0xFFF0F0F0) : AppTheme.primary.withOpacity(0.3)),
+                            ),
+                            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Container(
+                                width: 36, height: 36,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primary.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.notifications_outlined, size: 18, color: AppTheme.primary),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(n['title'] as String? ?? '',
+                                    style: TextStyle(fontSize: 13, fontWeight: isRead ? FontWeight.w500 : FontWeight.w700)),
+                                if ((n['message'] as String?)?.isNotEmpty ?? false) ...[
+                                  const SizedBox(height: 2),
+                                  Text(n['message'] as String,
+                                      style: const TextStyle(fontSize: 11, color: Colors.grey), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                ],
+                              ])),
+                              if (!isRead) Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 4),
+                                  decoration: const BoxDecoration(color: AppTheme.primary, shape: BoxShape.circle)),
+                            ]),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 
   void _changeDate(int delta) {
@@ -139,6 +234,28 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
         ])),
+        // Cloche notifications
+        Stack(children: [
+          IconButton(
+            onPressed: _showNotificationsSheet,
+            icon: const Icon(Icons.notifications_outlined, size: 22),
+            color: AppTheme.secondary,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+          if (_notifUnread > 0)
+            Positioned(
+              top: 4, right: 4,
+              child: Container(
+                width: 16, height: 16,
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Text('$_notifUnread',
+                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+              ),
+            ),
+        ]),
+        const SizedBox(width: 4),
         // Date navigation arrows + label
         Row(children: [
           IconButton(

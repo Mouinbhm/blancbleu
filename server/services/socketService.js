@@ -20,6 +20,9 @@
 
 let _io = null;
 
+/** Retourne l'instance Socket.IO (utilisée par transportNotificationService) */
+function getIO() { return _io; }
+
 // ─── Salles Socket.IO par rôle ────────────────────────────────────────────────
 const ROOMS = {
   ADMINS: "role:admin",
@@ -375,8 +378,41 @@ async function _getStatsRapides() {
   }
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// HELPERS NOTIFICATIONS — émission ciblée
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Émet un événement à un utilisateur spécifique via sa room personnelle.
+ * Retourne true si l'io est disponible (émission tentée).
+ */
+function emitToUser(userId, event, payload) {
+  if (!_io || !userId) return false;
+  _io.to(`user:${userId}`).emit(event, { ...payload, timestamp: new Date() });
+  return true;
+}
+
+/**
+ * Émet un événement à tous les sockets d'un rôle donné.
+ */
+function emitToRole(role, event, payload) {
+  if (!_io || !role) return false;
+  _io.to(`role:${role}`).emit(event, { ...payload, timestamp: new Date() });
+  return true;
+}
+
+/**
+ * Émet un événement dans la room d'un transport (suivi temps réel).
+ */
+function emitToTransportRoom(transportId, event, payload) {
+  if (!_io || !transportId) return false;
+  _io.to(`transport:${transportId}`).emit(event, { ...payload, timestamp: new Date() });
+  return true;
+}
+
 module.exports = {
   init,
+  getIO,
   ROOMS,
   emitTransportCreated,
   emitTransportStatut,
@@ -390,4 +426,8 @@ module.exports = {
   emitPatientCreated,
   emitFactureUpdated,
   emitStatsUpdate,
+  // Helpers ciblés
+  emitToUser,
+  emitToRole,
+  emitToTransportRoom,
 };

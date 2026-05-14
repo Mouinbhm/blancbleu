@@ -118,6 +118,33 @@ class ApiClient {
     });
   }
 
+  // ── Notifications ─────────────────────────────────────────────────────────
+  Future<int> getNotificationsUnreadCount() async {
+    try {
+      final res = await _dio.get('${AppConstants.baseUrl}/api/notifications/unread-count');
+      final body = res.data as Map<String, dynamic>;
+      return (body['count'] as num?)?.toInt() ?? 0;
+    } catch (_) { return 0; }
+  }
+
+  Future<List<Map<String, dynamic>>> getNotifications({int page = 1, int limit = 15}) async {
+    try {
+      final res = await _dio.get(
+        '${AppConstants.baseUrl}/api/notifications',
+        queryParameters: {'page': page, 'limit': limit},
+      );
+      final body = res.data as Map<String, dynamic>;
+      final list = body['notifications'] as List<dynamic>? ?? [];
+      return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) { return []; }
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    try {
+      await _dio.patch('${AppConstants.baseUrl}/api/notifications/$id/read');
+    } catch (_) {}
+  }
+
   // ── Vehicles ──────────────────────────────────────────────────────────────
   Future<List<dynamic>> getAvailableVehicles() async {
     final res = await _dio.get('/driver/vehicles');
