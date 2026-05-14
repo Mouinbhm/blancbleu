@@ -1,10 +1,11 @@
 /**
- * BlancBleu — Prescription Controller v1.0
- * CRUD pour les Prescriptions Médicales de Transport (PMT).
+ * BlancBleu — Prescription Controller v2.0
+ * CRUD + PMT Workflow (Upload → OCR → Correction → Validation → Liaison)
  */
 const Prescription = require("../models/Prescription");
 const Patient = require("../models/Patient");
 const logger = require("../utils/logger");
+const pmtSvc = require("../services/pmtWorkflowService");
 
 const _err = (res, err, status = 500) => {
   logger.error("prescriptionController", { err: err.message });
@@ -155,5 +156,165 @@ exports.deletePrescription = async (req, res) => {
     res.json({ message: "Prescription annulée" });
   } catch (err) {
     _err(res, err);
+  }
+};
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PMT WORKFLOW
+// ════════════════════════════════════════════════════════════════════════════════
+
+// ── POST /api/prescriptions/upload ────────────────────────────────────────────
+exports.uploadPmt = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "Aucun fichier reçu" });
+
+    // Créer ou récupérer la prescription
+    let prescription;
+    if (req.body.prescriptionId) {
+      prescription = await Prescription.findOne({
+        _id: req.body.prescriptionId,
+        deletedAt: null,
+      });
+      if (!prescription)
+        return res.status(404).json({ message: "Prescription introuvable" });
+    } else {
+      // Création minimale : patientId requis
+      if (!req.body.patientId)
+        return res.status(400).json({ message: "patientId requis" });
+
+      const patient = await Patient.findOne({ _id: req.body.patientId, deletedAt: null });
+      if (!patient) return res.status(404).json({ message: "Patient introuvable" });
+
+      prescription = await Prescription.create({
+        patientId:    req.body.patientId,
+        dateEmission: new Date(),
+        motif:        req.body.motif || "Autre",
+        source:       "DISPATCHER",
+        statut:       "en_attente_validation",
+      });
+    }
+
+    const updated = await pmtSvc.uploadPmtDocument(prescription._id, req.file, req.user);
+    res.json({ message: "Document PMT téléversé — extraction OCR démarrée", prescription: updated });
+  } catch (err) {
+    _err(res, err, err.message.includes("introuvable") ? 404 : 500);
+  }
+};
+
+// ── GET /api/prescriptions/pending-validation ────────────────────────────────
+exports.getPendingValidation = async (req, res) => {
+  try {
+    const result = await pmtSvc.getPendingValidation(req.query);
+    res.json(result);
+  } catch (err) {
+    _err(res, err);
+  }
+};
+
+// ── GET /api/prescriptions/:id/ocr-result ────────────────────────────────────
+exports.getOcrResult = async (req, res) => {
+  try {
+    const prescription = await Prescription.findOne({
+      _id: req.params.id,
+      deletedAt: null,
+    }).select("numero statut ocr champsManquants confiance updatedAt");
+    if (!prescription) return res.status(404).json({ message: "Prescription introuvable" });
+    res.json(prescription);
+  } catch (err) {
+    _err(res, err);
+  }
+};
+
+// ── GET /api/prescriptions/:id/validation ────────────────────────────────────
+exports.getValidationState = async (req, res) => {
+  try {
+    const prescription = await pmtSvc.getPrescriptionForValidation(req.params.id);
+    if (!prescription) return res.status(404).json({ message: "Prescription introuvable" });
+    res.json(prescription);
+  } catch (err) {
+    _err(res, err);
+  }
+};
+
+// ── PATCH /api/prescriptions/:id/correct ─────────────────────────────────────
+exports.correctPrescription = async (req, res) => {
+  try {
+    const { donneesCorrigees, notes } = req.body;
+    if (!donneesCorrigees)
+      return res.status(400).json({ message: "donneesCorrigees requis" });
+    const prescription = await pmtSvc.correctExtractedFields(
+      req.params.id,
+      donneesCorrigees,
+      req.user,
+      notes,
+    );
+    res.json(prescription);
+  } catch (err) {
+    _err(res, err, err.message.includes("introuvable") ? 404 : 500);
+  }
+};
+
+// ── PATCH /api/prescriptions/:id/validate ────────────────────────────────────
+exports.validatePmt = async (req, res) => {
+  try {
+    const prescription = await pmtSvc.validatePrescription(
+      req.params.id,
+      req.user,
+      req.body.contenuFinal || null,
+    );
+    res.json(prescription);
+  } catch (err) {
+    const status = err.message.includes("introuvable")
+      ? 404
+      : err.message.includes("déjà validée")
+        ? 409
+        : 500;
+    _err(res, err, status);
+  }
+};
+
+// ── PATCH /api/prescriptions/:id/reject ──────────────────────────────────────
+exports.rejectPmt = async (req, res) => {
+  try {
+    const prescription = await pmtSvc.rejectPrescription(
+      req.params.id,
+      req.user,
+      req.body.motif || "",
+    );
+    res.json(prescription);
+  } catch (err) {
+    _err(res, err, err.message.includes("introuvable") ? 404 : 500);
+  }
+};
+
+// ── PATCH /api/prescriptions/:id/link-patient ────────────────────────────────
+exports.linkPatient = async (req, res) => {
+  try {
+    if (!req.body.patientId)
+      return res.status(400).json({ message: "patientId requis" });
+    const prescription = await pmtSvc.linkPrescriptionToPatient(
+      req.params.id,
+      req.body.patientId,
+      req.user,
+    );
+    res.json(prescription);
+  } catch (err) {
+    _err(res, err, err.message.includes("introuvable") ? 404 : 500);
+  }
+};
+
+// ── PATCH /api/prescriptions/:id/link-transport ──────────────────────────────
+exports.linkTransport = async (req, res) => {
+  try {
+    if (!req.body.transportId)
+      return res.status(400).json({ message: "transportId requis" });
+    const prescription = await pmtSvc.linkPrescriptionToTransport(
+      req.params.id,
+      req.body.transportId,
+      req.user,
+    );
+    res.json(prescription);
+  } catch (err) {
+    _err(res, err, err.message.includes("introuvable") ? 404 : 500);
   }
 };

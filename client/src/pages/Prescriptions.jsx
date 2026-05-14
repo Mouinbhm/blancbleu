@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { prescriptionService, patientService } from "../services/api";
 import useSocket from "../hooks/useSocket";
 
@@ -1141,6 +1142,7 @@ function ModalIncomplet({ prescription, onClose, onSuccess }) {
 // PAGE PRINCIPALE — LISTE DES PRESCRIPTIONS
 // ═════════════════════════════════════════════════════════════════════════════
 export default function Prescriptions() {
+  const navigate = useNavigate();
   const [prescriptions, setPrescriptions] = useState([]);
   const [pendingMobile, setPendingMobile] = useState([]);
   const [stats, setStats] = useState(null);
@@ -1495,13 +1497,23 @@ export default function Prescriptions() {
                           {/* Valider / Incomplet */}
                           {p.statut === "en_attente_validation" && (
                             <>
-                              <button
-                                onClick={() => handleValider(p._id)}
-                                className="text-xs bg-green-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-green-700 ml-1"
-                                title="Valider"
-                              >
-                                Valider
-                              </button>
+                              {(p.document?.fileUrl || p.fichierUrl) ? (
+                                <button
+                                  onClick={() => navigate(`/prescriptions/${p._id}/validation`)}
+                                  className="text-xs bg-blue-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-blue-700 ml-1"
+                                  title="Ouvrir le workflow de validation PMT"
+                                >
+                                  Valider PMT
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleValider(p._id)}
+                                  className="text-xs bg-green-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-green-700 ml-1"
+                                  title="Valider"
+                                >
+                                  Valider
+                                </button>
+                              )}
                               <button
                                 onClick={() => { setSelectedPrescription(p); setShowIncomplet(true); }}
                                 className="text-xs bg-orange-500 text-white px-2 py-1 rounded-lg font-semibold hover:bg-orange-600"

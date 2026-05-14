@@ -72,12 +72,12 @@ const prescriptionSchema = new mongoose.Schema(
     fichierUrl: { type: String, default: "" },
     fichierNom: { type: String, default: "" },
 
-    // ── Extraction IA (OCR + NLP) ─────────────────────────────────────────────
+    // ── Extraction IA (OCR + NLP) — champs legacy conservés ──────────────────
     extractionIA: { type: mongoose.Schema.Types.Mixed, default: null },
     confiance: { type: Number, min: 0, max: 1, default: null },
     champsManquants: [{ type: String }],
 
-    // ── Validation humaine ────────────────────────────────────────────────────
+    // ── Validation humaine — champs legacy conservés ──────────────────────────
     validee: { type: Boolean, default: false },
     validePar: {
       type: mongoose.Schema.Types.ObjectId,
@@ -89,6 +89,64 @@ const prescriptionSchema = new mongoose.Schema(
     // ── Contenu extrait/validé (champs structurés finaux) ─────────────────────
     contenuExtrait: { type: mongoose.Schema.Types.Mixed, default: null },
 
+    // ── OCR workflow ──────────────────────────────────────────────────────────
+    ocr: {
+      statut: {
+        type: String,
+        enum: ["pending", "processing", "processed", "failed"],
+        default: "pending",
+      },
+      confiance:    { type: Number, min: 0, max: 1, default: null },
+      donneesExtraites: { type: mongoose.Schema.Types.Mixed, default: null },
+      champsIncertains: [{ type: String }],
+      erreurs:      [{ type: String }],
+      traiteAt:     { type: Date, default: null },
+      fournisseur:  { type: String, default: "tesseract+spacy" },
+    },
+
+    // ── Validation workflow ───────────────────────────────────────────────────
+    validation: {
+      statut: {
+        type: String,
+        enum: ["en_attente", "corrige", "valide", "rejete"],
+        default: "en_attente",
+      },
+      validePar:    { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      valideAt:     { type: Date, default: null },
+      notesCorrection: { type: String, default: "" },
+      donneesOriginales: { type: mongoose.Schema.Types.Mixed, default: null },
+      donneesCorrigees:  { type: mongoose.Schema.Types.Mixed, default: null },
+      motifRejet:   { type: String, default: "" },
+    },
+
+    // ── Document numérique ────────────────────────────────────────────────────
+    document: {
+      fileUrl:     { type: String, default: "" },
+      fileName:    { type: String, default: "" },
+      mimeType:    { type: String, default: "" },
+      uploadedAt:  { type: Date, default: null },
+      uploadedBy:  { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    },
+
+    // ── Lien transport (optionnel) ────────────────────────────────────────────
+    linkedTransportId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Transport",
+      default: null,
+      index: true,
+    },
+
+    // ── Historique de validation ──────────────────────────────────────────────
+    validationHistory: [
+      {
+        action:     { type: String },
+        par:        { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        at:         { type: Date, default: Date.now },
+        notes:      { type: String, default: "" },
+        donnees:    { type: mongoose.Schema.Types.Mixed, default: null },
+      },
+    ],
+
     notes: { type: String, default: "" },
     deletedAt: { type: Date, default: null },
   },
@@ -99,6 +157,8 @@ const prescriptionSchema = new mongoose.Schema(
 prescriptionSchema.index({ patientId: 1, statut: 1 });
 prescriptionSchema.index({ dateExpiration: 1 });
 prescriptionSchema.index({ deletedAt: 1 });
+prescriptionSchema.index({ "ocr.statut": 1 });
+prescriptionSchema.index({ "validation.statut": 1 });
 
 // ── Numéro automatique ────────────────────────────────────────────────────────
 prescriptionSchema.pre("save", async function (next) {

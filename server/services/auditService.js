@@ -230,6 +230,24 @@ const audit = {
       details: { message: `PMT validée pour ${transport.numero}` },
     }),
 
+  pmtRejetee: (prescription, utilisateur, motif) =>
+    log({
+      action: "PMT_REJECTED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Prescription", id: prescription._id, reference: prescription.numero },
+      details: { metadata: { motif }, message: `PMT rejetée — ${prescription.numero} : ${motif}` },
+    }),
+
+  pmtCorrigee: (prescription, utilisateur) =>
+    log({
+      action: "PMT_CORRECTED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Prescription", id: prescription._id, reference: prescription.numero },
+      details: { message: `PMT corrigée manuellement — ${prescription.numero}` },
+    }),
+
   // ─── IA ──────────────────────────────────────────────────────────────────
 
   iaDispatchSuggestion: (transport, suggestion, confiance) =>

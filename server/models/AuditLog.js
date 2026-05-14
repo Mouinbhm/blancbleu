@@ -50,6 +50,7 @@ const auditLogSchema = new mongoose.Schema(
         "PMT_EXTRACTED",
         "PMT_VALIDATED",
         "PMT_REJECTED",
+        "PMT_CORRECTED",
 
         // ── IA ────────────────────────────────────────────────────────────
         "IA_DISPATCH_SUGGESTION",
