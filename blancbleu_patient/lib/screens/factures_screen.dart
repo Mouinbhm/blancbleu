@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
 import '../config/theme.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
@@ -16,6 +19,7 @@ class _FacturesScreenState extends State<FacturesScreen> {
   String?       _error;
   List<dynamic> _factures = [];
   int           _tabIndex = 0;
+  final Set<String> _downloading = {};
 
   static const _tabs = ['Toutes', 'En attente', 'Payees', 'Annulees'];
 
@@ -55,12 +59,12 @@ class _FacturesScreenState extends State<FacturesScreen> {
     if (factureId.isEmpty) return;
 
     try {
-      // 1. Créer le PaymentIntent côté serveur
+      // 1. Creer le PaymentIntent cote serveur
       final pi = await ApiService.createPaymentIntent(factureId);
       final clientSecret    = pi['clientSecret']    as String;
       final paymentIntentId = pi['paymentIntentId'] as String;
 
-      // 2. Préparer la feuille de paiement Stripe
+      // 2. Preparer la feuille de paiement Stripe
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
           paymentIntentClientSecret: clientSecret,
@@ -72,16 +76,29 @@ class _FacturesScreenState extends State<FacturesScreen> {
       // 3. Afficher la feuille de paiement
       await Stripe.instance.presentPaymentSheet();
 
-      // 4. Confirmer côté serveur et marquer comme payée
+      // 4. Appel de confirmation fallback (le webhook reste autoritaire)
       if (!mounted) return;
       await ApiService.confirmerPaiement(factureId, paymentIntentId);
 
+      // 5. Informer l'utilisateur que la confirmation est en cours
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Paiement effectue avec succes !'),
-          backgroundColor: Colors.green,
+          content: Row(
+            children: [
+              Icon(Icons.hourglass_top, color: Colors.white, size: 18),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Paiement recu — confirmation bancaire en cours...',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange,
           behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 4),
         ),
       );
       _load();
@@ -107,11 +124,76 @@ class _FacturesScreenState extends State<FacturesScreen> {
     }
   }
 
+  Future<void> _downloadPdf(String factureId, String numero) async {
+    if (_downloading.contains('pdf_$factureId')) return;
+    setState(() => _downloading.add('pdf_$factureId'));
+
+    try {
+      final bytes = await ApiService.downloadFacturePdf(factureId);
+      final dir   = await getTemporaryDirectory();
+      final name  = numero.isNotEmpty ? 'facture_$numero.pdf' : 'facture_$factureId.pdf';
+      final file  = File('${dir.path}/$name');
+      await file.writeAsBytes(bytes);
+      final result = await OpenFile.open(file.path);
+      if (!mounted) return;
+      if (result.type != ResultType.done) {
+        _showError('Impossible d\'ouvrir le PDF : ${result.message}');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _downloading.remove('pdf_$factureId'));
+    }
+  }
+
+  Future<void> _downloadReceipt(String factureId, String numero) async {
+    if (_downloading.contains('receipt_$factureId')) return;
+    setState(() => _downloading.add('receipt_$factureId'));
+
+    try {
+      final bytes = await ApiService.downloadReceiptPdf(factureId);
+      final dir   = await getTemporaryDirectory();
+      final name  = numero.isNotEmpty ? 'recu_$numero.pdf' : 'recu_$factureId.pdf';
+      final file  = File('${dir.path}/$name');
+      await file.writeAsBytes(bytes);
+      final result = await OpenFile.open(file.path);
+      if (!mounted) return;
+      if (result.type != ResultType.done) {
+        _showError('Impossible d\'ouvrir le recu : ${result.message}');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _downloading.remove('receipt_$factureId'));
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   List<dynamic> get _filtered {
     switch (_tabIndex) {
-      case 1: return _factures.where((f) => f['statut'] == 'en_attente' || f['statut'] == 'emise').toList();
-      case 2: return _factures.where((f) => f['statut'] == 'payee').toList();
-      case 3: return _factures.where((f) => f['statut'] == 'annulee' || f['statut'] == 'brouillon').toList();
+      case 1: return _factures.where((f) {
+        final s = f['statut'] as String?;
+        return s == 'en_attente' || s == 'emise' || s == 'en_retard';
+      }).toList();
+      case 2: return _factures.where((f) {
+        final s = f['statut'] as String?;
+        return s == 'payee' || s == 'remboursee' || s == 'partiellement_remboursee';
+      }).toList();
+      case 3: return _factures.where((f) {
+        final s = f['statut'] as String?;
+        return s == 'annulee' || s == 'brouillon' || s == 'payment_failed';
+      }).toList();
       default: return _factures;
     }
   }
@@ -129,7 +211,7 @@ class _FacturesScreenState extends State<FacturesScreen> {
     return '${n.toStringAsFixed(2)} EUR';
   }
 
-  static _StatutStyle _statut(String? s) {
+  static _StatutStyle _statutStyle(String? s) {
     switch (s) {
       case 'payee':
         return _StatutStyle('Payee', Colors.green.shade700, Colors.green.shade50, Icons.check_circle);
@@ -141,8 +223,33 @@ class _FacturesScreenState extends State<FacturesScreen> {
         return _StatutStyle('Annulee', const Color(0xFFDC2626), const Color(0xFFFEF2F2), Icons.cancel);
       case 'brouillon':
         return _StatutStyle('Brouillon', Colors.grey.shade600, Colors.grey.shade100, Icons.edit_note);
+      case 'payment_failed':
+        return const _StatutStyle('Echec paiement', Color(0xFFDC2626), Color(0xFFFEF2F2), Icons.error_outline);
+      case 'remboursee':
+        return _StatutStyle('Remboursee', Colors.purple.shade700, Colors.purple.shade50, Icons.undo);
+      case 'partiellement_remboursee':
+        return _StatutStyle('Remb. partielle', Colors.purple.shade400, Colors.purple.shade50, Icons.undo_outlined);
+      case 'en_retard':
+        return _StatutStyle('En retard', Colors.red.shade800, Colors.red.shade50, Icons.warning_amber_rounded);
       default:
         return _StatutStyle(s ?? '--', Colors.grey.shade600, Colors.grey.shade100, Icons.receipt_long);
+    }
+  }
+
+  static _PaymentBadgeStyle _paymentBadgeStyle(String? ps) {
+    switch (ps) {
+      case 'SUCCEEDED':
+        return _PaymentBadgeStyle('Confirme', Colors.green.shade700, Colors.green.shade50, Icons.verified);
+      case 'PENDING':
+        return _PaymentBadgeStyle('En attente', Colors.orange.shade700, Colors.orange.shade50, Icons.hourglass_top);
+      case 'FAILED':
+        return const _PaymentBadgeStyle('Echec', Color(0xFFDC2626), Color(0xFFFEF2F2), Icons.close_rounded);
+      case 'REFUNDED':
+        return _PaymentBadgeStyle('Rembourse', Colors.purple.shade700, Colors.purple.shade50, Icons.undo);
+      case 'PARTIALLY_REFUNDED':
+        return _PaymentBadgeStyle('Remb. partiel', Colors.purple.shade400, Colors.purple.shade50, Icons.undo_outlined);
+      default:
+        return _PaymentBadgeStyle('Non paye', Colors.grey.shade500, Colors.grey.shade100, Icons.radio_button_unchecked);
     }
   }
 
@@ -169,8 +276,9 @@ class _FacturesScreenState extends State<FacturesScreen> {
       totalGlobal  += (f['montantTotal']   as num? ?? 0).toDouble();
       totalCPAM    += (f['montantCPAM']    as num? ?? 0).toDouble();
       totalPatient += (f['montantPatient'] as num? ?? 0).toDouble();
-      if (f['statut'] == 'payee')                                       payees++;
-      if (f['statut'] == 'en_attente' || f['statut'] == 'emise')        enAttente++;
+      final s = f['statut'] as String?;
+      if (s == 'payee' || s == 'remboursee' || s == 'partiellement_remboursee') payees++;
+      if (s == 'en_attente' || s == 'emise' || s == 'en_retard')                enAttente++;
     }
 
     return Container(
@@ -188,7 +296,6 @@ class _FacturesScreenState extends State<FacturesScreen> {
       ),
       child: Stack(
         children: [
-          // Decorative circle
           Positioned(
             right: -20, top: -20,
             child: Container(
@@ -215,7 +322,6 @@ class _FacturesScreenState extends State<FacturesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -250,7 +356,6 @@ class _FacturesScreenState extends State<FacturesScreen> {
                 Container(height: 1, color: Colors.white.withOpacity(0.2)),
                 const SizedBox(height: 16),
 
-                // CPAM / Patient split
                 Row(
                   children: [
                     Expanded(
@@ -322,24 +427,34 @@ class _FacturesScreenState extends State<FacturesScreen> {
 
   // ── Facture Card ───────────────────────────────────────────────────────────
   Widget _buildCard(Map<String, dynamic> f) {
-    final st         = _statut(f['statut'] as String?);
-    final numero     = (f['numero']          as String?) ?? '';
-    final dateStr    = _fmtDate(f['dateEmission']  as String?);
-    final datePaie   = _fmtDate(f['datePaiement']  as String?);
-    final dateEch    = _fmtDate(f['dateEcheance']  as String?);
-    final motif      = (f['motif']            as String?) ?? '';
-    final lieu1      = (f['lieuPrise']        as String?) ?? '';
-    final lieu2      = (f['lieuDestination']  as String?) ?? '';
-    final typeVeh    = _typeVehiculeLabel(f['typeVehicule'] as String?);
-    final distKm     = (f['distanceKm']       as num?)?.toStringAsFixed(1) ?? '0';
-    final montantTot = _fmtEur(f['montantTotal']);
-    final montantCPAM= _fmtEur(f['montantCPAM']);
-    final montantPat = _fmtEur(f['montantPatient']);
-    final taux       = (f['tauxPriseEnCharge'] as num? ?? 65).toInt();
-    final allerR     = (f['allerRetour'] as bool?) ?? false;
-    final refExt     = (f['referenceExterne'] as String?) ?? '';
+    final factureId   = (f['_id']            as String?) ?? '';
+    final st          = _statutStyle(f['statut'] as String?);
+    final ps          = _paymentBadgeStyle(f['paymentStatus'] as String?);
+    final numero      = (f['numero']          as String?) ?? '';
+    final dateStr     = _fmtDate(f['dateEmission']  as String?);
+    final datePaie    = _fmtDate(f['datePaiement']  as String?);
+    final dateEch     = _fmtDate(f['dateEcheance']  as String?);
+    final motif       = (f['motif']            as String?) ?? '';
+    final lieu1       = (f['lieuPrise']        as String?) ?? '';
+    final lieu2       = (f['lieuDestination']  as String?) ?? '';
+    final typeVeh     = _typeVehiculeLabel(f['typeVehicule'] as String?);
+    final distKm      = (f['distanceKm']       as num?)?.toStringAsFixed(1) ?? '0';
+    final montantTot  = _fmtEur(f['montantTotal']);
+    final montantCPAM = _fmtEur(f['montantCPAM']);
+    final montantPat  = _fmtEur(f['montantPatient']);
+    final taux        = (f['tauxPriseEnCharge'] as num? ?? 65).toInt();
+    final allerR      = (f['allerRetour'] as bool?) ?? false;
+    final refExt      = (f['referenceExterne'] as String?) ?? '';
+    final statut      = f['statut'] as String? ?? '';
+    final payStatus   = f['paymentStatus'] as String? ?? 'UNPAID';
 
-    final isPaid     = f['statut'] == 'payee';
+    final isPaid      = statut == 'payee';
+    final canPay      = statut == 'emise' || statut == 'en_attente' || statut == 'payment_failed';
+    final hasReceipt  = payStatus == 'SUCCEEDED';
+    final hasPdf      = statut != 'brouillon';
+
+    final dlPdfKey     = 'pdf_$factureId';
+    final dlReceiptKey = 'receipt_$factureId';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -366,7 +481,6 @@ class _FacturesScreenState extends State<FacturesScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Icon
                 Container(
                   width: 48, height: 48,
                   decoration: BoxDecoration(
@@ -397,16 +511,44 @@ class _FacturesScreenState extends State<FacturesScreen> {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: st.bg,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    st.label,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: st.color),
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // Statut badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: st.bg,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        st.label,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: st.color),
+                      ),
+                    ),
+                    // PaymentStatus badge (only if not UNPAID, to avoid clutter on brand-new invoices)
+                    if (payStatus != 'UNPAID') ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: ps.bg,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(ps.icon, size: 10, color: ps.color),
+                            const SizedBox(width: 4),
+                            Text(
+                              ps.label,
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: ps.color),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -455,7 +597,6 @@ class _FacturesScreenState extends State<FacturesScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(
               children: [
-                // Total
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -465,7 +606,7 @@ class _FacturesScreenState extends State<FacturesScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // CPAM / Patient split bar
+                // CPAM / Patient split
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -477,7 +618,6 @@ class _FacturesScreenState extends State<FacturesScreen> {
                     children: [
                       Row(
                         children: [
-                          // CPAM part
                           Expanded(
                             flex: taux,
                             child: Column(
@@ -498,7 +638,6 @@ class _FacturesScreenState extends State<FacturesScreen> {
                             ),
                           ),
                           Container(width: 1, height: 40, color: const Color(0xFFE5E7EB)),
-                          // Patient part
                           Expanded(
                             flex: 100 - taux,
                             child: Padding(
@@ -525,19 +664,12 @@ class _FacturesScreenState extends State<FacturesScreen> {
                       ),
 
                       const SizedBox(height: 10),
-                      // Visual bar
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: Row(
                           children: [
-                            Expanded(
-                              flex: taux,
-                              child: Container(height: 6, color: AppTheme.primaryContainer),
-                            ),
-                            Expanded(
-                              flex: 100 - taux,
-                              child: Container(height: 6, color: Colors.orange.shade400),
-                            ),
+                            Expanded(flex: taux,       child: Container(height: 6, color: AppTheme.primaryContainer)),
+                            Expanded(flex: 100 - taux, child: Container(height: 6, color: Colors.orange.shade400)),
                           ],
                         ),
                       ),
@@ -545,7 +677,7 @@ class _FacturesScreenState extends State<FacturesScreen> {
                   ),
                 ),
 
-                // Paid / due date info
+                // Dates
                 if (isPaid && datePaie != '--') ...[
                   const SizedBox(height: 10),
                   Row(
@@ -568,26 +700,78 @@ class _FacturesScreenState extends State<FacturesScreen> {
                   ),
                 ],
 
-                // Bouton paiement en ligne
-                if (!isPaid && (f['statut'] == 'emise' || f['statut'] == 'en_attente')) ...[
+                // Payer en ligne
+                if (canPay) ...[
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () => _payer(f),
                       icon: const Icon(Icons.credit_card, size: 18),
-                      label: const Text(
-                        'Payer en ligne',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                      label: Text(
+                        statut == 'payment_failed' ? 'Reessayer le paiement' : 'Payer en ligne',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
+                        backgroundColor: statut == 'payment_failed' ? Colors.red.shade700 : AppTheme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
                     ),
+                  ),
+                ],
+
+                // PDF / Recu buttons
+                if (hasPdf || hasReceipt) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      if (hasPdf)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _downloading.contains(dlPdfKey)
+                                ? null
+                                : () => _downloadPdf(factureId, numero),
+                            icon: _downloading.contains(dlPdfKey)
+                                ? const SizedBox(
+                                    width: 14, height: 14,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary),
+                                  )
+                                : const Icon(Icons.picture_as_pdf_outlined, size: 16),
+                            label: const Text('Facture PDF', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.primary,
+                              side: const BorderSide(color: AppTheme.primary, width: 1.2),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
+                      if (hasPdf && hasReceipt) const SizedBox(width: 10),
+                      if (hasReceipt)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _downloading.contains(dlReceiptKey)
+                                ? null
+                                : () => _downloadReceipt(factureId, numero),
+                            icon: _downloading.contains(dlReceiptKey)
+                                ? const SizedBox(
+                                    width: 14, height: 14,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green),
+                                  )
+                                : const Icon(Icons.receipt_outlined, size: 16),
+                            label: const Text('Recu PDF', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.green.shade700,
+                              side: BorderSide(color: Colors.green.shade700, width: 1.2),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ],
@@ -623,17 +807,31 @@ class _FacturesScreenState extends State<FacturesScreen> {
 
   // ── Tab bar ────────────────────────────────────────────────────────────────
   Widget _buildTabBar() {
+    int countTab(int i) {
+      switch (i) {
+        case 1: return _factures.where((f) {
+          final s = f['statut'] as String?;
+          return s == 'en_attente' || s == 'emise' || s == 'en_retard';
+        }).length;
+        case 2: return _factures.where((f) {
+          final s = f['statut'] as String?;
+          return s == 'payee' || s == 'remboursee' || s == 'partiellement_remboursee';
+        }).length;
+        case 3: return _factures.where((f) {
+          final s = f['statut'] as String?;
+          return s == 'annulee' || s == 'brouillon' || s == 'payment_failed';
+        }).length;
+        default: return _factures.length;
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(color: AppTheme.surfaceContainer, borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: List.generate(_tabs.length, (i) {
           final active = _tabIndex == i;
-          final count  = i == 0
-              ? _factures.length
-              : i == 1 ? _factures.where((f) => f['statut'] == 'en_attente' || f['statut'] == 'emise').length
-              : i == 2 ? _factures.where((f) => f['statut'] == 'payee').length
-              : _factures.where((f) => f['statut'] == 'annulee' || f['statut'] == 'brouillon').length;
+          final count  = countTab(i);
           return Expanded(
             child: GestureDetector(
               onTap: () => setState(() => _tabIndex = i),
@@ -813,13 +1011,20 @@ class _FacturesScreenState extends State<FacturesScreen> {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Value objects ─────────────────────────────────────────────────────────────
 
 class _StatutStyle {
-  final String  label;
-  final Color   color;
-  final Color   bg;
+  final String   label;
+  final Color    color;
+  final Color    bg;
   final IconData icon;
   const _StatutStyle(this.label, this.color, this.bg, this.icon);
 }
 
+class _PaymentBadgeStyle {
+  final String   label;
+  final Color    color;
+  final Color    bg;
+  final IconData icon;
+  const _PaymentBadgeStyle(this.label, this.color, this.bg, this.icon);
+}

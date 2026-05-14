@@ -288,4 +288,53 @@ const getDashboard = async (req, res) => {
   }
 };
 
-module.exports = { getDashboard };
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+
+const exportService = require("../services/accountingExportService");
+const { audit }     = require("../services/auditService");
+
+const exportInvoicesCsv = async (req, res) => {
+  try {
+    const { csv, count } = await exportService.exportInvoicesCsv(req.query);
+    await audit.accountingExportCree(req.user, "invoices", count);
+
+    const date = new Date().toISOString().split("T")[0];
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="factures-${date}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const exportPaymentsCsv = async (req, res) => {
+  try {
+    const { csv, count } = await exportService.exportPaymentsCsv(req.query);
+    await audit.accountingExportCree(req.user, "payments", count);
+
+    const date = new Date().toISOString().split("T")[0];
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="paiements-${date}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const exportBatch = async (req, res) => {
+  try {
+    const result = await exportService.generateAccountingBatch(req.query, req.user);
+    if (!result.csv) return res.json({ message: result.message, count: 0 });
+
+    await audit.accountingExportCree(req.user, "batch", result.count);
+
+    const date = new Date().toISOString().split("T")[0];
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="batch-${result.batchId}-${date}.csv"`);
+    res.send(result.csv);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { getDashboard, exportInvoicesCsv, exportPaymentsCsv, exportBatch };

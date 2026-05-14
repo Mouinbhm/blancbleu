@@ -484,6 +484,106 @@ const audit = {
       ressource: { type: "Facture", id: facture._id, reference: facture.numero },
       details: { message: `Facture ${facture.numero} consultée` },
     }),
+
+  factureEmise: (facture, utilisateur) =>
+    log({
+      action: "FACTURE_ISSUED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Facture", id: facture._id, reference: facture.numero },
+      details: {
+        apres: { statut: "emise", dateEcheance: facture.dateEcheance },
+        message: `Facture ${facture.numero} émise`,
+      },
+    }),
+
+  paymentIntentCree: (facture, utilisateur, piId) =>
+    log({
+      action: "PAYMENT_INTENT_CREATED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Facture", id: facture?._id, reference: facture?.numero },
+      details: {
+        metadata: { paymentIntentId: piId },
+        message: `PaymentIntent Stripe créé — ${facture?.numero}`,
+      },
+    }),
+
+  paiementReussi: (facture, piId) =>
+    log({
+      action: "PAYMENT_SUCCEEDED",
+      origine: "SYSTÈME",
+      utilisateur: { email: "stripe@blancbleu.fr", role: "système" },
+      ressource: { type: "Facture", id: facture._id, reference: facture.numero },
+      details: {
+        metadata: { paymentIntentId: piId },
+        message: `Paiement confirmé via Stripe — ${facture.numero}`,
+      },
+    }),
+
+  paiementEchoue: (facture, reason) =>
+    log({
+      action: "PAYMENT_FAILED",
+      origine: "SYSTÈME",
+      succes: false,
+      utilisateur: { email: "stripe@blancbleu.fr", role: "système" },
+      ressource: { type: "Facture", id: facture._id, reference: facture.numero },
+      details: {
+        metadata: { reason },
+        message: `Paiement échoué — ${facture.numero} : ${reason}`,
+      },
+    }),
+
+  remboursementCree: (facture, utilisateur, amount, reason) =>
+    log({
+      action: "REFUND_CREATED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Facture", id: facture._id, reference: facture.numero },
+      details: {
+        metadata: { amount, reason },
+        message: `Remboursement de ${amount}€ — ${facture.numero} : ${reason}`,
+      },
+    }),
+
+  invoicePdfDownloaded: (facture, utilisateur) =>
+    log({
+      action: "INVOICE_PDF_DOWNLOADED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Facture", id: facture._id, reference: facture.numero },
+      details: { message: `PDF facture téléchargé — ${facture.numero}` },
+    }),
+
+  receiptDownloaded: (facture, utilisateur) =>
+    log({
+      action: "RECEIPT_DOWNLOADED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Facture", id: facture._id, reference: facture.numero },
+      details: { message: `PDF reçu téléchargé — ${facture.numero}` },
+    }),
+
+  stripeWebhookRecu: (eventType, eventId) =>
+    log({
+      action: "STRIPE_WEBHOOK_RECEIVED",
+      origine: "SYSTÈME",
+      utilisateur: { email: "stripe@webhook.fr", role: "système" },
+      ressource: { type: "Stripe", reference: eventId },
+      details: { message: `Webhook Stripe reçu — ${eventType}`, metadata: { eventType, eventId } },
+    }),
+
+  accountingExportCree: (utilisateur, type, count) =>
+    log({
+      action: "ACCOUNTING_EXPORT_CREATED",
+      origine: "HUMAIN",
+      utilisateur,
+      ressource: { type: "Export", reference: type },
+      details: {
+        metadata: { type, count },
+        message: `Export comptable "${type}" généré — ${count} lignes`,
+      },
+    }),
 };
 
 module.exports = { log, audit };

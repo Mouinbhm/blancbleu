@@ -55,6 +55,15 @@ const corsOptions = {
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 app.use(cors(corsOptions));
+
+// ── Stripe webhook — doit recevoir le body RAW (avant express.json) ───────────
+// La vérification de signature Stripe exige le Buffer brut, sans express.json() appliqué.
+app.post(
+  "/api/payments/stripe/webhook",
+  express.raw({ type: "application/json" }),
+  require("./controllers/paymentController").stripeWebhook,
+);
+
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ limit: "5mb", extended: false }));
 app.use(cookieParser());
@@ -114,6 +123,7 @@ app.use("/api/personnel", require("./routes/personnel"));
 app.use("/api/equipements", require("./routes/equipements"));
 app.use("/api/maintenances", require("./routes/maintenances"));
 app.use("/api/factures", require("./routes/factures"));
+app.use("/api/payments", require("./routes/payments"));
 app.use("/api/comptabilite", require("./routes/comptabilite"));
 app.use("/api/analytics", require("./routes/analytics"));
 app.use("/api/planning", require("./routes/planning"));

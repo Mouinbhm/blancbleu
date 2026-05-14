@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import api, { factureService, transportService } from "../services/api";
+import api, { factureService, transportService, paymentService, comptabiliteService } from "../services/api";
 import useSocket from "../hooks/useSocket";
 import {
   Chart as ChartJS,
@@ -37,16 +37,50 @@ const STATUTS = [
   { value: "emise", label: "Émise" },
   { value: "en_attente", label: "En attente" },
   { value: "payee", label: "Payée" },
+  { value: "payment_failed", label: "Échec paiement" },
+  { value: "remboursee", label: "Remboursée" },
+  { value: "partiellement_remboursee", label: "Part. remboursée" },
+  { value: "en_retard", label: "En retard" },
   { value: "annulee", label: "Annulée" },
 ];
 
 const STATUT_STYLE = {
-  brouillon:  { cls: "bg-slate-100 text-slate-600",    label: "Brouillon" },
-  emise:      { cls: "bg-blue-100 text-blue-700",      label: "Émise" },
-  en_attente: { cls: "bg-yellow-100 text-yellow-700",  label: "En attente" },
-  payee:      { cls: "bg-emerald-100 text-emerald-700",label: "Payée" },
-  annulee:    { cls: "bg-red-100 text-red-700",        label: "Annulée" },
+  brouillon:                { cls: "bg-slate-100 text-slate-600",        label: "Brouillon" },
+  emise:                    { cls: "bg-blue-100 text-blue-700",          label: "Émise" },
+  en_attente:               { cls: "bg-yellow-100 text-yellow-700",      label: "En attente" },
+  payee:                    { cls: "bg-emerald-100 text-emerald-700",    label: "Payée" },
+  payment_failed:           { cls: "bg-red-100 text-red-700",            label: "Échec paiement" },
+  remboursee:               { cls: "bg-purple-100 text-purple-700",      label: "Remboursée" },
+  partiellement_remboursee: { cls: "bg-violet-100 text-violet-700",      label: "Part. remboursée" },
+  en_retard:                { cls: "bg-orange-100 text-orange-700",      label: "En retard" },
+  annulee:                  { cls: "bg-red-100 text-red-700",            label: "Annulée" },
 };
+
+const PAYMENT_STATUS_STYLE = {
+  UNPAID:            { cls: "bg-slate-100 text-slate-500",    icon: "pending",        label: "Non payé" },
+  PENDING:           { cls: "bg-yellow-100 text-yellow-700",  icon: "hourglass_empty",label: "En attente" },
+  SUCCEEDED:         { cls: "bg-emerald-100 text-emerald-700",icon: "check_circle",   label: "Payé" },
+  FAILED:            { cls: "bg-red-100 text-red-700",        icon: "error",          label: "Échec" },
+  REFUNDED:          { cls: "bg-purple-100 text-purple-700",  icon: "undo",           label: "Remboursé" },
+  PARTIALLY_REFUNDED:{ cls: "bg-violet-100 text-violet-700",  icon: "undo",           label: "Part. remboursé" },
+};
+
+// ─── Téléchargement PDF blob ──────────────────────────────────────────────────
+async function downloadBlob(promise, filename) {
+  const response = await promise;
+  const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  window.URL.revokeObjectURL(url);
+}
+
+async function downloadCsvBlob(promise, filename) {
+  const response = await promise;
+  const url = window.URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  window.URL.revokeObjectURL(url);
+}
 
 // ─── Modal Impression ─────────────────────────────────────────────────────────
 function ModalImpression({ facture, onClose }) {
@@ -996,6 +1030,46 @@ export default function Factures() {
     }
   };
 
+  // ── PDF facture / reçu ──────────────────────────────────────────────────────
+  const handleDownloadPdf = async (factureId, numero) => {
+    try {
+      await downloadBlob(factureService.downloadPdf(factureId), `facture-${numero}.pdf`);
+      addToast("PDF facture téléchargé");
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Erreur téléchargement PDF", "error");
+    }
+  };
+
+  const handleDownloadReceipt = async (factureId, numero) => {
+    try {
+      await downloadBlob(factureService.downloadReceipt(factureId), `recu-${numero}.pdf`);
+      addToast("PDF reçu téléchargé");
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Reçu disponible uniquement après paiement", "error");
+    }
+  };
+
+  // ── Export comptable (backend CSV) ──────────────────────────────────────────
+  const handleExportInvoicesCsv = async () => {
+    try {
+      const date = new Date().toISOString().slice(0, 10);
+      await downloadCsvBlob(comptabiliteService.exportInvoicesCsv(), `factures-${date}.csv`);
+      addToast("Export CSV factures généré");
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Erreur export CSV", "error");
+    }
+  };
+
+  const handleExportPaymentsCsv = async () => {
+    try {
+      const date = new Date().toISOString().slice(0, 10);
+      await downloadCsvBlob(comptabiliteService.exportPaymentsCsv(), `paiements-${date}.csv`);
+      addToast("Export CSV paiements généré");
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Erreur export paiements", "error");
+    }
+  };
+
   // ── Exports ─────────────────────────────────────────────────────────────────
   const exportCSV = () => {
     const headers = ["N° Facture", "Date émission", "Transport", "Patient", "Motif", "Total €", "CPAM €", "Patient €", "Statut"];
@@ -1172,6 +1246,12 @@ export default function Factures() {
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={exportCSV} className="flex items-center gap-2 text-xs font-bold text-primary border border-primary/30 px-4 py-2 rounded-lg hover:bg-primary hover:text-white transition-all">
             <span className="material-symbols-outlined text-sm">download</span>Exporter CSV
+          </button>
+          <button onClick={handleExportInvoicesCsv} className="flex items-center gap-2 text-xs font-bold text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg hover:bg-indigo-600 hover:text-white transition-all" title="Export comptable factures (avec statut paiement Stripe)">
+            <span className="material-symbols-outlined text-sm">account_balance</span>CSV Comptable
+          </button>
+          <button onClick={handleExportPaymentsCsv} className="flex items-center gap-2 text-xs font-bold text-violet-600 border border-violet-200 px-4 py-2 rounded-lg hover:bg-violet-600 hover:text-white transition-all" title="Export paiements Stripe">
+            <span className="material-symbols-outlined text-sm">credit_card</span>CSV Paiements
           </button>
           <button onClick={exportDSN} className="flex items-center gap-2 text-xs font-bold text-orange-600 border border-orange-300 px-4 py-2 rounded-lg hover:bg-orange-600 hover:text-white transition-all">
             <span className="material-symbols-outlined text-sm">description</span>Export DSN URSSAF
@@ -1401,7 +1481,7 @@ export default function Factures() {
         <table className="w-full">
           <thead>
             <tr className="bg-navy">
-              {["N° Facture", "Date", "Transport", "Patient", "Montant total", "Part CPAM", "Part patient", "Statut", "Actions"].map((h) => (
+              {["N° Facture", "Date", "Transport", "Patient", "Montant total", "Part CPAM", "Part patient", "Statut", "Paiement", "Actions"].map((h) => (
                 <th key={h} className="px-4 py-4 text-left font-mono text-xs text-white/70 uppercase tracking-widest">{h}</th>
               ))}
             </tr>
@@ -1436,9 +1516,22 @@ export default function Factures() {
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-bold ${statCfg.cls}`}>{statCfg.label}</span>
                     </td>
+                    {/* Badge statut paiement */}
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const ps = f.paymentStatus || "UNPAID";
+                        const pCfg = PAYMENT_STATUS_STYLE[ps] || PAYMENT_STATUS_STYLE.UNPAID;
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${pCfg.cls}`}>
+                            <span className="material-symbols-outlined text-[11px]">{pCfg.icon}</span>
+                            {pCfg.label}
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-1 flex-wrap">
-                        {["brouillon", "emise", "en_attente"].includes(f.statut) && (
+                        {["brouillon", "emise", "en_attente","payment_failed"].includes(f.statut) && (
                           <button
                             title="Marquer payée"
                             onClick={() => setConfirmPay({ id: f._id, numero: f.numero })}
@@ -1455,6 +1548,24 @@ export default function Factures() {
                             className="w-7 h-7 rounded-lg border border-blue-200 bg-blue-50 flex items-center justify-center hover:bg-blue-100"
                           >
                             <span className="material-symbols-outlined text-blue-600 text-sm">send</span>
+                          </button>
+                        )}
+                        {/* Télécharger PDF facture */}
+                        <button
+                          title="Télécharger PDF facture"
+                          onClick={() => handleDownloadPdf(f._id, f.numero)}
+                          className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-blue-50 hover:border-primary transition-all group"
+                        >
+                          <span className="material-symbols-outlined text-slate-400 text-sm group-hover:text-primary">picture_as_pdf</span>
+                        </button>
+                        {/* Télécharger reçu — uniquement si payée */}
+                        {f.paymentStatus === "SUCCEEDED" && (
+                          <button
+                            title="Télécharger reçu PDF"
+                            onClick={() => handleDownloadReceipt(f._id, f.numero)}
+                            className="w-7 h-7 rounded-lg border border-emerald-200 bg-emerald-50 flex items-center justify-center hover:bg-emerald-100 transition-all"
+                          >
+                            <span className="material-symbols-outlined text-emerald-600 text-sm">receipt</span>
                           </button>
                         )}
                         <button

@@ -211,6 +211,7 @@ class ApiService {
 
   // ── Paiement Stripe ────────────────────────────────────────────────────────
 
+  /// Crée un PaymentIntent via la route patient existante (rétrocompatible).
   static Future<Map<String, dynamic>> createPaymentIntent(String factureId) async {
     final res = await http.post(
       Uri.parse('$_base/factures/$factureId/paiement-intent'),
@@ -219,6 +220,8 @@ class ApiService {
     return _parse(res);
   }
 
+  /// Confirme le paiement (fallback si le webhook n'a pas encore mis à jour la facture).
+  /// Afficher "en attente de confirmation" jusqu'à retour backend.
   static Future<Map<String, dynamic>> confirmerPaiement(
     String factureId,
     String paymentIntentId,
@@ -229,6 +232,41 @@ class ApiService {
       body: jsonEncode({'paymentIntentId': paymentIntentId}),
     ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
     return _parse(res);
+  }
+
+  /// Télécharge le PDF d'une facture (retourne les bytes du fichier).
+  static Future<List<int>> downloadFacturePdf(String factureId) async {
+    final token = await getToken();
+    // Appel direct vers l'API principale (pas la route patient)
+    final baseApi = dotenv.env['API_BASE_URL_MAIN'] ??
+        (dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:5000/api/patient')
+            .replaceAll('/api/patient', '/api');
+    final res = await http.get(
+      Uri.parse('$baseApi/factures/$factureId/pdf'),
+      headers: {
+        'Authorization': 'Bearer ${token ?? ''}',
+      },
+    ).timeout(const Duration(seconds: 30),
+        onTimeout: () => throw Exception('Téléchargement timeout.'));
+    if (res.statusCode >= 400) throw Exception('Téléchargement impossible');
+    return res.bodyBytes;
+  }
+
+  /// Télécharge le PDF du reçu de paiement (disponible seulement si payée).
+  static Future<List<int>> downloadReceiptPdf(String factureId) async {
+    final token = await getToken();
+    final baseApi = dotenv.env['API_BASE_URL_MAIN'] ??
+        (dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:5000/api/patient')
+            .replaceAll('/api/patient', '/api');
+    final res = await http.get(
+      Uri.parse('$baseApi/factures/$factureId/receipt'),
+      headers: {
+        'Authorization': 'Bearer ${token ?? ''}',
+      },
+    ).timeout(const Duration(seconds: 30),
+        onTimeout: () => throw Exception('Téléchargement timeout.'));
+    if (res.statusCode >= 400) throw Exception('Reçu disponible uniquement après paiement');
+    return res.bodyBytes;
   }
 
   // ── Prescriptions (upload) ─────────────────────────────────────────────────
