@@ -143,13 +143,25 @@ const updateStatut = async (req, res) => {
 
     const from = f.statut;
     f.statut = statut;
-    if (statut === "payee")  f.datePaiement = new Date();
+
+    // Synchronisation paymentStatus ↔ statut
+    if (statut === "payee") {
+      f.datePaiement  = new Date();
+      f.paymentStatus = "SUCCEEDED";
+      f.payment.paidAt = f.datePaiement;
+    }
+    if (statut === "payment_failed")           f.paymentStatus = "FAILED";
+    if (statut === "remboursee")               f.paymentStatus = "REFUNDED";
+    if (statut === "partiellement_remboursee") f.paymentStatus = "PARTIALLY_REFUNDED";
+    if (statut === "annulee")                  f.paymentStatus = "UNPAID";
     if (statut === "emise") {
       f.paymentStatus = "UNPAID";
       if (!f.dateEcheance) {
         const e = new Date(); e.setDate(e.getDate() + 30); f.dateEcheance = e;
       }
     }
+    if (statut === "en_attente") f.paymentStatus = "PENDING";
+    if (statut === "brouillon")  f.paymentStatus = "UNPAID";
     invoiceService.addInvoiceHistory(f, "STATUT_CHANGED", from, statut, req.user);
     await f.save();
     res.json({ message: "Statut mis à jour", facture: f });

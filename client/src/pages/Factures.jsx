@@ -1106,7 +1106,8 @@ export default function Factures() {
       `"=== RAPPORT COMPTABLE — ${periode} ==="`,
       `""`,
       `"=== CHIFFRE D'AFFAIRES ==="`,
-      `"CA total","${fmtEur(compta.ca.total)}"`,
+      `"CA encaissé (paiements reçus ce mois)","${fmtEur(compta.ca.encaisse ?? 0)}"`,
+      `"CA facturé (émissions ce mois)","${fmtEur(compta.ca.facture ?? compta.ca.total)}"`,
       `"Part CPAM","${fmtEur(compta.ca.partCPAM)}"`,
       `"Part patient","${fmtEur(compta.ca.partPatient)}"`,
       `""`,
@@ -1311,7 +1312,12 @@ export default function Factures() {
           { l: "Brouillons", v: stats?.parStatut?.brouillons || 0, icon: "draft", c: "text-slate-500" },
           { l: "En attente", v: stats?.parStatut?.enAttente || 0, icon: "pending", c: "text-yellow-600" },
           { l: "Payées", v: stats?.parStatut?.payees || 0, icon: "check_circle", c: "text-emerald-600" },
-          { l: "Chiffre d'affaires", v: fmtMontant(stats?.chiffreAffaires), icon: "euro", c: "text-blue-600" },
+          {
+            l: `CA encaissé — ${MOIS_NOMS[moisActuel - 1]}`,
+            v: fmtMontant(compta?.ca?.encaisse ?? compta?.ca?.total ?? stats?.chiffreAffaires ?? 0),
+            icon: "euro",
+            c: "text-blue-600",
+          },
         ].map((k) => (
           <div key={k.l} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
             <span className={`material-symbols-outlined ${k.c}`}>{k.icon}</span>

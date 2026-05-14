@@ -46,13 +46,26 @@ const getDashboard = async (req, res) => {
     const finAnnee   = new Date(annee, 11, 31, 23, 59, 59);
 
     // ── CA du mois ──────────────────────────────────────────────────────────
+    // CA facturé : factures émises ce mois (accrual — hors annulées)
     const facturesMois = await Facture.find({
       dateEmission: { $gte: debutMois, $lte: finMois },
       statut: { $ne: "annulee" },
     });
-    const caTotal       = facturesMois.reduce((s, f) => s + (f.montantTotal || 0), 0);
+    const caFacture     = facturesMois.reduce((s, f) => s + (f.montantTotal || 0), 0);
     const caPartCPAM    = facturesMois.reduce((s, f) => s + (f.montantCPAM || 0), 0);
     const caPartPatient = facturesMois.reduce((s, f) => s + (f.montantPatient || 0), 0);
+
+    // CA encaissé : factures payées (paymentStatus SUCCEEDED) avec datePaiement ce mois
+    // Couvre les factures émises en d'autres mois mais encaissées ce mois
+    const encaissementsMois = await Facture.find({
+      paymentStatus: "SUCCEEDED",
+      datePaiement: { $gte: debutMois, $lte: finMois },
+    });
+    const caEncaisse = encaissementsMois.reduce((s, f) => s + (f.montantTotal || 0), 0);
+
+    // Pour les alertes et le résultat, on utilise le CA encaissé s'il est non nul
+    // sinon le CA facturé (rétrocompatibilité)
+    const caTotal = caEncaisse > 0 ? caEncaisse : caFacture;
 
     // ── CA par mois (12 mois) ────────────────────────────────────────────────
     const facturesAnnee = await Facture.find({
@@ -263,10 +276,12 @@ const getDashboard = async (req, res) => {
     res.json({
       periode: { annee, mois, moisNom },
       ca: {
-        total:      Math.round(caTotal * 100) / 100,
-        partCPAM:   Math.round(caPartCPAM * 100) / 100,
+        total:       Math.round(caTotal * 100) / 100,
+        facture:     Math.round(caFacture * 100) / 100,
+        encaisse:    Math.round(caEncaisse * 100) / 100,
+        partCPAM:    Math.round(caPartCPAM * 100) / 100,
         partPatient: Math.round(caPartPatient * 100) / 100,
-        parMois:    caParMois.map((v) => Math.round(v * 100) / 100),
+        parMois:     caParMois.map((v) => Math.round(v * 100) / 100),
       },
       charges: {
         salaires:       Math.round(masseSalariale * 100) / 100,
