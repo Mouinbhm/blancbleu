@@ -61,6 +61,20 @@ const auditLogSchema = new mongoose.Schema(
         "FACTURE_UPDATED",
         "FACTURE_PAID",
 
+        // ── Patient — RGPD ────────────────────────────────────────────────
+        "PATIENT_VIEWED",
+        "PATIENT_CREATED",
+        "PATIENT_UPDATED",
+        "PATIENT_EXPORTED",
+        "PATIENT_ANONYMIZED",
+        "PATIENT_DELETION_REQUESTED",
+        "PATIENT_DELETION_CANCELLED",
+        "PATIENT_CONSENT_UPDATED",
+
+        // ── Documents médicaux ────────────────────────────────────────────
+        "PRESCRIPTION_VIEWED",
+        "INVOICE_VIEWED",
+
         // ── Authentification ──────────────────────────────────────────────
         "LOGIN",
         "LOGOUT",

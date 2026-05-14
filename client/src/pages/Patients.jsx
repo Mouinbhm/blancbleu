@@ -361,13 +361,22 @@ function PatientDetail({ patient, onNavigate, onEdit }) {
               )}
             </div>
           </div>
-          <button
-            onClick={() => onNavigate(`/transports/new?patientId=${p._id}`)}
-            className="flex-shrink-0 flex items-center gap-1 text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-blue-700"
-          >
-            <span className="material-symbols-outlined text-sm">add</span>
-            Transport
-          </button>
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={() => onNavigate(`/patients/${p._id}`)}
+              className="flex-shrink-0 flex items-center gap-1 text-xs border border-primary text-primary px-3 py-1.5 rounded-lg font-medium hover:bg-primary/5"
+            >
+              <span className="material-symbols-outlined text-sm">open_in_new</span>
+              Dossier RGPD
+            </button>
+            <button
+              onClick={() => onNavigate(`/transports/new?patientId=${p._id}`)}
+              className="flex-shrink-0 flex items-center gap-1 text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-blue-700"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+              Transport
+            </button>
+          </div>
         </div>
 
         {/* Besoins spéciaux */}

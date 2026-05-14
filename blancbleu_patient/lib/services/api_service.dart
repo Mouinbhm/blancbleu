@@ -344,4 +344,74 @@ class ApiService {
     }
     await clearSession();
   }
+
+  // ── Mes consentements ──────────────────────────────────────────────────────
+
+  // GET /api/patient/me — récupère le profil avec les champs RGPD
+  static Future<Map<String, dynamic>> getMesDonnees() async {
+    final res = await http.get(
+      Uri.parse('$_base/me'),
+      headers: await _headers(),
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
+    if (res.statusCode == 401) throw Exception('SESSION_EXPIRED');
+    if (res.statusCode >= 400) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      throw Exception(data['message'] ?? 'Erreur serveur');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  // POST /api/patient/consent — mettre à jour un consentement
+  static Future<Map<String, dynamic>> updateMonConsentement({
+    required String consentType,
+    required bool accepted,
+    String version = '1.0',
+    String source  = 'mobile',
+  }) async {
+    final res = await http.post(
+      Uri.parse('$_base/consent'),
+      headers: await _headers(),
+      body: jsonEncode({
+        'consentType': consentType,
+        'accepted':    accepted,
+        'version':     version,
+        'source':      source,
+      }),
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
+    if (res.statusCode == 401) throw Exception('SESSION_EXPIRED');
+    if (res.statusCode >= 400) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      throw Exception(data['message'] ?? 'Erreur lors de la mise à jour du consentement');
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  // GET /api/patient/consent-history — historique des consentements
+  static Future<List<dynamic>> getHistoriqueConsentements() async {
+    final res = await http.get(
+      Uri.parse('$_base/consent-history'),
+      headers: await _headers(),
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
+    if (res.statusCode == 401) throw Exception('SESSION_EXPIRED');
+    if (res.statusCode >= 400) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      throw Exception(data['message'] ?? 'Erreur serveur');
+    }
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return (data['consentHistory'] as List<dynamic>?) ?? [];
+  }
+
+  // POST /api/patient/request-deletion — demander la suppression (Art. 17)
+  static Future<void> demanderSuppression(String raison) async {
+    final res = await http.post(
+      Uri.parse('$_base/request-deletion'),
+      headers: await _headers(),
+      body: jsonEncode({'reason': raison}),
+    ).timeout(_timeout, onTimeout: () => throw Exception('Serveur inaccessible.'));
+    if (res.statusCode == 401) throw Exception('SESSION_EXPIRED');
+    if (res.statusCode >= 400) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      throw Exception(data['message'] ?? 'Erreur lors de la demande');
+    }
+  }
 }

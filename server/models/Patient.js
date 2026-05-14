@@ -61,6 +61,49 @@ const patientSchema = new mongoose.Schema(
     // ── Statut ────────────────────────────────────────────────────────────────
     actif: { type: Boolean, default: true, index: true },
     deletedAt: { type: Date, default: null },
+
+    // ── RGPD — Consentements ──────────────────────────────────────────────────
+    gdpr: {
+      consentGiven:          { type: Boolean, default: false },
+      consentDate:           { type: Date,    default: null  },
+      consentVersion:        { type: String,  default: ""    },
+      consentSource:         { type: String,  default: ""    }, // "web", "mobile", "papier"
+      dataProcessingPurpose: [{ type: String }],
+      marketingConsent:      { type: Boolean, default: false },
+      medicalDataConsent:    { type: Boolean, default: false },
+      dataRetentionUntil:    { type: Date,    default: null  },
+      anonymized:            { type: Boolean, default: false },
+      anonymizedAt:          { type: Date,    default: null  },
+      anonymizedBy:          { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      deletionRequested:     { type: Boolean, default: false },
+      deletionRequestedAt:   { type: Date,    default: null  },
+      deletionRequestedBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      deletionReason:        { type: String,  default: ""    },
+    },
+
+    // ── Historique des consentements ──────────────────────────────────────────
+    consentHistory: [
+      {
+        consentType: { type: String, default: "" },       // "data_processing", "medical", "marketing"
+        accepted:    { type: Boolean, required: true },
+        version:     { type: String,  default: ""    },
+        source:      { type: String,  default: ""    },   // "web", "mobile", "papier"
+        ipAddress:   { type: String,  default: ""    },
+        userAgent:   { type: String,  default: ""    },
+        changedAt:   { type: Date,    default: Date.now },
+        changedBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      },
+    ],
+
+    // ── Historique des accès au dossier ───────────────────────────────────────
+    accessHistory: [
+      {
+        accessedBy:  { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        role:        { type: String, default: "" },
+        accessedAt:  { type: Date,   default: Date.now },
+        reason:      { type: String, default: "" },       // "consultation", "transport", "export"
+      },
+    ],
   },
   { timestamps: true },
 );
@@ -69,7 +112,10 @@ const patientSchema = new mongoose.Schema(
 patientSchema.index({ nom: 1, prenom: 1 });
 patientSchema.index({ numeroSecu: 1 }, { sparse: true });
 patientSchema.index({ telephone: 1 }, { sparse: true });
+patientSchema.index({ email: 1 }, { sparse: true });
 patientSchema.index({ deletedAt: 1 });
+patientSchema.index({ "gdpr.anonymized": 1 });
+patientSchema.index({ "gdpr.deletionRequested": 1 });
 
 // ── Chiffrement du numéro de sécurité sociale (AES-256-GCM) ──────────────────
 patientSchema.pre("save", function (next) {

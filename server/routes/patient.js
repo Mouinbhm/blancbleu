@@ -799,4 +799,50 @@ router.post('/sync-all', authPatient, async (req, res) => {
   }
 })
 
+// ── RGPD patient (app mobile) ─────────────────────────────────────────────────
+const gdprSvc = require('../services/patientGdprService')
+
+// POST /api/patient/consent — le patient met à jour ses consentements
+router.post('/consent', authPatient, async (req, res) => {
+  try {
+    const { consentType, accepted, version, source } = req.body
+    if (!consentType || accepted === undefined) {
+      return res.status(400).json({ message: 'consentType et accepted sont requis' })
+    }
+    const patient = await Patient.findOne({ email: req.user.email })
+    if (!patient) return res.status(404).json({ message: 'Dossier patient introuvable' })
+
+    await gdprSvc.recordPatientConsent(patient._id, { consentType, accepted, version, source }, req.user, req)
+    res.json({ success: true, message: 'Consentement enregistré' })
+  } catch (err) {
+    res.status(500).json({ message: safeMsg(err) })
+  }
+})
+
+// GET /api/patient/consent-history — historique des consentements du patient connecté
+router.get('/consent-history', authPatient, async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ email: req.user.email })
+    if (!patient) return res.status(404).json({ message: 'Dossier patient introuvable' })
+    const data = await gdprSvc.getConsentHistory(patient._id)
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ message: safeMsg(err) })
+  }
+})
+
+// POST /api/patient/request-deletion — le patient demande la suppression de ses données
+router.post('/request-deletion', authPatient, async (req, res) => {
+  try {
+    const { reason } = req.body
+    const patient = await Patient.findOne({ email: req.user.email })
+    if (!patient) return res.status(404).json({ message: 'Dossier patient introuvable' })
+
+    await gdprSvc.requestPatientDeletion(patient._id, req.user, reason, req)
+    res.json({ success: true, message: 'Demande de suppression enregistrée. Elle sera traitée sous 30 jours.' })
+  } catch (err) {
+    res.status(500).json({ message: safeMsg(err) })
+  }
+})
+
 module.exports = router

@@ -17,6 +17,7 @@ import Flotte         from "./pages/Flotte";
 import FleetDashboard from "./pages/FleetDashboard";
 import Planning from "./pages/Planning";
 import Patients from "./pages/Patients";
+import PatientDetail from "./pages/PatientDetail";
 import Prescriptions from "./pages/Prescriptions";
 import Personnel from "./pages/Personnel";
 import Equipements from "./pages/Equipements";
@@ -58,6 +59,7 @@ function App() {
             <Route path="/flotte/dashboard" element={<FleetDashboard />} />
             <Route path="/planning" element={<Planning />} />
             <Route path="/patients" element={<Patients />} />
+            <Route path="/patients/:id" element={<PatientDetail />} />
             <Route path="/prescriptions" element={<Prescriptions />} />
             <Route path="/personnel" element={<Personnel />} />
             <Route path="/equipements" element={<Equipements />} />

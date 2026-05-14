@@ -324,6 +324,94 @@ const audit = {
         message: `Facture ${facture.numero} générée — ${facture.montant}€`,
       },
     }),
+
+  // ─── Patient — RGPD ───────────────────────────────────────────────────────
+
+  patientVu: (patient, utilisateur) =>
+    log({
+      action: "PATIENT_VIEWED",
+      utilisateur,
+      ressource: { type: "Patient", id: patient._id, reference: patient.numeroPatient },
+      details: { message: `Dossier patient ${patient.numeroPatient} consulté` },
+    }),
+
+  patientCree: (patient, utilisateur) =>
+    log({
+      action: "PATIENT_CREATED",
+      utilisateur,
+      ressource: { type: "Patient", id: patient._id, reference: patient.numeroPatient },
+      details: {
+        apres: { nom: patient.nom, prenom: patient.prenom, mobilite: patient.mobilite },
+        message: `Patient ${patient.numeroPatient} créé`,
+      },
+    }),
+
+  patientMisAJour: (patient, utilisateur, champs) =>
+    log({
+      action: "PATIENT_UPDATED",
+      utilisateur,
+      ressource: { type: "Patient", id: patient._id, reference: patient.numeroPatient },
+      details: { metadata: { champsModifies: champs }, message: `Patient ${patient.numeroPatient} mis à jour` },
+    }),
+
+  patientExporte: (patient, utilisateur) =>
+    log({
+      action: "PATIENT_EXPORTED",
+      utilisateur,
+      ressource: { type: "Patient", id: patient._id, reference: patient.numeroPatient },
+      details: { message: `Données du patient ${patient.numeroPatient} exportées (RGPD Art. 20)` },
+    }),
+
+  patientAnonyme: (patient, utilisateur, raison) =>
+    log({
+      action: "PATIENT_ANONYMIZED",
+      utilisateur,
+      ressource: { type: "Patient", id: patient._id, reference: patient.numeroPatient },
+      details: { metadata: { raison }, message: `Patient ${patient.numeroPatient} anonymisé` },
+    }),
+
+  patientSuppressionDemandee: (patient, utilisateur, raison) =>
+    log({
+      action: "PATIENT_DELETION_REQUESTED",
+      utilisateur,
+      ressource: { type: "Patient", id: patient._id, reference: patient.numeroPatient },
+      details: { metadata: { raison }, message: `Demande suppression patient ${patient.numeroPatient}` },
+    }),
+
+  patientSuppressionAnnulee: (patient, utilisateur) =>
+    log({
+      action: "PATIENT_DELETION_CANCELLED",
+      utilisateur,
+      ressource: { type: "Patient", id: patient._id, reference: patient.numeroPatient },
+      details: { message: `Demande suppression annulée — patient ${patient.numeroPatient}` },
+    }),
+
+  consentementPatientMaj: (patient, utilisateur, consentType, accepted) =>
+    log({
+      action: "PATIENT_CONSENT_UPDATED",
+      utilisateur,
+      ressource: { type: "Patient", id: patient._id, reference: patient.numeroPatient },
+      details: {
+        metadata: { consentType, accepted },
+        message: `Consentement "${consentType}" → ${accepted ? "accepté" : "refusé"} — patient ${patient.numeroPatient}`,
+      },
+    }),
+
+  prescriptionVue: (prescription, utilisateur) =>
+    log({
+      action: "PRESCRIPTION_VIEWED",
+      utilisateur,
+      ressource: { type: "Prescription", id: prescription._id, reference: prescription.numero },
+      details: { message: `Prescription ${prescription.numero} consultée` },
+    }),
+
+  factureVue: (facture, utilisateur) =>
+    log({
+      action: "INVOICE_VIEWED",
+      utilisateur,
+      ressource: { type: "Facture", id: facture._id, reference: facture.numero },
+      details: { message: `Facture ${facture.numero} consultée` },
+    }),
 };
 
 module.exports = { log, audit };
