@@ -1050,6 +1050,23 @@ export default function Factures() {
   };
 
   // ── Export comptable (backend CSV) ──────────────────────────────────────────
+  const handleRecalculateAmounts = async () => {
+    if (!window.confirm("Recalculer les montants de toutes les factures à 0 € depuis le barème CPAM ?")) return;
+    try {
+      const { data } = await factureService.recalculateAmounts();
+      addToast(data.message || "Recalcul terminé", data.fixed > 0 ? "success" : "info");
+      if (data.fixed > 0) {
+        reloadFactures();
+        // Recharger le dashboard comptable
+        api.get("/comptabilite/dashboard", { params: { annee: anneeActuelle, mois: moisActuel } })
+          .then(({ data: d }) => setCompta(d))
+          .catch(() => {});
+      }
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Erreur lors du recalcul", "error");
+    }
+  };
+
   const handleExportInvoicesCsv = async () => {
     try {
       const date = new Date().toISOString().slice(0, 10);
@@ -1260,6 +1277,11 @@ export default function Factures() {
           <button onClick={exportRapport} className="flex items-center gap-2 text-xs font-bold text-emerald-600 border border-emerald-300 px-4 py-2 rounded-lg hover:bg-emerald-600 hover:text-white transition-all">
             <span className="material-symbols-outlined text-sm">bar_chart</span>Rapport complet
           </button>
+          {stats?.parStatut?.brouillons > 0 || (compta?.ca?.total === 0 && stats?.parStatut?.payees > 0) ? (
+            <button onClick={handleRecalculateAmounts} className="flex items-center gap-2 text-xs font-bold text-red-600 border border-red-300 px-4 py-2 rounded-lg hover:bg-red-600 hover:text-white transition-all" title="Recalculer les montants des factures à 0 €">
+              <span className="material-symbols-outlined text-sm">calculate</span>Recalculer montants
+            </button>
+          ) : null}
         </div>
       </div>
 

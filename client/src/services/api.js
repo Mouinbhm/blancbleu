@@ -336,6 +336,9 @@ export const factureService = {
 
   // ── Historique ─────────────────────────────────────────────────────────────
   getHistory: (id) => api.get(`/factures/${id}/history`),
+
+  // ── Recalcul montants ──────────────────────────────────────────────────────
+  recalculateAmounts: () => api.post("/factures/recalculate-amounts"),
 };
 
 // ════════════════════════════════════════════════════════════════════════════

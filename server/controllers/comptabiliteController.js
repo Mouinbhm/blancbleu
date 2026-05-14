@@ -55,11 +55,15 @@ const getDashboard = async (req, res) => {
     const caPartCPAM    = facturesMois.reduce((s, f) => s + (f.montantCPAM || 0), 0);
     const caPartPatient = facturesMois.reduce((s, f) => s + (f.montantPatient || 0), 0);
 
-    // CA encaissé : factures payées (paymentStatus SUCCEEDED) avec datePaiement ce mois
-    // Couvre les factures émises en d'autres mois mais encaissées ce mois
+    // CA encaissé : factures avec statut "payee" (source de vérité),
+    // datePaiement ce mois ou, si absent, dateEmission ce mois
+    const STATUTS_PAYES = ["payee", "remboursee", "partiellement_remboursee"];
     const encaissementsMois = await Facture.find({
-      paymentStatus: "SUCCEEDED",
-      datePaiement: { $gte: debutMois, $lte: finMois },
+      statut: { $in: STATUTS_PAYES },
+      $or: [
+        { datePaiement: { $gte: debutMois, $lte: finMois } },
+        { datePaiement: null, dateEmission: { $gte: debutMois, $lte: finMois } },
+      ],
     });
     const caEncaisse = encaissementsMois.reduce((s, f) => s + (f.montantTotal || 0), 0);
 

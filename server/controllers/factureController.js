@@ -4,6 +4,8 @@
  * Rétrocompatible avec le modèle v2 (statut, montantTotal, etc.)
  */
 const Facture        = require("../models/Facture");
+const Transport      = require("../models/Transport");
+const tarifService   = require("../services/tarifService");
 const invoiceService = require("../services/invoiceService");
 const pdfService     = require("../services/invoicePdfService");
 const { audit }      = require("../services/auditService");
@@ -282,11 +284,11 @@ const getStats = async (req, res) => {
         Facture.countDocuments({ paymentStatus: "FAILED" }),
         Facture.countDocuments({ statut: { $in: ["remboursee", "partiellement_remboursee"] } }),
         Facture.aggregate([
-          { $match: { paymentStatus: "SUCCEEDED" } },
+          { $match: { $or: [{ paymentStatus: "SUCCEEDED" }, { statut: "payee" }] } },
           { $group: { _id: null, total: { $sum: "$montantTotal" } } },
         ]),
         Facture.aggregate([
-          { $match: { paymentStatus: "SUCCEEDED" } },
+          { $match: { $or: [{ paymentStatus: "SUCCEEDED" }, { statut: "payee" }] } },
           { $group: { _id: null, total: { $sum: "$montantPatient" } } },
         ]),
       ]);
@@ -297,6 +299,58 @@ const getStats = async (req, res) => {
       chiffreAffaires:     chiffre[0]?.total        || 0,
       encaissementPatient: chiffrePatient[0]?.total  || 0,
     });
+  } catch (err) {
+    res.status(500).json({ message: safeMsg(err) });
+  }
+};
+
+// ─── Recalcul des montants à zéro ────────────────────────────────────────────
+
+const recalculateAmounts = async (req, res) => {
+  try {
+    const factures = await Facture.find({ montantTotal: { $lte: 0 } }).lean();
+    if (factures.length === 0) return res.json({ message: "Aucune facture à corriger", fixed: 0, errors: 0 });
+
+    let fixed = 0;
+    let errors = 0;
+    const details = [];
+
+    for (const f of factures) {
+      const transport = await Transport.findById(f.transportId).lean();
+      if (!transport) { errors++; details.push({ id: f._id, numero: f.numero, error: "Transport introuvable" }); continue; }
+
+      let tarif;
+      try {
+        tarif = await tarifService.calculerTarif(transport);
+      } catch (_) {
+        try {
+          tarif = await tarifService.calculerTarif({
+            ...transport,
+            adresseDepart: { coordonnees: null },
+            adresseDestination: { coordonnees: null },
+          });
+        } catch (err2) { errors++; details.push({ id: f._id, numero: f.numero, error: err2.message }); continue; }
+      }
+
+      const taux         = tarif.tauxPriseEnCharge ?? f.tauxPriseEnCharge ?? 65;
+      const montantBase  = Math.round((tarif.bareme.forfait + tarif.bareme.prixKm * tarif.distanceFacturee) * 100) / 100;
+      const majoration   = tarif.supplements ?? 0;
+      const montantTotal = Math.round((montantBase + majoration) * 100) / 100;
+      const montantCPAM  = Math.round(montantTotal * taux) / 100;
+      const montantPatient = Math.round((montantTotal - montantCPAM) * 100) / 100;
+
+      await Facture.findByIdAndUpdate(f._id, {
+        montantBase, majoration, montantTotal, tauxPriseEnCharge: taux,
+        montantCPAM, montantPatient,
+        distanceKm: tarif.distanceFacturee,
+        detailsCalcul: { sourceDistance: tarif.sourceDistance, bareme: tarif.bareme, lignes: tarif.details },
+      });
+
+      fixed++;
+      details.push({ id: f._id, numero: f.numero, montantTotal, sourceDistance: tarif.sourceDistance });
+    }
+
+    res.json({ message: `${fixed} facture(s) recalculée(s)`, fixed, errors, details });
   } catch (err) {
     res.status(500).json({ message: safeMsg(err) });
   }
@@ -316,4 +370,5 @@ module.exports = {
   getHistory,
   deleteFacture,
   getStats,
+  recalculateAmounts,
 };

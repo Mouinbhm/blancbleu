@@ -13,6 +13,9 @@ const ADMIN_SUP = ["admin", "superviseur"];
 // ── Stats ─────────────────────────────────────────────────────────────────────
 router.get("/stats", protect, ctrl.getStats);
 
+// ── Recalcul des montants à zéro ─────────────────────────────────────────────
+router.post("/recalculate-amounts", protect, authorize("admin", "superviseur"), ctrl.recalculateAmounts);
+
 // ── Génération depuis transport ───────────────────────────────────────────────
 router.post(
   "/from-transport/:transportId",
