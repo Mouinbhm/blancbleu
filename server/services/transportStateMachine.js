@@ -6,19 +6,25 @@
  *
  * FLUX NOMINAL :
  *  REQUESTED → CONFIRMED → SCHEDULED → ASSIGNED
- *    → EN_ROUTE_TO_PICKUP → ARRIVED_AT_PICKUP
+ *    → [DRIVER_ACCEPTED →] EN_ROUTE_TO_PICKUP → ARRIVED_AT_PICKUP
  *    → PATIENT_ON_BOARD → ARRIVED_AT_DESTINATION
- *    → [WAITING_AT_DESTINATION →] RETURN_TO_BASE → COMPLETED → BILLED
+ *    → [WAITING_AT_DESTINATION →] RETURN_TO_BASE → COMPLETED
+ *    → BILLING_PENDING → BILLED → PAID
  *
  * STATUTS ALTERNATIFS :
  *  → CANCELLED   (depuis tout statut non terminal)
  *  → NO_SHOW     (depuis ARRIVED_AT_PICKUP uniquement)
- *  → RESCHEDULED (depuis CONFIRMED, SCHEDULED, NO_SHOW)
+ *  → RESCHEDULED (depuis CONFIRMED, SCHEDULED, DRIVER_REJECTED, NO_SHOW)
+ *    RESCHEDULED → SCHEDULED | CANCELLED  (jamais → CONFIRMED)
  *
  * NOUVEAUX STATUTS (v1.1) :
  *  WAITING_AT_DESTINATION — attente sur place (dialyse, chimio…) — OPTIONNEL
  *  RETURN_TO_BASE         — trajet retour chauffeur vers la base
- *  BILLED                 — clôture financière CPAM (superviseur/admin uniquement)
+ *
+ * CLÔTURE FINANCIÈRE (v1.2) :
+ *  BILLING_PENDING — facturation CPAM en cours de traitement
+ *  BILLED          — facture CPAM émise
+ *  PAID            — paiement reçu (terminal)
  */
 
 // ══════════════════════════════════════════════════════════════════════════════

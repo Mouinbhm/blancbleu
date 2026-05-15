@@ -109,6 +109,8 @@ describe("peutTransitionner", () => {
     // PAID est terminal
     ["PAID",                   "REQUESTED"],
     ["PAID",                   "BILLED"],
+    // RESCHEDULED ne peut PAS aller vers CONFIRMED (doit repasser par SCHEDULED)
+    ["RESCHEDULED",            "CONFIRMED"],
     // Pas de retour depuis ARRIVED_AT_DESTINATION vers BILLED sans complétion
     ["ARRIVED_AT_DESTINATION", "BILLED"],
     ["RETURN_TO_BASE",         "BILLED"],
