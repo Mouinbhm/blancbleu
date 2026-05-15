@@ -855,9 +855,6 @@ const addSignature = async (req, res, next) => {
       req.user,
     );
 
-    // Notification best-effort
-    transportNotif.notifySignatureAdded(transport).catch(() => {});
-
     res.json({ success: true, message: "Signature enregistrée avec succès", proofOfCare: transport.proofOfCare });
   } catch (e) {
     if (e.message?.includes("Signature impossible") || e.message?.includes("déjà une signature"))

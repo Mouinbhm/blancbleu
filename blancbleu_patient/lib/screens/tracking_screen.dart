@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../config/theme.dart';
 import '../services/api_service.dart';
 
@@ -26,7 +28,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
   Map<String, dynamic>?  _tracking;
 
   final _mapController = MapController();
-  Timer? _refreshTimer;
+  Timer?    _refreshTimer;
+  IO.Socket? _socket;
 
   static const _activeStatuts = [
     'ASSIGNED', 'EN_ROUTE_TO_PICKUP', 'ARRIVED_AT_PICKUP', 'PATIENT_ON_BOARD',
@@ -51,8 +54,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
   void initState() {
     super.initState();
     _load();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted && _isActive()) _load(silent: true);
+    _connectSocket();
+    // Fallback polling — reprend si socket déconnecté
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted && _isActive() && (_socket?.connected != true)) {
+        _load(silent: true);
+      }
     });
   }
 
@@ -60,7 +67,69 @@ class _TrackingScreenState extends State<TrackingScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     _mapController.dispose();
+    _socket?.disconnect();
+    _socket?.dispose();
     super.dispose();
+  }
+
+  void _connectSocket() {
+    final base = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:5000/api/patient';
+    final serverUrl = base.replaceAll(RegExp(r'/api.*'), '');
+
+    _socket = IO.io(serverUrl, IO.OptionBuilder()
+      .setTransports(['websocket', 'polling'])
+      .enableReconnection()
+      .setReconnectionDelay(2000)
+      .build());
+
+    _socket!.onConnect((_) {
+      // Rejoindre la room du transport pour recevoir GPS + statut en temps réel
+      _socket!.emit('join:transport', widget.transportId);
+    });
+
+    // Mise à jour GPS en temps réel depuis le chauffeur
+    _socket!.on('tracking:gps_updated', (data) {
+      if (!mounted) return;
+      final d = data is Map ? data : {};
+      final lat = (d['lat'] as num?)?.toDouble();
+      final lng = (d['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) return;
+
+      setState(() {
+        _tracking = {
+          ...(_tracking ?? {}),
+          'vehicule': {
+            ...((_tracking?['vehicule'] as Map?) ?? {}),
+            'position': {'lat': lat, 'lng': lng},
+          },
+        };
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _mapController.move(LatLng(lat, lng), 14.5);
+      });
+    });
+
+    // Mise à jour du statut en temps réel
+    _socket!.on('transport:status_updated', (data) {
+      if (!mounted) return;
+      final d = data is Map ? data : {};
+      final newStatut = d['nouveauStatut'] as String?;
+      if (newStatut == null) return;
+      setState(() {
+        _tracking = {
+          ...(_tracking ?? {}),
+          'statut': newStatut,
+        };
+      });
+      // Recharger les détails complets si statut terminal
+      const terminals = ['COMPLETED', 'CANCELLED', 'NO_SHOW', 'FAILED'];
+      if (terminals.contains(newStatut)) _load(silent: true);
+    });
+
+    _socket!.onDisconnect((_) {
+      // Reprendre le polling en cas de déconnexion
+      if (mounted && _isActive()) _load(silent: true);
+    });
   }
 
   bool _isActive() =>

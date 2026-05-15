@@ -118,6 +118,14 @@ async function _transition(transportId, nouveauStatut, metadata = {}) {
     utilisateur: metadata.utilisateur || "système",
   });
   socketService.emitStatsUpdate?.();
+  // Émettre dans la room transport:{id} pour le suivi patient + flutter
+  socketService.emitToTransportRoom?.(transport._id, "transport:status_updated", {
+    transportId: transport._id,
+    numero:      transport.numero,
+    ancienStatut: entreeJournal.de,
+    nouveauStatut,
+    progression: require("./transportStateMachine").TransportStateMachine.progression(nouveauStatut),
+  });
 
   // ── PART E : Notification persistée + push Socket ─────────────────────────
   setImmediate(() => {
@@ -425,7 +433,7 @@ async function completerTransport(transportId, utilisateur) {
   // Non bloquant : un échec ici ne remet pas en cause la complétion du transport.
   // La facture peut toujours être créée manuellement depuis le module facturation.
   try {
-    const factureExistante = await Facture.findOne({ transport: transport._id });
+    const factureExistante = await Facture.findOne({ transportId: transport._id });
     if (!factureExistante) {
       const tarif = await tarifService.calculerTarif(transport);
       const patientLabel = [transport.patient?.nom, transport.patient?.prenom]
@@ -436,22 +444,39 @@ async function completerTransport(transportId, utilisateur) {
         transport.adresseDestination?.ville ||
         "Non précisé";
 
-      await Facture.create({
-        transport: transport._id,
-        patient: patientLabel,
+      const facture = await Facture.create({
+        transportId: transport._id,
+        patientNom:  transport.patient?.nom  || "",
+        patientPrenom: transport.patient?.prenom || "",
         motif: transport.motif,
-        lieu: lieuLabel,
-        montant: tarif.montantTotal,
-        montantCPAM: tarif.montantCPAM,
+        montantTotal:   tarif.montantTotal,
+        montantCPAM:    tarif.montantCPAM,
         montantPatient: tarif.montantPatient,
-        distanceKm: tarif.distanceKm,
-        typeVehicule: transport.typeTransport,
-        statut: "en-attente",
+        distanceKm:     tarif.distanceKm,
+        typeVehicule:   transport.typeTransport,
+        statut: "en_attente",
         notes: tarif.details.join("\n"),
       });
       logger.info("Facture auto-créée", {
         numero: transport.numero,
         montant: tarif.montantTotal,
+      });
+      // Notifier patient + admin/comptable qu'une facture est disponible
+      const patientId = transport.patientId;
+      setImmediate(() => {
+        transportNotif.notifyInvoiceReady(facture, patientId)
+          .catch((err) => logger.warn("[lifecycle] notifyInvoiceReady échoué", { err: err.message }));
+      });
+      // Transition automatique COMPLETED → BILLING_PENDING
+      const _util = utilisateur;
+      const _tId  = transportId;
+      setImmediate(async () => {
+        try {
+          await marquerBillingPending(_tId, _util);
+          logger.info("Auto-transition BILLING_PENDING", { transport: transport.numero });
+        } catch (err) {
+          logger.warn("Auto-transition BILLING_PENDING échouée", { transport: transport.numero, err: err.message });
+        }
       });
     }
   } catch (err) {
@@ -802,6 +827,20 @@ async function addSignature(transportId, { signedByName, signatureBase64, signat
     consentText:       consentText || "Je certifie avoir été transporté conformément à ma demande.",
   };
   await transport.save();
+
+  // Émettre dans la room transport:{id} pour la mise à jour temps réel
+  socketService.emitToTransportRoom?.(transport._id, "transport:signature_added", {
+    transportId:  transport._id,
+    numero:       transport.numero,
+    signedByName: signedByName || "",
+    signedAt:     transport.proofOfCare.signedAt,
+  });
+
+  // Notification persistée admin + dispatcher
+  setImmediate(() => {
+    transportNotif.notifySignatureAdded(transport)
+      .catch((err) => logger.warn("[lifecycle] notifySignatureAdded échoué", { err: err.message }));
+  });
 
   logger.info("Signature patient ajoutée", { numero: transport.numero, signedByName });
   return { transport };

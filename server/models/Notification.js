@@ -52,6 +52,19 @@ const notificationSchema = new mongoose.Schema(
         "PMT_OCR_DONE",
         // Système
         "SYSTEM_ALERT",
+        // Cycle de vie opérationnel (chauffeur)
+        "EN_ROUTE",
+        "ARRIVED_PICKUP",
+        "PATIENT_ON_BOARD",
+        "ARRIVED_DESTINATION",
+        "COMPLETED",
+        "CANCELLED",
+        "RESCHEDULED",
+        // Cycle financier
+        "BILLING_PENDING",
+        "BILLED",
+        "PAID",
+        "FAILED",
         // Générique (rétrocompat)
         "VEHICLE_BLOCKED",
         "VEHICLE_OUT_OF_SERVICE",

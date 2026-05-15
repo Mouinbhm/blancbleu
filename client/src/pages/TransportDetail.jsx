@@ -716,18 +716,38 @@ export default function TransportDetail() {
     const socket = getSocket() || getOrCreateSocket();
     if (!socket) return;
 
+    // Rejoindre la room transport:{id} pour recevoir GPS + statut + signature en temps réel
+    socket.emit("join:transport", id);
+
     const onStatutChange = (d) => {
       if (String(d.transportId) !== id) return;
       console.log(`🔄 Statut changé : ${d.ancienStatut} → ${d.nouveauStatut}`);
       loadTransport();
     };
+    const onGpsUpdated = (d) => {
+      if (String(d.transportId) !== id) return;
+      setVehiclePosition({ lat: d.lat, lng: d.lng });
+      setPosLive({ lat: d.lat, lng: d.lng, vitesse: d.speed });
+      setIsLive(true);
+    };
+    const onSignatureAdded = (d) => {
+      if (String(d.transportId) !== id) return;
+      loadTransport();
+    };
 
-    socket.on("transport:statut",        onStatutChange);
-    socket.on("transport:statut_change", onStatutChange);
+    socket.on("transport:statut",         onStatutChange);
+    socket.on("transport:statut_change",  onStatutChange);
+    socket.on("transport:status_updated", onStatutChange);
+    socket.on("tracking:gps_updated",     onGpsUpdated);
+    socket.on("transport:signature_added", onSignatureAdded);
 
     return () => {
-      socket.off("transport:statut",        onStatutChange);
-      socket.off("transport:statut_change", onStatutChange);
+      socket.emit("leave:transport", id);
+      socket.off("transport:statut",         onStatutChange);
+      socket.off("transport:statut_change",  onStatutChange);
+      socket.off("transport:status_updated", onStatutChange);
+      socket.off("tracking:gps_updated",     onGpsUpdated);
+      socket.off("transport:signature_added", onSignatureAdded);
     };
   }, [id, loadTransport]);
 
