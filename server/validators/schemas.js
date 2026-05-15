@@ -1,4 +1,5 @@
 const Joi = require("joi");
+const { STATUTS_VALIDES: STATUTS_VEHICULE_VALIDES, normalizeStatut } = require("../utils/vehicleStatut");
 
 // ─── Intervention ─────────────────────────────────────────────────────────────
 const TYPES_INCIDENTS = [
@@ -249,7 +250,8 @@ const updateTransportSchema = Joi.object({
 
 // ─── Véhicule ─────────────────────────────────────────────────────────────────
 const TYPES_VEHICULE = ["VSL", "AMBULANCE", "TPMR"];
-const STATUTS_VEHICULE = ["disponible", "en_mission", "maintenance", "hors_service"];
+// Accepts both canonical (Disponible) and legacy aliases (disponible, en_mission…)
+const STATUTS_VEHICULE = STATUTS_VEHICULE_VALIDES;
 
 const TYPES_ENERGIE = ["Diesel", "Essence", "Hybride", "Electrique", "GPL", "Hydrogène"];
 const CATEGORIES_CRIT_AIR = ["Crit'Air 1", "Crit'Air 2", "Crit'Air 3", "Non classé"];
@@ -340,8 +342,9 @@ const createVehicleSchema = Joi.object({
   capacite:                 capaciteSchema,
   position:                 positionVehicleSchema,
   garage:                   garageSchema,
-  // État
-  statut: Joi.string().valid(...STATUTS_VEHICULE).default("disponible"),
+  // État — accepte les anciennes valeurs (disponible, en_mission…) et les normalise
+  statut: Joi.string().valid(...STATUTS_VEHICULE).default("Disponible")
+    .custom((v) => normalizeStatut(v) || v),
   notes:  Joi.string().max(500).allow("").default(""),
 });
 
@@ -372,7 +375,7 @@ const updateVehicleSchema = Joi.object({
   capacite:                  capaciteSchema,
   position:                  positionVehicleSchema,
   garage:                    garageSchema,
-  statut:         Joi.string().valid(...STATUTS_VEHICULE),
+  statut:         Joi.string().valid(...STATUTS_VEHICULE).custom((v) => normalizeStatut(v) || v),
   notes:          Joi.string().max(500).allow(""),
   chauffeurAssigne:Joi.string().hex().length(24).allow(null),
 }).min(1).messages({ "object.min": "Au moins un champ à modifier est requis" });

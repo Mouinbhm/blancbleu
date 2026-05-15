@@ -31,7 +31,7 @@ const STATUTS_TERMINES = new Set([
 
 async function liberer(vehiculeId) {
   await Vehicle.findByIdAndUpdate(vehiculeId, {
-    statut: "disponible",
+    statut: "Disponible",
     transportEnCours: null,
   });
 }
@@ -45,10 +45,10 @@ async function main() {
 
   await mongoose.connect(uri);
 
-  const vehicules = await Vehicle.find({ statut: "en_mission", deletedAt: null });
+  const vehicules = await Vehicle.find({ statut: "En service", deletedAt: null });
 
   if (vehicules.length === 0) {
-    console.log("ℹ️  Aucun véhicule en statut \"en_mission\" trouvé.");
+    console.log("ℹ️  Aucun véhicule en statut \"En service\" trouvé.");
     return;
   }
 

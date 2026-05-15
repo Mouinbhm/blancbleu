@@ -98,7 +98,7 @@ async function predireBesoinsFlotte(nbJours = 7) {
 
   // Capacité par type : véhicules actifs (ni supprimés, ni hors_service)
   const flotteAgg = await Vehicle.aggregate([
-    { $match: { deletedAt: null, statut: { $ne: "hors_service" } } },
+    { $match: { deletedAt: null, statut: { $ne: "Hors service" } } },
     { $group: { _id: "$type", count: { $sum: 1 } } },
   ]);
 

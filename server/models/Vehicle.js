@@ -4,6 +4,7 @@
  * Remplace Unit.js (urgences)
  */
 const mongoose = require("mongoose");
+const { normalizeStatut } = require("../utils/vehicleStatut");
 
 const locationSchema = new mongoose.Schema(
   {
@@ -209,5 +210,15 @@ vehicleSchema.index({ "position.lat": 1, "position.lng": 1 });
 vehicleSchema.index({ "maintenanceInfo.nextMaintenanceDate": 1 });
 vehicleSchema.index({ "availability.currentTransportId": 1 });
 vehicleSchema.index({ immatriculation: 1 });
+
+// Normalize legacy / lowercase statut values before every save and validation
+vehicleSchema.pre("validate", function (next) {
+  if (this.statut) {
+    const normalized = normalizeStatut(this.statut);
+    if (normalized) this.statut = normalized;
+    // If not recognized, leave it unchanged so Mongoose enum validation produces the right error
+  }
+  next();
+});
 
 module.exports = mongoose.model("Vehicle", vehicleSchema);

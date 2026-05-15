@@ -151,7 +151,7 @@ async function recommanderDispatch(transport, vehicules, chauffeurs, options = {
         immatriculation:   v.immatriculation,
         nom:               v.nom || v.immatriculation,
         type:              v.type,
-        statut:            (v.statut || "").toLowerCase().includes("dispon") ? "disponible" : (v.statut || ""),
+        statut:            v.statut || "Disponible",
         position:          v.position?.lat ? { lat: v.position.lat, lng: v.position.lng } : null,
         capacites: {
           fauteuil: v.capacites?.equipeFauteuil ?? v.equipeFauteuil ?? false,
@@ -166,7 +166,7 @@ async function recommanderDispatch(transport, vehicules, chauffeurs, options = {
         _id:               String(c._id),
         nom:               c.nom,
         prenom:            c.prenom,
-        statut:            (c.statut || "").toLowerCase().includes("dispon") ? "disponible" : (c.statut || ""),
+        statut:            c.statut || "Disponible",
         certifications:    (c.certifications || []).map((cert) =>
           typeof cert === "string" ? cert : cert.nom
         ),

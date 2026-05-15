@@ -49,7 +49,7 @@ async function scoreDisponibilite(
   heureRDV,
   dureeEstimeeMin = 90,
 ) {
-  if (vehicle.statut !== "disponible") {
+  if (vehicle.statut !== "Disponible") {
     return { score: 0, detail: `Véhicule ${vehicle.statut}` };
   }
 

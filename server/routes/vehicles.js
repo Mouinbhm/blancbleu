@@ -12,6 +12,7 @@ const Transport      = require("../models/Transport");
 const socketService  = require("../services/socketService");
 const { audit }      = require("../services/auditService");
 const fleetAnalytics = require("../services/fleetAnalyticsService");
+const { normalizeStatut, assertStatut, STATUTS_VALIDES } = require("../utils/vehicleStatut");
 
 // Statuts indiquant qu'un transport est terminé (véhicule devrait être libre)
 const STATUTS_TERMINES = ["COMPLETED", "CANCELLED", "NO_SHOW", "BILLED"];
@@ -23,9 +24,9 @@ router.get("/", protect, async (req, res, next) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
     const filtre = { deletedAt: null };
-    if (statut) filtre.statut = statut;
+    if (statut) filtre.statut = normalizeStatut(statut) || statut;
     if (type) filtre.type = type;
-    if (disponible === "true") filtre.statut = "disponible";
+    if (disponible === "true") filtre.statut = "Disponible";
 
     const [data, total] = await Promise.all([
       Vehicle.find(filtre)
@@ -371,24 +372,24 @@ router.post(
 router.patch("/:id/statut", protect, async (req, res, next) => {
   try {
     const { statut } = req.body;
-    const valides = ["disponible", "en_mission", "maintenance", "hors_service"];
-    if (!valides.includes(statut)) {
-      return res
-        .status(400)
-        .json({ message: `Statut invalide. Valides : ${valides.join(", ")}` });
+    const normalized = normalizeStatut(statut);
+    if (!normalized) {
+      return res.status(400).json({
+        message: `Statut invalide. Valides : ${STATUTS_VALIDES.join(", ")}`,
+      });
     }
 
     const vehicle = await Vehicle.findById(req.params.id);
     if (!vehicle) return res.status(404).json({ message: "Introuvable" });
 
     const ancien = vehicle.statut;
-    vehicle.statut = statut;
+    vehicle.statut = normalized;
     await vehicle.save();
 
     socketService.emitUnitStatusChanged?.({
       unite: vehicle,
       ancienStatut: ancien,
-      nouveauStatut: statut,
+      nouveauStatut: normalized,
     });
 
     res.json(vehicle);

@@ -31,12 +31,12 @@ async function simulerDeplacement() {
     const vehicles = await Vehicle.find({ deletedAt: null });
 
     for (const vehicle of vehicles) {
-      if (vehicle.statut === "maintenance" || vehicle.statut === "hors_service")
+      if (vehicle.statut === "Maintenance" || vehicle.statut === "Hors service")
         continue;
 
       let modifie = false;
 
-      if (vehicle.statut === "en_mission" && vehicle.position?.lat) {
+      if (vehicle.statut === "En service" && vehicle.position?.lat) {
         const vitesse = vehicle.type === "AMBULANCE" ? 50 : 40;
         const nouvellePos = deplacer(
           vehicle.position.lat,
@@ -61,7 +61,7 @@ async function simulerDeplacement() {
           Math.round((vehicle.carburant - pctConso) * 100) / 100,
         );
         modifie = true;
-      } else if (vehicle.statut === "disponible") {
+      } else if (vehicle.statut === "Disponible") {
         modifie = true;
       }
 

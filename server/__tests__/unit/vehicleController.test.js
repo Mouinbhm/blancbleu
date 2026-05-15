@@ -56,7 +56,7 @@ const baseVehicle = {
   nom: "VSL-01",
   type: "VSL",
   immatriculation: "AA-000-AA",
-  statut: "disponible",
+  statut: "Disponible",
 };
 
 async function creerVehicle(overrides = {}) {
@@ -154,7 +154,7 @@ describe("PATCH /api/vehicles/:id/statut", () => {
       .send({ statut: "maintenance" });
 
     expect(res.status).toBe(200);
-    expect(res.body.statut).toBe("maintenance");
+    expect(res.body.statut).toBe("Maintenance");
   });
 
   test("400 — rejette un statut invalide", async () => {

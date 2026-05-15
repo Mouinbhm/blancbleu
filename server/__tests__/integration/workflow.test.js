@@ -93,7 +93,7 @@ async function creerVehicle(overrides = {}) {
     nom: "VSL-01",
     type: "VSL",
     immatriculation: "AA-000-AA",
-    statut: "disponible",
+    statut: "Disponible",
     position: { lat: 43.72, lng: 7.25 },
     ...overrides,
   });
