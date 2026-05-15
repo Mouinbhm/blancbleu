@@ -1,5 +1,7 @@
 const TrackingPoint = require("../models/TrackingPoint");
 const DriverShift   = require("../models/DriverShift");
+const Transport     = require("../models/Transport");
+const Vehicle       = require("../models/Vehicle");
 
 // POST /api/v1/tracking/batch
 // Body: { points: [{ lat, lng, speed, timestamp, accuracy, transportId? }] }
@@ -11,7 +13,18 @@ const batchInsert = async (req, res) => {
     }
 
     const shift = await DriverShift.findOne({ personnelId: req.personnel._id, status: "ACTIVE" });
-    if (!shift) return res.status(409).json({ message: "Aucun shift actif — impossible d'enregistrer la position" });
+    if (!shift) {
+      return res.status(409).json({ message: "Aucun shift actif — impossible d'enregistrer la position" });
+    }
+
+    // Verify driver is assigned to any declared transportId
+    const declaredTransportIds = [...new Set(points.map((p) => p.transportId).filter(Boolean))];
+    for (const tId of declaredTransportIds) {
+      const t = await Transport.findOne({ _id: tId, chauffeur: req.personnel._id }).select("_id").lean();
+      if (!t) {
+        return res.status(403).json({ message: `Transport ${tId} non assigné à ce chauffeur` });
+      }
+    }
 
     const docs = points.map((p) => ({
       driverId:    req.personnel._id,
@@ -29,8 +42,8 @@ const batchInsert = async (req, res) => {
     const last = docs[docs.length - 1];
     const io = req.app.get("io");
     if (io) {
-      const vehicle = await require("../models/Vehicle").findById(shift.vehicleId).select("immatriculation type").lean();
-      io.to("role:dispatcher").to("role:admin").to("role:superviseur").emit("driver:location_updated", {
+      const vehicle = await Vehicle.findById(shift.vehicleId).select("immatriculation type").lean();
+      const payload = {
         driverId:     req.personnel._id,
         driverNom:    `${req.personnel.prenom} ${req.personnel.nom}`,
         vehicleId:    shift.vehicleId,
@@ -41,7 +54,16 @@ const batchInsert = async (req, res) => {
         lng:          last.lng,
         speed:        last.speed,
         updatedAt:    last.timestamp,
-      });
+      };
+
+      // Broadcast to dispatcher/admin
+      io.to("role:dispatcher").to("role:admin").to("role:superviseur")
+        .emit("driver:location_updated", payload);
+
+      // Emit to transport-specific room for every transportId in the batch
+      for (const tId of declaredTransportIds) {
+        io.to(`transport:${tId}`).emit("tracking:gps_updated", { ...payload, transportId: tId });
+      }
     }
 
     return res.json({ inserted: docs.length });
@@ -63,18 +85,18 @@ const getLive = async (req, res) => {
           .sort({ timestamp: -1 })
           .select("lat lng speed timestamp");
         return {
-          driverId:    s.personnelId?._id,
-          driverNom:   s.personnelId ? `${s.personnelId.prenom} ${s.personnelId.nom}` : "—",
-          vehicleId:   s.vehicleId?._id,
+          driverId:     s.personnelId?._id,
+          driverNom:    s.personnelId ? `${s.personnelId.prenom} ${s.personnelId.nom}` : "—",
+          vehicleId:    s.vehicleId?._id,
           vehiclePlate: s.vehicleId?.immatriculation,
           vehicleType:  s.vehicleId?.type,
-          shiftId:     s._id,
-          lat:         last?.lat   ?? null,
-          lng:         last?.lng   ?? null,
-          speed:       last?.speed ?? null,
-          updatedAt:   last?.timestamp ?? null,
+          shiftId:      s._id,
+          lat:          last?.lat   ?? null,
+          lng:          last?.lng   ?? null,
+          speed:        last?.speed ?? null,
+          updatedAt:    last?.timestamp ?? null,
         };
-      })
+      }),
     );
 
     return res.json({ drivers: result });
