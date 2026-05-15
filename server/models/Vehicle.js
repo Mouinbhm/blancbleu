@@ -209,7 +209,6 @@ vehicleSchema.index({ statut: 1, type: 1 });
 vehicleSchema.index({ "position.lat": 1, "position.lng": 1 });
 vehicleSchema.index({ "maintenanceInfo.nextMaintenanceDate": 1 });
 vehicleSchema.index({ "availability.currentTransportId": 1 });
-vehicleSchema.index({ immatriculation: 1 });
 
 // Normalize legacy / lowercase statut values before every save and validation
 vehicleSchema.pre("validate", function (next) {

@@ -35,7 +35,6 @@ const missionSchema = new mongoose.Schema(
       ref: "Transport",
       required: [true, "Le transport est obligatoire"],
       unique: true, // Une seule mission active par transport
-      index: true,
     },
     vehicleId: {
       type: mongoose.Schema.Types.ObjectId,

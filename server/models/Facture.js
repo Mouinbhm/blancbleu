@@ -33,7 +33,6 @@ const factureSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Transport",
       required: [true, "Le transport est obligatoire"],
-      index: true,
     },
     missionId: {
       type: mongoose.Schema.Types.ObjectId,

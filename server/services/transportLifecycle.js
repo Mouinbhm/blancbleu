@@ -28,6 +28,16 @@ const logger = (() => {
   }
 })();
 
+// ── Helper : lancer la simulation GPS (désactivé en test) ────────────────────
+function scheduleGpsSimulation(transportId) {
+  if (process.env.NODE_ENV === "test") return;
+  setTimeout(() => {
+    require("./simulationGPS")
+      .demarrerSimulation(transportId)
+      .catch((err) => logger.warn("Simulation GPS non démarrée", { err: err.message }));
+  }, 5000);
+}
+
 // ── Helper : effectuer une transition et sauvegarder ──────────────────────────
 async function _transition(transportId, nouveauStatut, metadata = {}) {
   const transport = await Transport.findById(transportId)
@@ -298,12 +308,7 @@ async function assignerVehicule(
     score: scoreDispatch,
   });
 
-  // Démarrer la simulation GPS 5s après l'assignation (lazy require — évite la dépendance circulaire)
-  setTimeout(() => {
-    require("./simulationGPS")
-      .demarrerSimulation(transportId)
-      .catch((err) => logger.warn("Simulation GPS non démarrée", { err: err.message }));
-  }, 5000);
+  scheduleGpsSimulation(transportId);
 
   return { transport: transportUpdated, justification };
 }

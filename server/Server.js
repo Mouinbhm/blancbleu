@@ -252,7 +252,7 @@ if (require.main === module) {
       process.exit(1);
     });
 
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && process.env.NODE_ENV !== "test") {
     const sim = require("./services/simulationService");
     setTimeout(() => sim.demarrer(), 5000);
   }

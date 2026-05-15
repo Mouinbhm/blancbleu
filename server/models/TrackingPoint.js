@@ -9,7 +9,7 @@ const trackingPointSchema = new mongoose.Schema(
     lng:         { type: Number, required: true },
     speed:       { type: Number, default: 0 },
     accuracy:    { type: Number, default: null },
-    timestamp:   { type: Date, required: true, index: true },
+    timestamp:   { type: Date, required: true },
   },
   { _id: true }
 );
