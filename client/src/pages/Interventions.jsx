@@ -448,7 +448,7 @@ function ModalNouvelleIntervention({ units, onClose, onSaved }) {
               >
                 <option value="">— Aucune unité (en attente) —</option>
                 {units
-                  .filter((u) => u.statut === "disponible")
+                  .filter((u) => u.statut === "Disponible")
                   .map((u) => (
                     <option key={u._id} value={u._id}>
                       {u.nom} · {u.type} · Disponible
@@ -558,7 +558,7 @@ function ModalAssignerUnite({ intervention, units, onClose, onAssigned }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const disponibles = units.filter((u) => u.statut === "disponible");
+  const disponibles = units.filter((u) => u.statut === "Disponible");
 
   const handleAssign = async () => {
     if (!selected) {
@@ -978,10 +978,10 @@ function ModalAnalyseIA({ intervention, units, onClose, onAssign }) {
   // Filtrer les unités disponibles selon la recommandation
   const typeRec = result?.uniteRecommandee || "VSAV";
   const unitesOpt = units.filter(
-    (u) => u.statut === "disponible" && u.type === typeRec,
+    (u) => u.statut === "Disponible" && u.type === typeRec,
   );
   const unitesSec = units.filter(
-    (u) => u.statut === "disponible" && u.type !== typeRec,
+    (u) => u.statut === "Disponible" && u.type !== typeRec,
   );
   const pColor = { P1: "#ef4444", P2: "#f59e0b", P3: "#3b82f6" };
   const pc = pColor[result?.priorite] || "#1D6EF5";

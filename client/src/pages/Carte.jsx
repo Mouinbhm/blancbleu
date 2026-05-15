@@ -34,11 +34,10 @@ const NICE_ZOOM = 13;
 
 // ── Couleurs par statut ─────────────────────────────────────────────────────
 const COULEURS_STATUT = {
-  disponible: { bg: "#10b981", text: "#fff", label: "Disponible" },
-  en_mission: { bg: "#f59e0b", text: "#fff", label: "En mission" },
-  maintenance: { bg: "#6b7280", text: "#fff", label: "Maintenance" },
-  hors_service: { bg: "#ef4444", text: "#fff", label: "Hors service" },
-  pause: { bg: "#8b5cf6", text: "#fff", label: "Pause" },
+  "Disponible":   { bg: "#10b981", text: "#fff", label: "Disponible" },
+  "En service":   { bg: "#f59e0b", text: "#fff", label: "En mission" },
+  "Maintenance":  { bg: "#6b7280", text: "#fff", label: "Maintenance" },
+  "Hors service": { bg: "#ef4444", text: "#fff", label: "Hors service" },
 };
 
 const COULEURS_PRIORITE = {
@@ -51,7 +50,7 @@ const COULEURS_PRIORITE = {
 function creerIconeUnite(unit) {
   const couleur = COULEURS_STATUT[unit.statut]?.bg || "#6b7280";
   const lettre = unit.type?.charAt(0) || "A";
-  const pulse = unit.statut === "en_mission";
+  const pulse = unit.statut === "En service";
 
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
@@ -108,7 +107,7 @@ function CentrerSurUnite({ position }) {
 
 // ── Popup Unité ─────────────────────────────────────────────────────────────
 function PopupUnite({ unit }) {
-  const col = COULEURS_STATUT[unit.statut] || COULEURS_STATUT.disponible;
+  const col = COULEURS_STATUT[unit.statut] || COULEURS_STATUT["Disponible"];
   return (
     <div style={{ minWidth: 200 }}>
       <div
@@ -429,9 +428,9 @@ export default function Carte() {
           }}
         >
           <option value="tous">Tous statuts</option>
-          <option value="disponible">Disponibles</option>
-          <option value="en_mission">En mission</option>
-          <option value="maintenance">Maintenance</option>
+          <option value="Disponible">Disponibles</option>
+          <option value="En service">En mission</option>
+          <option value="Maintenance">Maintenance</option>
         </select>
 
         <select
@@ -524,7 +523,7 @@ export default function Carte() {
           <div style={{ flex: 1, overflowY: "auto" }}>
             {unitsFiltrees.map((unit) => {
               const col =
-                COULEURS_STATUT[unit.statut] || COULEURS_STATUT.disponible;
+                COULEURS_STATUT[unit.statut] || COULEURS_STATUT["Disponible"];
               const actif = unitSelectee?._id === unit._id;
               return (
                 <div
@@ -584,7 +583,7 @@ export default function Carte() {
                     {unit.position?.vitesse > 0 &&
                       ` · ${unit.position.vitesse}km/h`}
                   </div>
-                  {unit.statut === "en_mission" && (
+                  {unit.statut === "En service" && (
                     <div
                       style={{
                         fontSize: 10,

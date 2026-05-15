@@ -63,8 +63,8 @@ export default function Rapports() {
   const terminees = stats?.parStatut?.terminees || 0;
   const enCours = stats?.parStatut?.enCours || 0;
   const tauxSucces = total > 0 ? ((terminees / total) * 100).toFixed(1) : "0.0";
-  const dispos = units.filter((u) => u.statut === "disponible").length;
-  const enMission = units.filter((u) => u.statut === "en_mission").length;
+  const dispos = units.filter((u) => u.statut === "Disponible").length;
+  const enMission = units.filter((u) => u.statut === "En service").length;
   const utilFlotte =
     units.length > 0 ? Math.round((enMission / units.length) * 100) : 0;
 

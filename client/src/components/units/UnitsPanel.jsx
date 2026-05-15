@@ -1,21 +1,21 @@
 import { useNavigate } from "react-router-dom";
 
 const statutColor = {
-  disponible: "bg-emerald-400",
-  en_mission: "bg-yellow-400",
-  maintenance: "bg-red-400",
-  indisponible: "bg-slate-400",
+  "Disponible":   "bg-emerald-400",
+  "En service":   "bg-yellow-400",
+  "Maintenance":  "bg-red-400",
+  "Hors service": "bg-slate-400",
 };
 const statutLabel = {
-  disponible: "Disponible",
-  en_mission: "En mission",
-  maintenance: "Maintenance",
-  indisponible: "Indisponible",
+  "Disponible":   "Disponible",
+  "En service":   "En mission",
+  "Maintenance":  "Maintenance",
+  "Hors service": "Hors service",
 };
 
 export default function UnitsPanel({ units = [], loading = false }) {
   const navigate = useNavigate();
-  const disponibles = units.filter((u) => u.statut === "disponible").length;
+  const disponibles = units.filter((u) => u.statut === "Disponible").length;
 
   return (
     <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
@@ -75,9 +75,9 @@ export default function UnitsPanel({ units = [], loading = false }) {
               <div className="flex items-center gap-1">
                 <span
                   className={`text-xs font-semibold ${
-                    u.statut === "disponible"
+                    u.statut === "Disponible"
                       ? "text-emerald-600"
-                      : u.statut === "en_mission"
+                      : u.statut === "En service"
                         ? "text-yellow-600"
                         : "text-red-500"
                   }`}

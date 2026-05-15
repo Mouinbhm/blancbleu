@@ -390,22 +390,22 @@ export default function Dashboard() {
                   </div>
                   <span
                     className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      v.statut === "disponible"
+                      v.statut === "Disponible"
                         ? "bg-green-100 text-green-700"
-                        : v.statut === "en_mission"
+                        : v.statut === "En service"
                           ? "bg-orange-100 text-orange-700"
-                          : v.statut === "maintenance"
+                          : v.statut === "Maintenance"
                             ? "bg-yellow-100 text-yellow-700"
                             : "bg-red-100 text-red-700"
                     }`}
                   >
-                    {v.statut === "disponible"
+                    {v.statut === "Disponible"
                       ? "Libre"
-                      : v.statut === "en_mission"
+                      : v.statut === "En service"
                         ? "En mission"
-                        : v.statut === "maintenance"
+                        : v.statut === "Maintenance"
                           ? "Maintenance"
-                          : "Indisponible"}
+                          : "Hors service"}
                   </span>
                 </div>
               ))}
