@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:socket_io_client/socket_io_client.dart' as sio;
@@ -29,6 +30,20 @@ class GpsService {
   // ── Initialisation (called once in main.dart) ────────────────────────────
 
   static Future<void> init() async {
+    // Android 8+ requires the notification channel to exist before the
+    // foreground service posts its persistent notification to it.
+    await FlutterLocalNotificationsPlugin()
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(const AndroidNotificationChannel(
+          'blancbleu_gps',
+          'GPS Tracking',
+          description: 'Suivi GPS actif en arrière-plan',
+          importance: Importance.low,
+          playSound: false,
+          enableVibration: false,
+        ));
+
     await _bgService.configure(
       androidConfiguration: AndroidConfiguration(
         onStart: _bgEntryPoint,
