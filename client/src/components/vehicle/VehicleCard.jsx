@@ -32,7 +32,7 @@ function FuelBar({ value }) {
   );
 }
 
-export default function VehicleCard({ vehicle, onClick }) {
+export default function VehicleCard({ vehicle, onClick, onEquipClick, onMaintClick, equipStats, maintStats }) {
   const typeCfg   = TYPE_CONFIG[vehicle.type]         || TYPE_CONFIG.VSL;
   const statutCfg = STATUT_CONFIG[vehicle.statut]     || STATUT_CONFIG["Hors service"];
   const driver    = vehicle.currentPersonnelId;
@@ -88,10 +88,38 @@ export default function VehicleCard({ vehicle, onClick }) {
       </div>
 
       {/* Capacités */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5 mb-3">
         {vehicle.equipeOxygene  && <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">Oxygène</span>}
         {vehicle.equipeFauteuil && <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full font-medium">Fauteuil</span>}
         {vehicle.equipeBrancard && <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-medium">Brancard</span>}
+      </div>
+
+      {/* Équipements & Maintenances compacts */}
+      <div className="pt-2 border-t border-slate-100 space-y-1">
+        <button
+          onClick={(e) => { e.stopPropagation(); onEquipClick?.(); }}
+          className="w-full flex items-center justify-between text-xs text-slate-500 hover:text-slate-800 transition-colors py-0.5"
+        >
+          <span className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-sm text-slate-400">medical_services</span>
+            {equipStats?.count ?? 0} équipement(s)
+          </span>
+          {equipStats?.hasPanne && (
+            <span className="bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-semibold">Panne</span>
+          )}
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onMaintClick?.(); }}
+          className="w-full flex items-center justify-between text-xs text-slate-500 hover:text-slate-800 transition-colors py-0.5"
+        >
+          <span className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-sm text-slate-400">build</span>
+            {maintStats?.count ?? 0} maintenance(s)
+          </span>
+          {maintStats?.hasPlanified && (
+            <span className="bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-semibold">Planifiée</span>
+          )}
+        </button>
       </div>
     </div>
   );

@@ -112,7 +112,10 @@
       "Bash(powershell -Command ' *)",
       "PowerShell(head -20)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\\\\client\\\\src\" -Recurse -File)",
-      "Bash(Select-Object -First 50)"
+      "Bash(Select-Object -First 50)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\\\\client\\\\src\\\\pages\\\\Equipements.jsx\" -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\MSI\\\\OneDrive\\\\Bureau\\\\PFE\\\\blancbleu\\\\client\\\\src\\\\pages\\\\Maintenances.jsx\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Done\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\MSI\\.claude\\projects\\c--Users-MSI-OneDrive-Bureau-PFE-blancbleu\\memory",

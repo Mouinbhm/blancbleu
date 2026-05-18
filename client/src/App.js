@@ -20,8 +20,6 @@ import Patients from "./pages/Patients";
 import PatientDetail from "./pages/PatientDetail";
 import PrescriptionValidation from "./pages/PrescriptionValidation";
 import Personnel from "./pages/Personnel";
-import Equipements from "./pages/Equipements";
-import Maintenances from "./pages/Maintenances";
 import Factures from "./pages/Factures";
 import AideIA from "./pages/AideIA";
 import Utilisateurs from "./pages/Utilisateurs";
@@ -62,8 +60,6 @@ function App() {
             <Route path="/patients/:id" element={<PatientDetail />} />
             <Route path="/prescriptions/:id/validation" element={<PrescriptionValidation />} />
             <Route path="/personnel" element={<Personnel />} />
-            <Route path="/equipements" element={<Equipements />} />
-            <Route path="/maintenances" element={<Maintenances />} />
             <Route path="/factures" element={<Factures />} />
             <Route path="/aide-ia" element={<AideIA />} />
             <Route path="/utilisateurs" element={<Utilisateurs />} />

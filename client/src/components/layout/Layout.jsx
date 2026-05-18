@@ -23,8 +23,6 @@ const NAV_OPERATIONS = [
 const NAV_GESTION = [
   { path: "/flotte",       icon: "airport_shuttle",      label: "Flotte"        },
   { path: "/personnel",    icon: "badge",                label: "Personnel"     },
-  { path: "/equipements",  icon: "medical_services",     label: "Équipements"   },
-  { path: "/maintenances", icon: "build",                label: "Maintenances"  },
   { path: "/factures",     icon: "account_balance_wallet",label: "Comptabilité" },
   { path: "/aide-ia",      icon: "psychology",           label: "Aide IA"       },
 ];
@@ -41,8 +39,6 @@ const pageTitles = {
   "/flotte":          "Flotte — Véhicules sanitaires",
   "/patients":        "Patients — Dossiers patients",
   "/personnel":       "Personnel — Équipes",
-  "/equipements":     "Équipements — Matériel médical",
-  "/maintenances":    "Maintenances — Suivi véhicules",
   "/factures":        "Comptabilité — Finances & Facturation",
   "/aide-ia":         "Aide IA — Optimisation",
   "/utilisateurs":    "Utilisateurs — Gestion des accès",

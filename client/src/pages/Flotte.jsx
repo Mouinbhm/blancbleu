@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import VehicleCard from "../components/vehicle/VehicleCard";
 import VehicleDetailPanel from "../components/vehicle/VehicleDetailPanel";
-import { vehicleService } from "../services/api";
+import { vehicleService, equipementService, maintenanceService } from "../services/api";
 import useSocket from "../hooks/useSocket";
 
 // ── Styles partagés dans le modal ─────────────────────────────────────────────
@@ -708,17 +708,47 @@ export default function Flotte() {
   const [filtreType,           setFiltreType]           = useState("");
   const [showModal,            setShowModal]            = useState(false);
   const [vehiculeSelectionne,  setVehiculeSelectionne]  = useState(null);
+  const [initialTab,           setInitialTab]           = useState("info");
+  const [equipStats,           setEquipStats]           = useState({});
+  const [maintStats,           setMaintStats]           = useState({});
 
   const { subscribe } = useSocket();
 
   const loadData = useCallback(async () => {
     try {
-      const vehRes = await vehicleService.getAll();
+      const [vehRes, equipRes, maintRes] = await Promise.all([
+        vehicleService.getAll(),
+        equipementService.getAll({ limit: 500 }),
+        maintenanceService.getAll({ limit: 500 }),
+      ]);
+
       const payload = vehRes.data;
-      const list = Array.isArray(payload)
-        ? payload
-        : payload?.data || payload?.vehicles || [];
+      const list = Array.isArray(payload) ? payload : payload?.data || payload?.vehicles || [];
       setVehicles(list);
+
+      const equipList = Array.isArray(equipRes.data) ? equipRes.data : equipRes.data?.data || equipRes.data?.equipements || [];
+      const maintList = Array.isArray(maintRes.data) ? maintRes.data : maintRes.data?.data || maintRes.data?.maintenances || [];
+
+      const eqMap = {};
+      equipList.forEach((eq) => {
+        const vid = eq.uniteAssignee?._id || eq.uniteAssignee;
+        if (!vid) return;
+        if (!eqMap[vid]) eqMap[vid] = { count: 0, hasPanne: false };
+        eqMap[vid].count++;
+        if (eq.etat === "en-panne") eqMap[vid].hasPanne = true;
+      });
+
+      const mMap = {};
+      maintList.forEach((m) => {
+        const vid = m.unite?._id || m.unite;
+        if (!vid) return;
+        if (!mMap[vid]) mMap[vid] = { count: 0, hasPlanified: false };
+        mMap[vid].count++;
+        if (m.statut === "planifié") mMap[vid].hasPlanified = true;
+      });
+
+      setEquipStats(eqMap);
+      setMaintStats(mMap);
     } catch {
       /* silencieux */
     } finally {
@@ -874,7 +904,11 @@ export default function Flotte() {
             <VehicleCard
               key={v._id}
               vehicle={v}
-              onClick={() => setVehiculeSelectionne(v)}
+              equipStats={equipStats[v._id]}
+              maintStats={maintStats[v._id]}
+              onClick={() => { setInitialTab("info"); setVehiculeSelectionne(v); }}
+              onEquipClick={() => { setInitialTab("equip"); setVehiculeSelectionne(v); }}
+              onMaintClick={() => { setInitialTab("maint"); setVehiculeSelectionne(v); }}
             />
           ))}
         </div>
@@ -893,12 +927,14 @@ export default function Flotte() {
       {vehiculeSelectionne && (
         <VehicleDetailPanel
           vehicle={vehiculeSelectionne}
+          initialTab={initialTab}
           onClose={() => setVehiculeSelectionne(null)}
           onUpdate={(updated) => {
             setVehicles((prev) =>
               prev.map((v) => v._id === updated._id ? updated : v)
             );
             setVehiculeSelectionne(updated);
+            loadData();
           }}
         />
       )}
