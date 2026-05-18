@@ -16,9 +16,9 @@ import 'shared/theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('fr_FR', null);
-  await GpsService.init();
-  await ThemeNotifier.instance.init();
-  await NotificationService.init();
+  try { await GpsService.init(); } catch (e) { debugPrint('[main] GpsService.init error: $e'); }
+  try { await ThemeNotifier.instance.init(); } catch (e) { debugPrint('[main] ThemeNotifier.init error: $e'); }
+  try { await NotificationService.init(); } catch (e) { debugPrint('[main] NotificationService.init error: $e'); }
   runApp(const BlancBleuDriverApp());
 }
 
