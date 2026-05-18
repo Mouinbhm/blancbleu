@@ -7,7 +7,7 @@
  *   3. patientSocket — room patient + token FCM
  */
 
-const { initDriverSocket }  = require("./driverSocket");
+const { initDriverSocket, vehiclePositions } = require("./driverSocket");
 const { initPatientSocket } = require("./patientSocket");
 const Notification = require("../models/Notification");
 
@@ -33,6 +33,11 @@ function initSockets(io) {
     // Room spéciale chauffeur (personnel)
     if (user.type === "personnel" || user.role === "driver" || user.role === "ambulancier") {
       socket.join(`driver:${user.id}`);
+    }
+
+    // Push current vehicle positions snapshot to newly connected staff
+    if (["dispatcher", "admin", "superviseur"].includes(user.role) && vehiclePositions.size > 0) {
+      socket.emit("vehicle:positions_snapshot", Object.fromEntries(vehiclePositions));
     }
 
     // Envoyer le compteur de non-lus dès la connexion

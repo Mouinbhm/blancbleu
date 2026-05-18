@@ -7,11 +7,13 @@ import 'features/tournee/cubit/tournee_cubit.dart';
 import 'features/shift/cubit/shift_cubit.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/tournee/screens/home_screen.dart';
+import 'services/gps_service.dart';
 import 'shared/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('fr_FR', null);
+  await GpsService.init(); // configure background service before runApp
   runApp(const BlancBleuDriverApp());
 }
 

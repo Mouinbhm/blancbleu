@@ -27,8 +27,12 @@ dependencies:
   flutter_secure_storage: ^9.0.0
 
   # Location & Maps
-  geolocator: ^10.1.0
+  geolocator: ^11.0.0
   url_launcher: ^6.2.5
+
+  # Real-time socket & background GPS
+  socket_io_client: ^2.0.3+1
+  flutter_background_service: ^5.0.5
 
   # Documents
   image_picker: ^1.0.7

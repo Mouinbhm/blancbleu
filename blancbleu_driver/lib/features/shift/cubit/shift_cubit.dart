@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/location/location_service.dart';
+import '../../../services/gps_service.dart';
 
 // ── States ─────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,10 @@ class ShiftCubit extends Cubit<ShiftState> {
     try {
       final shift = await ApiClient.instance.getActiveShift();
       if (shift != null) {
-        LocationService.instance.startTracking(shift['_id'] ?? shift['id'] ?? '');
+        final shiftId   = (shift['_id'] ?? shift['id'] ?? '').toString();
+        final vehicleId = _extractVehicleId(shift['vehicleId']);
+        LocationService.instance.startTracking(shiftId);
+        await GpsService.instance.startTracking(shiftId, vehicleId);
         emit(ShiftActive(shift));
       } else {
         emit(ShiftIdle());
@@ -53,9 +57,11 @@ class ShiftCubit extends Cubit<ShiftState> {
   Future<void> start(String vehicleId, Map<String, bool> checklist) async {
     emit(ShiftLoading());
     try {
-      final data = await ApiClient.instance.startShift(vehicleId, checklist);
+      final data  = await ApiClient.instance.startShift(vehicleId, checklist);
       final shift = data['shift'] as Map<String, dynamic>;
-      LocationService.instance.startTracking(shift['_id'] ?? shift['id'] ?? '');
+      final shiftId = (shift['_id'] ?? shift['id'] ?? '').toString();
+      LocationService.instance.startTracking(shiftId);
+      await GpsService.instance.startTracking(shiftId, vehicleId);
       emit(ShiftActive(shift));
     } catch (e) {
       emit(ShiftError(e.toString().replaceFirst('Exception: ', '')));
@@ -67,10 +73,18 @@ class ShiftCubit extends Cubit<ShiftState> {
     try {
       await ApiClient.instance.endShift(totalKm: totalKm, notes: notes);
       LocationService.instance.stopTracking();
+      await GpsService.instance.stopTracking();
       emit(ShiftEnded());
     } catch (e) {
       emit(ShiftError(e.toString().replaceFirst('Exception: ', '')));
     }
+  }
+
+  // Extract vehicle ID regardless of whether vehicleId is a String or populated Map.
+  static String _extractVehicleId(dynamic raw) {
+    if (raw == null) return '';
+    if (raw is Map) return (raw['_id'] ?? raw['id'] ?? '').toString();
+    return raw.toString();
   }
 
   Future<void> addIncident(String description) async {

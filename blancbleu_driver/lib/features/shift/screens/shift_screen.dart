@@ -6,6 +6,7 @@ import '../../tournee/cubit/tournee_cubit.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/location/location_service.dart';
 import '../../../features/documents/services/route_sheet_service.dart';
+import '../../../services/gps_service.dart';
 import '../../../shared/theme/app_theme.dart';
 
 class ShiftScreen extends StatefulWidget {
@@ -396,12 +397,47 @@ class _ShiftScreenState extends State<ShiftScreen> {
             child: Row(children: [
               const Icon(Icons.directions_car, color: AppTheme.primary, size: 24),
               const SizedBox(width: 12),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(plate.isNotEmpty ? plate : '—',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.onSurface)),
-                if (vehicleType.isNotEmpty)
-                  Text(vehicleType, style: const TextStyle(fontSize: 12, color: AppTheme.secondary)),
-              ]),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(plate.isNotEmpty ? plate : '—',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.onSurface)),
+                  if (vehicleType.isNotEmpty)
+                    Text(vehicleType, style: const TextStyle(fontSize: 12, color: AppTheme.secondary)),
+                ]),
+              ),
+              // GPS status badge
+              ValueListenableBuilder<bool>(
+                valueListenable: GpsService.instance.isTracking,
+                builder: (_, tracking, __) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: tracking ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: tracking ? const Color(0xFF6EE7B7) : const Color(0xFFFCA5A5),
+                    ),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: tracking ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      tracking ? 'GPS actif' : 'GPS inactif',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: tracking ? const Color(0xFF065F46) : const Color(0xFF991B1B),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
             ]),
           ),
           const SizedBox(height: 24),
