@@ -3,6 +3,37 @@ import { useState, useEffect, useCallback } from "react";
 import { personnelService, vehicleService } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 
+// ── Résout les chemins relatifs /uploads/... vers l'URL absolue du serveur ────
+const SERVER_BASE = (process.env.REACT_APP_API_URL || "http://localhost:5000/api")
+  .replace(/\/api.*$/, "");
+
+function resolvePhotoUrl(photoUrl) {
+  if (!photoUrl) return null;
+  if (photoUrl.startsWith("/")) return `${SERVER_BASE}${photoUrl}`;
+  return photoUrl;
+}
+
+// ── Avatar avec fallback sur initiales si l'image est inaccessible ───────────
+function PersonnelAvatar({ photoUrl, initials, size = "w-8 h-8", textSize = "text-xs" }) {
+  const [err, setErr] = useState(false);
+  const src = resolvePhotoUrl(photoUrl);
+  if (src && !err) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className={`${size} rounded-full object-cover flex-shrink-0`}
+        onError={() => setErr(true)}
+      />
+    );
+  }
+  return (
+    <div className={`${size} rounded-full bg-gradient-to-br from-navy to-blue-500 flex items-center justify-center text-white ${textSize} font-bold flex-shrink-0`}>
+      {initials}
+    </div>
+  );
+}
+
 // ── Constantes métier ─────────────────────────────────────────────────────────
 const ROLES    = ["Ambulancier", "Secouriste", "Infirmier", "Médecin", "Chauffeur", "Autre"];
 const STATUTS  = ["Disponible", "En shift", "Congé", "Maladie", "Formation", "Inactif"];
@@ -300,12 +331,7 @@ function ModalMembre({ membre, onClose, onSaved }) {
               {/* Avatar */}
               <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
                 <div className="flex-shrink-0">
-                  {form.photoUrl
-                    ? <img src={form.photoUrl} alt="avatar" className="w-16 h-16 rounded-full object-cover border-2 border-primary/30 shadow-sm" />
-                    : <div className="w-16 h-16 rounded-full bg-gradient-to-br from-navy to-blue-500 flex items-center justify-center text-white text-xl font-bold shadow-sm">
-                        {initials}
-                      </div>
-                  }
+                  <PersonnelAvatar photoUrl={form.photoUrl} initials={initials} size="w-16 h-16" textSize="text-xl" />
                 </div>
                 <div className="flex-1">
                   <label className={labelCls}>URL de la photo (optionnel)</label>
@@ -665,10 +691,7 @@ function FicheDetail({ membre, onClose, onEdit, onResetPassword }) {
             <span className="material-symbols-outlined">close</span>
           </button>
           <div className="flex items-center gap-4">
-            {membre.photoUrl
-              ? <img src={membre.photoUrl} alt="avatar" className="w-16 h-16 rounded-full border-2 border-white/30 object-cover" />
-              : <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center text-white text-2xl font-bold">{initials}</div>
-            }
+            <PersonnelAvatar photoUrl={membre.photoUrl} initials={initials} size="w-16 h-16" textSize="text-2xl" />
             <div>
               <h3 className="text-white font-brand font-bold text-lg">{membre.prenom} {membre.nom}</h3>
               <p className="text-blue-300 text-sm">{membre.role}</p>
@@ -1004,10 +1027,7 @@ export default function Personnel() {
                     <tr key={p._id} className="hover:bg-surface transition-colors cursor-pointer" onClick={() => setDetail(p)}>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-3">
-                          {p.photoUrl
-                            ? <img src={p.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                            : <div className="w-8 h-8 rounded-full bg-gradient-to-br from-navy to-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{initials}</div>
-                          }
+                          <PersonnelAvatar photoUrl={p.photoUrl} initials={initials} />
                           <div>
                             <button
                               onClick={() => setDetail(p)}

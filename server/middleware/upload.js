@@ -72,10 +72,64 @@ const uploadSignature = multer({
   },
 }).single("signature");
 
+// ── Stockage Avatar ───────────────────────────────────────────────────────────
+const avatarStorage = multer.diskStorage({
+  destination(req, file, cb) {
+    const dir = path.join(UPLOADS_ROOT, "avatars");
+    _ensureDir(dir);
+    cb(null, dir);
+  },
+  filename(req, file, cb) {
+    const ext  = path.extname(file.originalname).toLowerCase() || ".jpg";
+    const name = `avatar_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+    cb(null, name);
+  },
+});
+
+const uploadAvatar = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 Mo
+  fileFilter(req, file, cb) {
+    if (["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Formats acceptés : JPG, PNG, WEBP."));
+    }
+  },
+}).single("avatar");
+
+// ── Stockage Document ─────────────────────────────────────────────────────────
+const documentStorage = multer.diskStorage({
+  destination(req, file, cb) {
+    const dir = path.join(UPLOADS_ROOT, "documents");
+    _ensureDir(dir);
+    cb(null, dir);
+  },
+  filename(req, file, cb) {
+    const ext  = path.extname(file.originalname).toLowerCase() || ".jpg";
+    const type = (req.body.type || "doc").replace(/[^a-z0-9]/gi, "_");
+    const name = `${type}_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+    cb(null, name);
+  },
+});
+
+const uploadDocument = multer({
+  storage: documentStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 Mo
+  fileFilter(req, file, cb) {
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Formats acceptés : JPG, PNG, PDF."));
+    }
+  },
+}).single("document");
+
 // ── Helper : résoudre l'URL publique d'un fichier uploadé ────────────────────
 function fileUrl(req, relPath) {
   const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
   return `${baseUrl}/uploads/${relPath.replace(/\\/g, "/")}`;
 }
 
-module.exports = { uploadPmt, uploadSignature, fileUrl };
+module.exports = { uploadPmt, uploadSignature, uploadAvatar, uploadDocument, fileUrl };

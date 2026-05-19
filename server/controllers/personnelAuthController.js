@@ -116,6 +116,32 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// POST /api/v1/personnel/auth/avatar
+const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "Aucun fichier reçu" });
+    const relativePath = `/uploads/avatars/${req.file.filename}`;
+    await Personnel.findByIdAndUpdate(req.personnel._id, { photoUrl: relativePath });
+    // Return both relative path and absolute URL for convenience
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+    return res.json({ url: `${baseUrl}${relativePath}`, path: relativePath });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// POST /api/v1/personnel/auth/documents
+const uploadDocument = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "Aucun fichier reçu" });
+    const relativePath = `/uploads/documents/${req.file.filename}`;
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+    return res.json({ url: `${baseUrl}${relativePath}`, path: relativePath });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 // POST /api/v1/personnel/auth/logout
 const logout = async (req, res) => {
   try {
@@ -126,4 +152,4 @@ const logout = async (req, res) => {
   }
 };
 
-module.exports = { login, changePassword, me, logout, updateProfile };
+module.exports = { login, changePassword, me, logout, updateProfile, uploadAvatar, uploadDocument };
