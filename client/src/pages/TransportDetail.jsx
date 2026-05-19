@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import StatutBadge from "../components/transport/StatutBadge";
 import TransportMap from "../components/map/TransportMap";
-import { transportService, vehicleService, factureService, shiftService, aiService } from "../services/api";
+import { transportService, vehicleService, factureService, prescriptionService, shiftService, aiService } from "../services/api";
 import useSocket from "../hooks/useSocket";
 import { getSocket, getOrCreateSocket } from "../services/socketService";
 
@@ -633,12 +633,19 @@ export default function TransportDetail() {
   const [modalShift, setModalShift]   = useState("");
   const [activeShifts, setActiveShifts] = useState([]);
   const [modalDuree, setModalDuree] = useState("");
-  const [modalFactureId,       setModalFactureId]       = useState("");
-  const [facturesDisponibles,  setFacturesDisponibles]  = useState([]);
-  const [facturesLoading,      setFacturesLoading]      = useState(false);
+  // États modal sélection prescription (Clôture CPAM)
+  const [modalPrescriptionId,     setModalPrescriptionId]     = useState("");
+  const [prescriptionsDisponibles, setPrescriptionsDisponibles] = useState([]);
+  const [prescriptionsLoading,    setPrescriptionsLoading]    = useState(false);
+  const [prescriptionSearch,      setPrescriptionSearch]      = useState("");
   const [modalReprogDate, setModalReprogDate] = useState("");
   const [modalReprogHeure, setModalReprogHeure] = useState("");
-  const closeModal = () => { setActiveModal(null); setModalFactureId(""); setFacturesDisponibles([]); };
+  const closeModal = () => {
+    setActiveModal(null);
+    setModalPrescriptionId("");
+    setPrescriptionsDisponibles([]);
+    setPrescriptionSearch("");
+  };
 
   const loadTransport = useCallback(async () => {
     try {
@@ -695,16 +702,18 @@ export default function TransportDetail() {
       .catch(() => setActiveShifts([]));
   }, [activeModal]);
 
+  // Chargement des prescriptions quand le modal CPAM s'ouvre
   useEffect(() => {
     if (activeModal !== "facturer") return;
-    setFacturesLoading(true);
-    factureService.getAll({ limit: 200 })
+    setPrescriptionsLoading(true);
+    prescriptionService.getAll({ limit: 200 })
       .then(({ data }) => {
-        const list = Array.isArray(data) ? data : data?.factures || data?.data || [];
-        setFacturesDisponibles(list.filter((f) => f.statut !== "annulee"));
+        const list = data?.prescriptions || (Array.isArray(data) ? data : []);
+        // Exclure les annulées
+        setPrescriptionsDisponibles(list.filter((p) => p.statut !== "annulee"));
       })
-      .catch(() => setFacturesDisponibles([]))
-      .finally(() => setFacturesLoading(false));
+      .catch(() => setPrescriptionsDisponibles([]))
+      .finally(() => setPrescriptionsLoading(false));
   }, [activeModal]);
 
   // ── Section 8: Socket.IO ────────────────────────────────────────────────────
@@ -830,8 +839,8 @@ export default function TransportDetail() {
   };
 
   const handleFacturer = () => {
-    if (!modalFactureId) return;
-    doAction("facturer", { factureId: modalFactureId });
+    if (!modalPrescriptionId) return;
+    doAction("facturer", { prescriptionId: modalPrescriptionId });
   };
 
   // PART B — Signature
@@ -1905,85 +1914,147 @@ export default function TransportDetail() {
       )}
 
       {activeModal === "facturer" && (
-        <Modal title="Clôture CPAM" onClose={closeModal}>
+        <Modal title="Sélectionner une prescription" onClose={closeModal}>
           <p className="text-sm text-slate-500 mb-4">
-            Sélectionnez la facture CPAM enregistrée dans la plateforme pour finaliser la clôture administrative.
+            Sélectionnez la prescription médicale de transport (PMT) à lier à la clôture CPAM.
           </p>
 
-          {facturesLoading ? (
+          {/* Barre de recherche par nom de patient */}
+          <div className="relative mb-4">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base select-none">
+              search
+            </span>
+            <input
+              type="text"
+              value={prescriptionSearch}
+              onChange={(e) => setPrescriptionSearch(e.target.value)}
+              placeholder="Rechercher par nom de patient…"
+              className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-[#1A56DB] transition-colors"
+            />
+          </div>
+
+          {/* Liste des prescriptions */}
+          {prescriptionsLoading ? (
             <div className="flex items-center gap-2 text-sm text-slate-400 py-3 mb-5">
-              <div className="w-4 h-4 border-2 border-slate-200 border-t-primary rounded-full animate-spin" />
-              Chargement des factures…
+              <div className="w-4 h-4 border-2 border-slate-200 border-t-[#1A56DB] rounded-full animate-spin" />
+              Chargement des prescriptions…
             </div>
-          ) : facturesDisponibles.length === 0 ? (
-            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-5">
-              Aucune facture disponible dans la plateforme.
-            </p>
-          ) : (
-            <div className="mb-5 space-y-2">
-              {facturesDisponibles.map((f) => {
-                const label = [
-                  f.numero || "—",
-                  f.patientNom ? `${f.patientNom} ${f.patientPrenom || ""}`.trim() : null,
-                  f.montantTotal != null ? `${f.montantTotal.toFixed(2)} €` : null,
-                ].filter(Boolean).join(" · ");
-                const statutColors = {
-                  brouillon:   "bg-slate-100 text-slate-600",
-                  emise:       "bg-blue-100 text-blue-700",
-                  en_attente:  "bg-yellow-100 text-yellow-700",
-                  payee:       "bg-green-100 text-green-700",
-                };
-                const isSelected = modalFactureId === f._id;
-                return (
-                  <button
-                    key={f._id}
-                    type="button"
-                    onClick={() => setModalFactureId(f._id)}
-                    className={`w-full text-left px-3 py-3 rounded-xl border-2 transition-all flex items-center justify-between gap-2 ${
-                      isSelected
-                        ? "border-purple-500 bg-purple-50"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <p className={`text-sm font-semibold truncate ${isSelected ? "text-purple-800" : "text-navy"}`}>
-                        {f.numero || "Sans numéro"}
-                      </p>
-                      {(f.patientNom || f.patientPrenom) && (
-                        <p className="text-xs text-slate-500 truncate">
-                          {`${f.patientNom || ""} ${f.patientPrenom || ""}`.trim()}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {f.montantTotal != null && (
-                        <span className="text-sm font-mono font-bold text-slate-700">
-                          {f.montantTotal.toFixed(2)} €
-                        </span>
-                      )}
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${statutColors[f.statut] || "bg-slate-100 text-slate-600"}`}>
-                        {f.statut}
-                      </span>
-                      {isSelected && (
-                        <span className="material-symbols-outlined text-purple-600 text-base">check_circle</span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          ) : (() => {
+            // Filtre côté client par nom / prénom patient
+            const q = prescriptionSearch.trim().toLowerCase();
+            const filtrees = prescriptionsDisponibles.filter((p) => {
+              if (!q) return true;
+              const nom    = (p.patientId?.nom    || "").toLowerCase();
+              const prenom = (p.patientId?.prenom || "").toLowerCase();
+              return nom.includes(q) || prenom.includes(q);
+            });
+
+            // Couleurs et libellés de statut
+            const statutColors = {
+              active:                 "bg-green-100 text-green-700",
+              expiree:                "bg-red-100 text-red-700",
+              annulee:                "bg-slate-100 text-slate-500",
+              en_attente_validation:  "bg-yellow-100 text-yellow-700",
+              incomplet:              "bg-orange-100 text-orange-700",
+            };
+            const statutLabels = {
+              active:                "Active",
+              expiree:               "Expirée",
+              annulee:               "Annulée",
+              en_attente_validation: "En attente",
+              incomplet:             "Incomplet",
+            };
+
+            if (filtrees.length === 0) {
+              return (
+                <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-5">
+                  {prescriptionsDisponibles.length === 0
+                    ? "Aucune prescription disponible dans la plateforme."
+                    : "Aucune prescription trouvée pour cette recherche."}
+                </p>
+              );
+            }
+
+            return (
+              <div className="mb-5 space-y-2 max-h-72 overflow-y-auto pr-1">
+                {filtrees.map((p) => {
+                  const isSelected = modalPrescriptionId === p._id;
+                  const nomPatient = p.patientId
+                    ? `${p.patientId.nom || ""} ${p.patientId.prenom || ""}`.trim()
+                    : "—";
+                  const nomMedecin = p.medecin?.nom
+                    ? `Dr ${p.medecin.nom}${p.medecin.prenom ? " " + p.medecin.prenom : ""}`
+                    : null;
+                  const dateEmission = p.dateEmission
+                    ? new Date(p.dateEmission).toLocaleDateString("fr-FR")
+                    : null;
+
+                  return (
+                    <button
+                      key={p._id}
+                      type="button"
+                      onClick={() => setModalPrescriptionId(p._id)}
+                      className={`w-full text-left px-3 py-3 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? "border-[#1A56DB] bg-blue-50"
+                          : "border-slate-200 hover:border-slate-300 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          {/* Numéro + statut */}
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <p className={`text-sm font-bold ${isSelected ? "text-[#1A56DB]" : "text-navy"}`}>
+                              {p.numero || "—"}
+                            </p>
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full flex-shrink-0 ${statutColors[p.statut] || "bg-slate-100 text-slate-600"}`}>
+                              {statutLabels[p.statut] || p.statut}
+                            </span>
+                          </div>
+                          {/* Nom patient */}
+                          <p className="text-xs font-semibold text-slate-700 truncate">
+                            {nomPatient}
+                          </p>
+                          {/* Détails : médecin · date · motif */}
+                          <div className="flex flex-wrap gap-x-3 mt-0.5">
+                            {nomMedecin && (
+                              <span className="text-xs text-slate-500">{nomMedecin}</span>
+                            )}
+                            {dateEmission && (
+                              <span className="text-xs text-slate-400">{dateEmission}</span>
+                            )}
+                            {p.motif && (
+                              <span className="text-xs text-slate-500">{p.motif}</span>
+                            )}
+                          </div>
+                        </div>
+                        {/* Icône de sélection */}
+                        {isSelected && (
+                          <span className="material-symbols-outlined text-[#1A56DB] text-lg flex-shrink-0 mt-0.5">
+                            check_circle
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           <div className="flex gap-3">
-            <button onClick={closeModal} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50">
+            <button
+              onClick={closeModal}
+              className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50"
+            >
               Annuler
             </button>
             <button
               onClick={handleFacturer}
-              disabled={!modalFactureId || actionLoading}
-              className="flex-1 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-bold hover:bg-purple-700 disabled:opacity-50"
+              disabled={!modalPrescriptionId || actionLoading}
+              className="flex-1 py-2.5 rounded-xl bg-[#1A56DB] text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
-              {actionLoading ? "…" : "Clôturer"}
+              {actionLoading ? "…" : "Confirmer"}
             </button>
           </div>
         </Modal>

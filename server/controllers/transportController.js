@@ -672,7 +672,7 @@ const facturer = async (req, res, next) => {
     return res.status(403).json({ message: "Clôture CPAM réservée aux superviseurs et administrateurs" });
   }
   try {
-    const { referenceFacture, factureId: factureIdBody } = req.body;
+    const { referenceFacture, factureId: factureIdBody, prescriptionId: prescriptionIdBody } = req.body;
     const Facture = require("../models/Facture");
 
     const transport = await Transport.findById(req.params.id);
@@ -768,10 +768,16 @@ const facturer = async (req, res, next) => {
     const r = await lifecycle.cloturerFacturation(req.params.id, factureIdValide, req.user);
 
     // Stocker la référence texte CPAM (champ séparé, jamais casté en ObjectId)
+    const updateCloture = {};
     if (referenceFacture) {
-      await Transport.findByIdAndUpdate(req.params.id, {
-        referenceFactureCPAM: String(referenceFacture).trim(),
-      });
+      updateCloture.referenceFactureCPAM = String(referenceFacture).trim();
+    }
+    // Lier la prescription sélectionnée au transport
+    if (prescriptionIdBody && mongoose.Types.ObjectId.isValid(prescriptionIdBody)) {
+      updateCloture.prescriptionId = prescriptionIdBody;
+    }
+    if (Object.keys(updateCloture).length > 0) {
+      await Transport.findByIdAndUpdate(req.params.id, updateCloture);
     }
 
     res.json(r);
