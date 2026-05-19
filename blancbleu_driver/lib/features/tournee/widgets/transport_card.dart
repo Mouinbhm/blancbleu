@@ -33,56 +33,77 @@ const _bgGreen  = Color(0xFFF0FDF4);
 const _bgRed    = Color(0xFFFEF2F2);
 
 const _statusCfg = <String, _SCfg>{
-  // Canonical values
-  'ASSIGNED':               _SCfg('À venir',   _grey,   _bgGrey),
-  'EN_ROUTE':               _SCfg('En route',  _blue,   _bgBlue),
-  'ARRIVED':                _SCfg('Arrivé',    _orange, _bgOrange),
-  'ON_BOARD':               _SCfg('Embarqué',  _violet, _bgViolet),
-  'AT_DESTINATION':         _SCfg('Déposé',    _green,  _bgGreen),
-  'COMPLETED':              _SCfg('Terminé',   _green,  _bgGreen),
-  'CANCELLED':              _SCfg('Annulé',    _red,    _bgRed, strike: true),
-  // Legacy values (pre-refactor)
-  'EN_ROUTE_TO_PICKUP':     _SCfg('En route',  _blue,   _bgBlue),
-  'ARRIVED_AT_PICKUP':      _SCfg('Arrivé',    _orange, _bgOrange),
-  'PATIENT_ON_BOARD':       _SCfg('Embarqué',  _violet, _bgViolet),
-  'ARRIVED_AT_DESTINATION': _SCfg('Déposé',    _green,  _bgGreen),
+  // Statuts nominaux (valeurs API)
+  'REQUESTED':              _SCfg('Demande',    _grey,   _bgGrey),
+  'CONFIRMED':              _SCfg('Confirmé',   _blue,   _bgBlue),
+  'SCHEDULED':              _SCfg('Planifié',   _blue,   _bgBlue),
+  'ASSIGNED':               _SCfg('À venir',    _grey,   _bgGrey),
+  'DRIVER_ACCEPTED':        _SCfg('Accepté',    _blue,   _bgBlue),
+  'DRIVER_REJECTED':        _SCfg('Refusé',     _red,    _bgRed),
+  'EN_ROUTE_TO_PICKUP':     _SCfg('En route',   _blue,   _bgBlue),
+  'ARRIVED_AT_PICKUP':      _SCfg('Arrivé',     _orange, _bgOrange),
+  'PATIENT_ON_BOARD':       _SCfg('Embarqué',   _violet, _bgViolet),
+  'ARRIVED_AT_DESTINATION': _SCfg('Déposé',     _green,  _bgGreen),
+  'WAITING_AT_DESTINATION': _SCfg('En attente', _orange, _bgOrange),
+  'RETURN_TO_BASE':         _SCfg('Retour base',_blue,   _bgBlue),
+  'COMPLETED':              _SCfg('Terminé',    _dkGrn,  _bgGreen),
+  'BILLING_PENDING':        _SCfg('Facturation',_grey,   _bgGrey),
+  'BILLED':                 _SCfg('Facturé',    _green,  _bgGreen),
+  'PAID':                   _SCfg('Payé',       _dkGrn,  _bgGreen),
+  'CANCELLED':              _SCfg('Annulé',     _red,    _bgRed, strike: true),
+  'NO_SHOW':                _SCfg('Absent',     _red,    _bgRed, strike: true),
+  'FAILED':                 _SCfg('Échec',      _red,    _bgRed, strike: true),
+  'RESCHEDULED':            _SCfg('Reprog.',    _orange, _bgOrange),
+  // Alias courts (rétrocompat)
+  'EN_ROUTE':               _SCfg('En route',   _blue,   _bgBlue),
+  'ARRIVED':                _SCfg('Arrivé',     _orange, _bgOrange),
+  'ON_BOARD':               _SCfg('Embarqué',   _violet, _bgViolet),
+  'AT_DESTINATION':         _SCfg('Déposé',     _green,  _bgGreen),
 };
 
-// What API value to send for each current status
+// Statut suivant à envoyer à l'API pour chaque statut courant.
+// L'API attend les noms complets (EN_ROUTE_TO_PICKUP, ARRIVED_AT_PICKUP, etc.)
 const _nextStatus = <String, String>{
-  'ASSIGNED':               'EN_ROUTE',
-  'EN_ROUTE':               'ARRIVED',
-  'EN_ROUTE_TO_PICKUP':     'ARRIVED',
-  'ARRIVED':                'ON_BOARD',
-  'ARRIVED_AT_PICKUP':      'ON_BOARD',
-  'ON_BOARD':               'AT_DESTINATION',
-  'PATIENT_ON_BOARD':       'AT_DESTINATION',
-  'AT_DESTINATION':         'COMPLETED',
+  // Statuts nominaux (valeurs renvoyées par l'API)
+  'ASSIGNED':               'EN_ROUTE_TO_PICKUP',
+  'DRIVER_ACCEPTED':        'EN_ROUTE_TO_PICKUP',
+  'EN_ROUTE_TO_PICKUP':     'ARRIVED_AT_PICKUP',
+  'ARRIVED_AT_PICKUP':      'PATIENT_ON_BOARD',
+  'PATIENT_ON_BOARD':       'ARRIVED_AT_DESTINATION',
   'ARRIVED_AT_DESTINATION': 'COMPLETED',
+  // Alias courts (rétrocompat, cas où l'API retournerait une ancienne valeur)
+  'EN_ROUTE':               'ARRIVED_AT_PICKUP',
+  'ARRIVED':                'PATIENT_ON_BOARD',
+  'ON_BOARD':               'ARRIVED_AT_DESTINATION',
+  'AT_DESTINATION':         'COMPLETED',
 };
 
 const _actionLabel = <String, String>{
   'ASSIGNED':               'Démarrer',
-  'EN_ROUTE':               'Je suis arrivé',
+  'DRIVER_ACCEPTED':        'Démarrer',
   'EN_ROUTE_TO_PICKUP':     'Je suis arrivé',
-  'ARRIVED':                'Patient embarqué',
   'ARRIVED_AT_PICKUP':      'Patient embarqué',
-  'ON_BOARD':               'Déposer le patient',
   'PATIENT_ON_BOARD':       'Déposer le patient',
-  'AT_DESTINATION':         'Terminer',
   'ARRIVED_AT_DESTINATION': 'Terminer',
+  // Alias courts
+  'EN_ROUTE':               'Je suis arrivé',
+  'ARRIVED':                'Patient embarqué',
+  'ON_BOARD':               'Déposer le patient',
+  'AT_DESTINATION':         'Terminer',
 };
 
 const _actionColor = <String, Color>{
   'ASSIGNED':               _blue,
-  'EN_ROUTE':               _orange,
+  'DRIVER_ACCEPTED':        _blue,
   'EN_ROUTE_TO_PICKUP':     _orange,
-  'ARRIVED':                _violet,
   'ARRIVED_AT_PICKUP':      _violet,
-  'ON_BOARD':               _green,
   'PATIENT_ON_BOARD':       _green,
-  'AT_DESTINATION':         _dkGrn,
   'ARRIVED_AT_DESTINATION': _dkGrn,
+  // Alias courts
+  'EN_ROUTE':               _orange,
+  'ARRIVED':                _violet,
+  'ON_BOARD':               _green,
+  'AT_DESTINATION':         _dkGrn,
 };
 
 // ── Widget ────────────────────────────────────────────────────────────────────
@@ -173,7 +194,8 @@ class _TransportCardState extends State<TransportCard> {
     final nextStatus  = _nextStatus[statut];
     final actionLabel = _actionLabel[statut];
     final actionColor = _actionColor[statut] ?? _blue;
-    final isTerminal  = statut == 'COMPLETED' || statut == 'CANCELLED';
+    final isTerminal  = statut == 'COMPLETED' || statut == 'CANCELLED' ||
+                       statut == 'NO_SHOW'   || statut == 'FAILED';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
