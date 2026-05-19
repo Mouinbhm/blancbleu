@@ -31,7 +31,7 @@ router.post( "/",    protect, ctrl.createFacture);
 // ── Détail / MAJ / Suppression ────────────────────────────────────────────────
 router.get(   "/:id",       protect, ctrl.getFacture);
 router.patch( "/:id",       protect, ctrl.updateFacture);
-router.delete("/:id",       protect, authorize(...ADMIN_SUP), ctrl.deleteFacture);
+router.delete("/:id",       protect, authorize(...COMPTABLE), ctrl.deleteFacture);
 
 // ── Transitions ───────────────────────────────────────────────────────────────
 router.patch("/:id/statut", protect, ctrl.updateStatut);

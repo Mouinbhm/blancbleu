@@ -254,18 +254,34 @@ const getHistory = async (req, res) => {
   }
 };
 
-// ─── Suppression (soft delete) ────────────────────────────────────────────────
+// ─── Annulation facture (soft delete) ────────────────────────────────────────
 
 const deleteFacture = async (req, res) => {
   try {
-    const f = await Facture.findByIdAndUpdate(
-      req.params.id,
-      { statut: "annulee" },
-      { new: true },
-    );
+    const f = await Facture.findById(req.params.id);
     if (!f) return res.status(404).json({ message: "Facture introuvable" });
-    res.json({ message: "Facture annulée" });
+
+    if (f.statut === "annulee") {
+      return res.status(400).json({ message: "Cette facture est déjà annulée" });
+    }
+    if (f.statut === "payee" || f.paymentStatus === "SUCCEEDED") {
+      return res.status(400).json({ message: "Impossible d'annuler une facture déjà payée" });
+    }
+
+    const from = f.statut;
+    f.statut        = "annulee";
+    f.paymentStatus = "UNPAID";
+
+    // Ajouter une entrée dans l'historique des transitions
+    invoiceService.addInvoiceHistory(
+      f, "ANNULEE", from, "annulee", req.user,
+      `Annulation manuelle par ${req.user?.email || "?"}`,
+    );
+
+    await f.save();
+    res.json({ message: "Facture annulée", facture: f });
   } catch (err) {
+    console.error("[factureController] deleteFacture:", err);
     res.status(500).json({ message: safeMsg(err) });
   }
 };

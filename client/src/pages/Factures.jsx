@@ -1018,15 +1018,16 @@ export default function Factures() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Annuler cette facture ?")) return;
+    const facture = factures.find((f) => f._id === id);
+    const label   = facture?.numero ? `la facture ${facture.numero}` : "cette facture";
+    if (!window.confirm(`Êtes-vous sûr de vouloir annuler ${label} ?\nCette action est irréversible.`)) return;
     try {
       await factureService.delete(id);
-      setFactures((prev) =>
-        prev.map((f) => (f._id === id ? { ...f, statut: "annulee" } : f))
-      );
+      reloadFactures();
       addToast("Facture annulée.", "warning");
-    } catch {
-      addToast("Erreur annulation.", "error");
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Erreur lors de l'annulation.";
+      addToast(msg, "error");
     }
   };
 
