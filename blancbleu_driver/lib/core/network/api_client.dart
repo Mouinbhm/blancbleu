@@ -7,6 +7,12 @@ class ApiClient {
   late final Dio _dio;
   final _storage = const FlutterSecureStorage();
 
+  /// Set this callback from the app root to handle expired / invalid tokens.
+  /// It will be called once when any API call receives a 401 or 403 response.
+  static void Function()? onUnauthorized;
+
+  bool _loggedOut = false; // prevent multiple logout calls in rapid succession
+
   ApiClient._() {
     _dio = Dio(BaseOptions(
       baseUrl:        AppConstants.apiBase,
@@ -22,12 +28,23 @@ class ApiClient {
         handler.next(options);
       },
       onError: (err, handler) {
+        final status = err.response?.statusCode;
+        if ((status == 401 || status == 403) && !_loggedOut) {
+          _loggedOut = true;
+          // Clear stored credentials and notify the app to go back to login
+          _storage.delete(key: AppConstants.tokenKey);
+          _storage.delete(key: AppConstants.userKey);
+          onUnauthorized?.call();
+        }
         handler.next(err);
       },
     ));
   }
 
   static ApiClient get instance => _instance ??= ApiClient._();
+
+  /// Call after a successful login so the 401-guard is reset for the new session.
+  void resetSession() => _loggedOut = false;
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> login(String email, String password) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/network/api_client.dart';
 import 'core/network/sync_service.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/theme/theme_notifier.dart';
@@ -48,14 +49,41 @@ class BlancBleuDriverApp extends StatelessWidget {
   }
 }
 
-class _Root extends StatelessWidget {
+class _Root extends StatefulWidget {
   const _Root();
+  @override
+  State<_Root> createState() => _RootState();
+}
+
+class _RootState extends State<_Root> {
+  @override
+  void initState() {
+    super.initState();
+    // When the server returns 401/403, auto-logout and go back to login
+    ApiClient.onUnauthorized = () {
+      if (!mounted) return;
+      context.read<AuthCubit>().logout();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Session expirée — veuillez vous reconnecter.'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+      ));
+    };
+  }
+
+  @override
+  void dispose() {
+    ApiClient.onUnauthorized = null;
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state is AuthSuccess) {
+          // Reset the logout guard so the new session works normally
+          ApiClient.instance.resetSession();
           SyncService.instance.sync();
         }
       },
